@@ -1300,7 +1300,7 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
         <div class="card-header"><div class="card-meta"><div class="card-title">Hybrid Logical Clocks (HLC)</div><div class="card-sub">Physical time meets causality</div></div><span class="badge badge-teal">Modern</span></div>
         <div class="card-body">
           <p>Here's the problem: Lamport clocks give you causal ordering but the numbers are meaningless as wall-clock times. Physical clocks give you real time but they drift and can't capture causality. HLC gives you both — timestamps that stay close to physical time and still respect happened-before.</p>
-          <div class="code">HLC = (l, c)   l ≈ physical time,  c breaks ties within same millisecond
+          <div class="code wrap">HLC = (l, c)   l ≈ physical time,  c breaks ties within same millisecond
 
 Node A, physical=100ms, no prior events:
   l = max(0, 100) = 100   → l changed → c = 0
