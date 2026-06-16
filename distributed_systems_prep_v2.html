@@ -19,6 +19,41 @@
   --bg:#FFFFFF;--panel:#F7F7F7;--line:#E5E5E5;--line-d:#CFCFCF;
   --r:16px;
 }
+/* ---- embedded-visualization token shim (maps Claude canvas tokens to v2 palette) ---- */
+:root{
+  --color-background-primary:#FFFFFF;
+  --color-background-secondary:var(--panel);
+  --color-background-info:var(--blue-bg);
+  --color-background-success:var(--green-bg);
+  --color-background-warning:#FFF3D6;
+  --color-background-danger:var(--red-bg);
+  --color-text-primary:var(--ink);
+  --color-text-secondary:var(--muted);
+  --color-text-tertiary:var(--faint);
+  --color-text-info:var(--blue-d);
+  --color-text-success:#3a6b13;
+  --color-text-warning:#8A6100;
+  --color-text-danger:var(--red-d);
+  --color-border-primary:var(--line-d);
+  --color-border-secondary:var(--line-d);
+  --color-border-tertiary:var(--line);
+  --color-border-info:var(--blue);
+  --color-border-success:#B5E89A;
+  --color-border-warning:var(--yellow-d);
+  --border-radius-lg:14px;
+  --border-radius-md:12px;
+  --border-radius-sm:10px;
+  --font-mono:ui-monospace,Menlo,monospace;
+}
+.htmlviz{text-align:left;font-weight:500}
+.htmlviz .hv-nav button{background:#fff;border:2px solid var(--line);border-bottom-width:3px;border-radius:10px;color:var(--blue-d);cursor:pointer;width:34px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;font-family:inherit}
+.htmlviz .hv-nav button:active{transform:translateY(2px);border-bottom-width:2px}
+.htmlviz .hv-nav button:disabled{opacity:.4;cursor:default}
+.htmlviz .hv-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.htmlviz .hv-dots{display:flex;gap:6px}
+.htmlviz .hv-dot{width:8px;height:8px;border-radius:50%;background:var(--line-d);transition:all .15s}
+.htmlviz .hv-dot.on{background:var(--blue);transform:scale(1.35)}
+.htmlviz .hv-lbl{font-size:13px;color:var(--muted);font-weight:800;flex:1}
 html,body{height:100%;font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:17px;font-weight:700;line-height:1.45;overscroll-behavior:none}
 #app{max-width:560px;margin:0 auto;min-height:100vh;padding-bottom:40px}
 .hidden{display:none!important}
@@ -532,9 +567,49 @@ const UNITS=[
    {t:'mcq',q:'In plain chain replication, where do reads go to stay linearizable?',o:['the head','any replica','the tail','a random node'],a:2,why:'The tail only sees fully-propagated (committed) writes, so reading it is linearizable.'},
    {t:'mcq',q:'How does CRAQ scale reads beyond just the tail?',o:['it caches at the head','any node serves reads; a dirty node checks the tail for the committed version','it drops linearizability','it adds more tails'],a:1,why:'Clean nodes answer directly; only dirty nodes consult the tail — so all nodes share read load without losing linearizability.'},
    {t:'recall',q:'Explain chain replication and what CRAQ adds.',model:['Replicas form an ordered chain: writes enter at the head, propagate node-by-node, and ack only once the tail has them; reads come from the tail → linearizable.','It splits load (head ingests writes, tail serves reads) with clean per-node recovery — but a node failure stalls the chain until a control plane reconfigures it.','CRAQ lets any node serve reads (clean node answers directly, dirty node asks the tail for the committed version), so reads scale without losing linearizability.']}
+  ]},
+  {id:'repl-crdt',title:'CRDTs',steps:[
+   {t:'teach',h:'Conflict-free replicated data types',body:[
+     {k:'tldr',t:'Data types whose merge is automatic — replicas that saw the same updates converge to the same state, no coordinator needed.'},
+     {k:'point',i:'🔢',t:'<b>G-Counter</b>: one counter per node; merge = element-wise max; value = sum. <b>PN-Counter</b> = two G-Counters (P for inc, N for dec).'},
+     {k:'point',i:'🧺',t:'Also: <b>G-Set / OR-Set</b> for sets, <b>LWW-Register</b>, sequence CRDTs (RGA) for collaborative text.'},
+     {k:'note',t:'Merge must be commutative, associative, and idempotent. Used by Figma, Yjs, Automerge, Riak.'}
+   ]},
+   {t:'htmlviz',h:'G-Counter merge',
+    html:`<style>
+.gc-cap{font-size:12.5px;color:var(--color-text-tertiary);margin-bottom:10px;line-height:1.5}
+.gc-row{display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap}
+.gc-name{font-size:14px;font-weight:800;color:var(--color-text-primary);min-width:84px}
+.gc-sub{font-size:12px;color:var(--color-text-tertiary);min-width:92px}
+.gc-vec{display:flex;gap:6px}
+.gc-cell{font-family:var(--font-mono);font-size:14px;padding:4px 10px;border-radius:var(--border-radius-md);background:#fff;border:2px solid var(--color-border-tertiary);color:var(--color-text-secondary);font-weight:700}
+.gc-cell b{color:var(--color-text-tertiary);margin-right:3px}
+.gc-cell.win{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.gc-cell.win b{color:var(--color-text-success)}
+.gc-diverge{font-size:12px;color:var(--color-text-warning);font-weight:700}
+.gc-btn{margin:14px 0 4px;font-size:14px;font-weight:800;padding:9px 15px;border:2px solid var(--color-border-info);border-bottom-width:3px;border-radius:12px;background:var(--color-background-info);color:var(--color-text-info);cursor:pointer;font-family:inherit}
+.gc-btn:active{transform:translateY(2px);border-bottom-width:2px}
+.gc-btn:disabled{opacity:.5;cursor:default}
+.gc-total{font-size:13px;color:var(--color-text-secondary);margin-top:8px;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px;line-height:1.6;font-weight:600}
+.gc-total b{color:var(--color-text-primary);font-weight:800}
+.gc-note{font-size:12.5px;color:var(--color-text-tertiary);margin-top:14px;line-height:1.6}
+.gc-note b{color:var(--color-text-secondary)}
+</style>
+<div class="gc-cap">G-Counter — nodes A, B, C each track their own increments. Two replicas diverged during a partition:</div>
+<div class="gc-row"><span class="gc-name">Replica 1</span><span class="gc-sub">saw A+2, B+1</span><span class="gc-vec"><span class="gc-cell"><b>A</b>2</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>0</span></span></div>
+<div class="gc-row"><span class="gc-name">Replica 2</span><span class="gc-sub">saw B+1, C+3</span><span class="gc-vec"><span class="gc-cell"><b>A</b>0</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>3</span></span><span class="gc-diverge">← diverged</span></div>
+<button class="gc-btn">Merge ▸ element-wise max (no coordinator)</button>
+<div class="gc-result" style="display:none">
+<div class="gc-row"><span class="gc-name">Merged</span><span class="gc-sub">max each slot</span><span class="gc-vec"><span class="gc-cell win"><b>A</b>2</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell win"><b>C</b>3</span></span></div>
+<div class="gc-total">[max(2,0), max(1,1), max(0,3)] = [2, 1, 3] · total = 2+1+3 = <b>6</b> ✓ — both replicas converge to the same value, regardless of merge order.</div>
+</div>
+<div class="gc-note"><b>PN-Counter</b> = two G-Counters (P counts increments, N decrements); value = sum(P) − sum(N). Merge each independently → supports inc <em>and</em> dec.</div>`,
+    setup:function(root){var b=root.querySelector('.gc-btn'),r=root.querySelector('.gc-result');if(b)b.addEventListener('click',function(){r.style.display='';b.disabled=true;});}},
+   {t:'mcq',q:'How do two diverged G-Counter replicas converge?',o:['last-write-wins','element-wise max of per-node counts','sum then divide','a coordinator decides'],a:1,why:'Element-wise max is commutative, associative and idempotent, so replicas converge to the same state regardless of order — no coordinator.'},
+   {t:'recall',q:'Why do CRDTs need no conflict resolution?',model:['Their merge is mathematically lawful (commutative, associative, idempotent), so any order of updates converges to the same state — "strong eventual consistency".','G-Counter merges by element-wise max; PN-Counter is two G-Counters (inc/dec); OR-Set tags adds so add wins over remove.','Trade-off: limited to types with a lawful merge, and deletes can leave tombstones that accumulate.']}
   ]}
  ],
- boss:{title:'Replication Boss',time:130,q:[
+ boss:{title:'Replication Boss',time:135,q:[
    {q:'Most common replication topology?',o:['Multi-leader','Single-leader','Leaderless','No replication'],a:1},
    {q:'Async replication mainly risks…',o:['latency','data loss on crash','storage','deadlock'],a:1},
    {q:'W+R>N guarantees…',o:['lower latency','read/write set overlap','no conflicts','strong order'],a:1},
@@ -796,6 +871,50 @@ const UNITS=[
      {k:'tldr',t:'A counter per process. Local/send: +1. Receive: max(local, msg)+1.'},
      {k:'callout',c:'warn',t:'A→B implies clock(A)<clock(B), but NOT the reverse. Can’t detect concurrency.'}
    ]},
+   {t:'htmlviz',h:'Lamport clock — step through it',
+    html:`<style>
+.lcv-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+.lcv-node{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:15px;flex-shrink:0}
+.lcv-node.a{background:var(--blue)}.lcv-node.b{background:var(--green)}.lcv-node.c{background:var(--orange)}
+.lcv-cnt{font-family:var(--font-mono);font-size:19px;font-weight:800;color:var(--color-text-tertiary);min-width:26px;text-align:center;border-radius:7px;padding:1px 5px}
+.lcv-cnt.up{color:var(--color-text-success);background:var(--color-background-success)}
+.lcv-act{font-size:12.5px;color:var(--color-text-tertiary)}
+.lcv-rules{font-size:13px;color:var(--color-text-secondary);line-height:1.9;padding:6px 0}
+.lcv-rules b{color:var(--color-text-primary);font-weight:800}
+.lcv-rules code{font-family:var(--font-mono);font-size:12px;background:var(--color-background-secondary);padding:1px 5px;border-radius:4px}
+.lcv-ex{margin-top:12px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.lcv-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="lcv-panel">
+  <div class="lcv-rules"><b>Rule 1 — local event:</b> <code>C = C + 1</code><br><b>Rule 2 — send:</b> attach C to the message<br><b>Rule 3 — receive:</b> <code>C = max(local, received) + 1</code></div>
+  <div class="lcv-ex">These three rules guarantee: if event A <b>caused</b> B, then <code>L(A) &lt; L(B)</code>.</div>
+</div>
+<div class="lcv-panel">
+  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt up">1</span><span class="lcv-act">writes x → +1</span></div>
+  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt">0</span></div>
+  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt">0</span></div>
+  <div class="lcv-ex">A does a local event and increments: <b>0 → 1</b>.</div>
+</div>
+<div class="lcv-panel">
+  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt up">2</span><span class="lcv-act">send (msg carries 2)</span></div>
+  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt up">3</span><span class="lcv-act">recv: max(0,2)+1</span></div>
+  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt">0</span></div>
+  <div class="lcv-ex">A increments before sending (<b>1 → 2</b>). B receives and applies Rule 3: <b>max(0, 2) + 1 = 3</b>.</div>
+</div>
+<div class="lcv-panel">
+  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt">2</span></div>
+  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt">3</span></div>
+  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt up">1</span><span class="lcv-act">writes z → +1</span></div>
+  <div class="lcv-ex">C independently writes z: <b>0 → 1</b>. Same value as A's first event — are they ordered? <b>No, concurrent.</b> Lamport can't tell; only vector clocks can.</div>
+</div>
+<div class="lcv-panel">
+  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt">2</span></div>
+  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt up">4</span><span class="lcv-act">send (msg carries 4)</span></div>
+  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt up">5</span><span class="lcv-act">recv: max(1,4)+1</span></div>
+  <div class="lcv-ex">B increments (<b>3 → 4</b>) and sends to C: <b>max(1, 4) + 1 = 5</b>. The causal chain A→B→C reads <b>1 &lt; 2 &lt; 3 &lt; 4 &lt; 5</b>, even though C never talked to A directly.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,5,{panelClass:'lcv-panel',labels:['The three rules','A: local event','A → B: counters merge','C: concurrent event','B → C: chain catches up']});}},
    {t:'teach',h:'Vector clocks',body:[
      {k:'point',i:'🧮',t:'One counter per process. Compare element-wise.'},
      {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
@@ -1205,6 +1324,69 @@ const UNITS=[
      ' is two writes to DIFFERENT objects that jointly break a rule. The fix for both is ',{blank:'serializable',alt:['serializability']},' isolation (or SSI).'
    ]},
    {t:'mcq',q:'Two on-call doctors each clock off because each sees the other still on. That’s…',o:['a dirty read','a phantom','write skew','a lost update'],a:2,why:'Disjoint writes that together break an invariant = write skew. Needs serializable/SSI.'},
+   {t:'htmlviz',h:'Isolation levels vs anomalies',
+    html:`<style>
+.iso-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.iso-tbl th{text-align:left;padding:8px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
+.iso-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:middle}
+.iso-tbl tr:last-child td{border-bottom:none}
+.iso-tbl tr.hl td{background:var(--color-background-secondary)}
+.iso-lvl{font-weight:800;color:var(--color-text-primary);font-size:12.5px}
+.iso-y,.iso-n,.iso-m{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-weight:800}
+.iso-y{background:var(--color-background-success);color:var(--color-text-success);font-size:13px}
+.iso-n{background:var(--color-background-danger);color:var(--color-text-danger);font-size:13px}
+.iso-m{background:var(--color-background-warning);color:var(--color-text-warning);font-size:11px}
+.iso-leg{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--color-text-tertiary);flex-wrap:wrap}
+.iso-leg span{display:flex;align-items:center;gap:5px}
+</style>
+<table class="iso-tbl"><thead><tr><th style="width:30%">Isolation level</th><th>Dirty read</th><th>Dirty write</th><th>Read skew</th><th>Lost update</th><th>Write skew</th></tr></thead><tbody>
+<tr><td class="iso-lvl">Read uncommitted</td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Read committed</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr><td class="iso-lvl">Snapshot isolation</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-m">~</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Serializable</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td></tr>
+</tbody></table>
+<div class="iso-leg"><span><span class="iso-y">✓</span> prevented</span><span><span class="iso-n">✕</span> vulnerable</span><span><span class="iso-m">~</span> depends on DB</span></div>`},
+   {t:'htmlviz',h:'Phantom read → double booking',
+    html:`<style>
+.phv-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.phv-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.phv-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.phv-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.phv-sql .kw{color:var(--color-text-info)}
+.phv-sql .hl{color:var(--color-text-success);font-weight:700}
+.phv-sql .bad{color:var(--color-text-danger);font-weight:700}
+.phv-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
+.phv-tbl th{text-align:left;padding:5px 8px;font-weight:700;color:var(--color-text-tertiary);border-bottom:1px solid var(--color-border-tertiary);font-size:11px}
+.phv-tbl td{padding:5px 8px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)}
+.phv-tbl tr.bad td{color:var(--color-text-danger);font-weight:700}
+.phv-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.phv-ex b{color:var(--color-text-primary);font-weight:800}
+@media (max-width:460px){.phv-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
+  </div>
+  <div class="phv-ex">Both check Room 42 @2pm, both see <b>zero rows</b>, both conclude the slot is available.</div>
+</div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="hl">42,'2pm','Alice'</span>);\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="bad">42,'2pm','Bob'</span>);\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← should fail</span></div></div>
+  </div>
+  <table class="phv-tbl"><thead><tr><th>room</th><th>time</th><th>user</th></tr></thead><tbody><tr><td>42</td><td>2pm</td><td>Alice</td></tr><tr class="bad"><td>42</td><td>2pm</td><td>Bob</td></tr></tbody></table>
+  <div class="phv-ex"><b>Double booking.</b> When Bob ran his SELECT, Alice's row didn't exist yet — it's a <b>phantom</b>: a row that would change his result appeared after his query but before his commit.</div>
+</div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Predicate lock</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=42 <span class="kw">AND</span> time='2pm'\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">locks the predicate —</span>\n<span class="hl">even rows not yet</span>\n<span class="hl">inserted</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Bob now blocks</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(42,'2pm','Bob');\n\n<span class="bad">⏳ BLOCKED — matches</span>\n<span class="bad">  Alice's predicate</span>\n\nafter Alice commits:\ncount=1 → Bob backs off</div></div>
+  </div>
+  <div class="phv-ex">A <b>predicate / index-range lock</b> locks the condition itself, so any matching insert is blocked. <b>SSI</b> instead lets both run and aborts one at commit when it detects the conflict.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'phv-panel',labels:['1 · Both check for bookings','2 · Both insert — phantom!','3 · Fix: predicate lock / SSI']});}},
    {t:'recall',q:'Explain lost update vs write skew.',model:['Lost update: two read-modify-write cycles on the SAME object — one overwrites the other. Fix with atomic op / SELECT FOR UPDATE / compare-and-set.','Write skew: two txns read an overlapping set and write DIFFERENT rows that jointly violate a constraint. Fix with serializable/SSI.']}
   ]},
   {id:'conc-2',title:'Mechanisms',steps:[
@@ -1225,6 +1407,42 @@ const UNITS=[
    ]},
    {t:'mcq',q:'You expect LOW contention. Which control fits best?',o:['2PL (pessimistic)','OCC (optimistic)','a global lock','serial execution'],a:1,why:'OCC avoids lock overhead and rarely has to retry when conflicts are rare.'},
    {t:'build',q:'Pick valid ways to handle deadlocks.',options:['Consistent lock ordering','Lock timeouts','Wait-die / wound-wait','Acquire even more locks','Detect a cycle & abort a victim'],correct:[0,1,2,4]},
+   {t:'htmlviz',h:'Fencing tokens vs the GC-pause zombie',
+    html:`<style>
+.fcv-tl{position:relative;padding:0 0 0 12px}
+.fcv-evt{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;position:relative}
+.fcv-evt::before{content:'';position:absolute;left:-8px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--color-border-secondary)}
+.fcv-evt.bad::before{background:var(--color-text-danger)}
+.fcv-evt.good::before{background:var(--color-text-success)}
+.fcv-actor{font-size:12px;font-weight:800;color:var(--color-text-primary);min-width:84px;padding-top:1px}
+.fcv-desc{font-size:13px;color:var(--color-text-secondary);line-height:1.5}
+.fcv-desc b{font-weight:800;color:var(--color-text-primary)}
+.fcv-ex{margin-top:12px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.fcv-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="fcv-panel">
+  <div class="fcv-tl">
+    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock from ZooKeeper (lease 10s)</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc"><b>GC pause — frozen 15s</b></div></div>
+    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → grants lock to Client B</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Holds lock, writes to storage</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes up, <b>still thinks it holds the lock</b>, writes</div></div>
+  </div>
+  <div class="fcv-ex">Two clients both believe they hold the lock. Client A is a <b>zombie</b> — it missed its own lease expiry, and its writes can corrupt Client B's data.</div>
+</div>
+<div class="fcv-panel">
+  <div class="fcv-tl">
+    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock → <b>fencing token #33</b></div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">GC pause — frozen 15s</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → lock + <b>token #34</b> to Client B</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Writes with #34 → storage records max=34</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes, writes with stale token #33</div></div>
+    <div class="fcv-evt good"><div class="fcv-actor">Storage</div><div class="fcv-desc"><b>Rejects #33</b> — lower than max seen (34)</div></div>
+  </div>
+  <div class="fcv-ex">Storage itself enforces ordering. It doesn't matter that A thinks it holds the lock — the token proves it's stale. ZooKeeper's <b>zxid</b> serves exactly this purpose.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,2,{panelClass:'fcv-panel',labels:['The problem: GC-pause zombie','The fix: fencing tokens']});}},
    {t:'recall',q:'When would you choose OCC over 2PL?',model:['OCC when contention is low — most txns commit without conflict, so skipping locks is a net win.','2PL (pessimistic) when contention is high, so you avoid wasteful aborts/retries.']}
   ]}
  ],
@@ -1254,6 +1472,27 @@ const UNITS=[
      {k:'cause',a:'Denormalize (duplicate data)',b:'Faster reads, but harder writes + consistency'},
      {k:'note',t:'Normalize for write integrity; denormalize for read speed. Most systems do both, per access pattern.'}
    ]},
+   {t:'htmlviz',h:'Choosing a database by access pattern',
+    html:`<style>
+.dbv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dbv-opt{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.dbv-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dbv-ic{font-size:17px}
+.dbv-title{font-size:14px;font-weight:800;color:var(--color-text-primary)}
+.dbv-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.5;margin-bottom:7px}
+.dbv-ex{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.dbv-tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#fff;border:1px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.dbv-use{font-size:11px;color:var(--color-text-tertiary);font-style:italic}
+@media (max-width:460px){.dbv-grid{grid-template-columns:1fr}}
+</style>
+<div class="dbv-grid">
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🗃️</span><span class="dbv-title">Relational (SQL)</span></div><div class="dbv-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default.</div><div class="dbv-ex"><span class="dbv-tag">PostgreSQL</span><span class="dbv-tag">MySQL</span></div><div class="dbv-use">users, orders, payments, foreign keys</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📄</span><span class="dbv-title">Document</span></div><div class="dbv-desc">Self-contained objects, flexible schema. Fetch the whole thing by ID; relationships don't matter.</div><div class="dbv-ex"><span class="dbv-tag">MongoDB</span><span class="dbv-tag">DynamoDB</span></div><div class="dbv-use">profiles, catalogs, CMS content</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🔑</span><span class="dbv-title">Key-value</span></div><div class="dbv-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — get/set.</div><div class="dbv-ex"><span class="dbv-tag">Redis</span><span class="dbv-tag">Memcached</span></div><div class="dbv-use">sessions, cache, rate limits, leaderboards</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📊</span><span class="dbv-title">Column (OLAP)</span></div><div class="dbv-desc">Scan billions of rows, few columns. Compression-friendly. Built for aggregates, not point lookups.</div><div class="dbv-ex"><span class="dbv-tag">ClickHouse</span><span class="dbv-tag">BigQuery</span></div><div class="dbv-use">analytics, dashboards, warehouse</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">⏱️</span><span class="dbv-title">Time-series</span></div><div class="dbv-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply.</div><div class="dbv-ex"><span class="dbv-tag">InfluxDB</span><span class="dbv-tag">Prometheus</span></div><div class="dbv-use">metrics, IoT, monitoring, logs</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🕸️</span><span class="dbv-title">Graph</span></div><div class="dbv-desc">Many-to-many. Index-free adjacency = O(1) hop vs O(log N) join. When traversals are the query.</div><div class="dbv-ex"><span class="dbv-tag">Neo4j</span><span class="dbv-tag">Neptune</span></div><div class="dbv-use">social graphs, recs, fraud rings</div></div>
+</div>`},
    {t:'recall',q:'When document model over relational?',model:['Document fits self-contained, one-to-many records read together (locality) with a flexible schema.','Relational wins for many-to-many relationships, joins, and ad-hoc queries across entities.']}
   ]},
   {id:'model-2',title:'Encoding & evolution',steps:[
@@ -1271,9 +1510,57 @@ const UNITS=[
    ]},
    {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
    {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
+  ]},
+  {id:'model-3',title:'Storage engines',steps:[
+   {t:'teach',h:'B-tree vs LSM-tree',body:[
+     {k:'point',i:'🌲',t:'<b>B-tree</b>: update in place on a balanced on-disk tree. Random-I/O writes; fast reads + range scans. Read-optimized (Postgres, MySQL).'},
+     {k:'point',i:'📥',t:'<b>LSM-tree</b>: buffer writes in memory, flush sequentially to immutable SSTables, compact in the background. Sequential writes = high throughput; reads check multiple levels (Bloom filters help). Write-optimized (Cassandra, RocksDB).'},
+     {k:'note',t:'Rule of thumb: write-heavy / ingest → LSM; read-heavy with range scans → B-tree.'}
+   ]},
+   {t:'htmlviz',h:'B-Tree vs LSM-Tree',
+    html:`<style>
+.blv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.blv-card{background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:14px 16px}
+.blv-label{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--color-text-tertiary);text-transform:uppercase;margin-bottom:8px}
+.blv-name{font-size:15px;font-weight:800;color:var(--color-text-primary);margin-bottom:10px}
+.blv-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--color-border-tertiary);font-size:12.5px}
+.blv-row:last-child{border-bottom:none}
+.blv-k{color:var(--color-text-secondary)}
+.blv-v{color:var(--color-text-primary);font-weight:700}
+.blv-v.good{color:var(--color-text-success)}
+.blv-v.warn{color:var(--color-text-warning)}
+.blv-tag{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:700}
+.blv-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
+.blv-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
+@media (max-width:460px){.blv-grid{grid-template-columns:1fr}}
+</style>
+<div class="blv-grid">
+  <div class="blv-card">
+    <div class="blv-label">classic <span class="blv-tag blv-tag-b">B-Tree</span></div><div class="blv-name">B-Tree</div>
+    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v warn">random I/O</span></div>
+    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v good">O(log n), fast</span></div>
+    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">excellent</span></div>
+    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">moderate</span></div>
+    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v good">low</span></div>
+    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">in-place</span></div>
+    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Postgres, MySQL</span></div>
+  </div>
+  <div class="blv-card">
+    <div class="blv-label">write-optimized <span class="blv-tag blv-tag-l">LSM</span></div><div class="blv-name">LSM-Tree + SSTables</div>
+    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v good">sequential, fast</span></div>
+    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v warn">check many levels</span></div>
+    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">good (sorted)</span></div>
+    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">high (compaction)</span></div>
+    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v warn">higher</span></div>
+    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">append-only</span></div>
+    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Cassandra, RocksDB</span></div>
+  </div>
+</div>`},
+   {t:'mcq',q:'A write-heavy ingest workload (logs, metrics) fits…',o:['B-tree','LSM-tree','a graph DB','a cache only'],a:1,why:'LSM buffers in memory and flushes sequentially → high write throughput; a B-tree does random-I/O in-place updates.'},
+   {t:'recall',q:'B-tree vs LSM — the tradeoff?',model:['B-tree updates in place: random-I/O writes, excellent reads and range scans → read-optimized (Postgres, MySQL).','LSM buffers writes and flushes sequential SSTables with background compaction: high write throughput, reads check multiple levels (Bloom filters mitigate) → write-optimized (Cassandra, RocksDB).','Pick by workload: write-heavy → LSM; read/range-heavy → B-tree.']}
   ]}
  ],
- boss:{title:'Data Models Boss',time:65,q:[
+ boss:{title:'Data Models Boss',time:75,q:[
    {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
    {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
    {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
@@ -1722,12 +2009,13 @@ function renderStep(){
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
-  else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz}[step.t])(stage,step);}
+  else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz,htmlviz:stHtmlViz}[step.t])(stage,step);}
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
 function renderReview(stage,step){
   if(step.t==='vecviz'){stVecViz(stage,step);return;}
+  if(step.t==='htmlviz'){stHtmlViz(stage,step);return;}
   let h='<div class="q-sub">↩ Review (already answered)</div>';
   if(step.t==='teach'){h+='<div class="q-title">'+step.h+'</div>';step.body.forEach(b=>h+=blockHTML(b));}
   else if(step.t==='mcq'){h+='<div class="q-title">'+step.q+'</div><div class="opts">';step.o.forEach((o,i)=>{h+='<div class="opt '+(i===step.a?'correct':'dim')+'">'+o+'</div>';});h+='</div>';if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
@@ -1746,6 +2034,32 @@ function showCombo(){
 }
 
 function nextStep(){R.idx++;if(R.idx>R.frontier)R.frontier=R.idx;renderStep();}
+
+/* ---------- step: htmlviz (embedded HTML/CSS widget with a scoped setup fn) ---------- */
+function stHtmlViz(stage,step){
+  stage.innerHTML='<div class="q-sub">🎬 Visualize</div><div class="q-title">'+step.h+'</div><div class="htmlviz">'+step.html+'</div>';
+  const root=stage.querySelector('.htmlviz');
+  if(step.setup){try{step.setup(root,vizStepper);}catch(e){}}
+  footBtn('Got it',()=>nextStep());
+}
+/* reusable prev/next stepper for htmlviz widgets. Panels (class panelClass) are pre-rendered in the html; this toggles visibility + dots + label. */
+function vizStepper(root,n,opts){
+  opts=opts||{};let cur=0;
+  const dots=root.querySelector('.hv-dots');
+  if(dots)for(let i=0;i<n;i++){const d=document.createElement('span');d.className='hv-dot';dots.appendChild(d);}
+  const panels=root.querySelectorAll('.'+opts.panelClass);
+  const prev=root.querySelector('.hv-prev'),next=root.querySelector('.hv-next'),lbl=root.querySelector('.hv-lbl');
+  function show(){
+    panels.forEach((p,i)=>{p.style.display=i===cur?'':'none';});
+    root.querySelectorAll('.hv-dot').forEach((d,i)=>d.classList.toggle('on',i===cur));
+    if(lbl&&opts.labels)lbl.textContent=opts.labels[cur];
+    if(prev)prev.disabled=cur===0;
+    if(next)next.disabled=cur===n-1;
+  }
+  if(prev)prev.addEventListener('click',()=>{if(cur>0){cur--;show();}});
+  if(next)next.addEventListener('click',()=>{if(cur<n-1){cur++;show();}});
+  show();
+}
 
 /* feedback bar + advance */
 function feedback(ok,msg,onNext){
