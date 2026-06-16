@@ -75,7 +75,11 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .node{position:relative;width:74px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .05s}
 .node:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
 .node.locked{background:#E0E0E0!important;box-shadow:0 5px 0 #C8C8C8;color:#fff;cursor:default}
-.node.done::after{content:"✓";position:absolute;right:-2px;top:-2px;background:var(--yellow);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid var(--bg)}
+.node.perfect::after{content:"✓";position:absolute;right:-2px;top:-2px;background:var(--yellow);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid var(--bg)}
+.node.good::after{content:"✓";position:absolute;right:-2px;top:-2px;background:var(--green);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;border:3px solid var(--bg)}
+.node.partial{opacity:.8}
+.node.partial::after{content:"↻";position:absolute;right:-3px;top:-3px;background:var(--orange);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;border:3px solid var(--bg)}
+.node-label .pct{color:var(--orange);font-weight:800;font-size:11px}
 .node.boss{width:84px;height:76px;font-size:34px}
 .node-label{font-size:13px;font-weight:800;color:var(--muted);margin-top:-2px}
 .node-wrap{display:flex;flex-direction:column;align-items:center;gap:1px}
@@ -281,8 +285,10 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 const SAVE_KEY='dsq_v2_save';
 function load(){try{return JSON.parse(localStorage.getItem(SAVE_KEY))||{};}catch(e){return{};}}
 function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
-var S=Object.assign({xp:0,done:{},badges:{},streak:0,lastDay:null,recallNailed:0,unlockAll:false,mistakes:{}},load());
+var S=Object.assign({xp:0,done:{},badges:{},streak:0,lastDay:null,recallNailed:0,unlockAll:false,mistakes:{},perfect:{},best:{}},load());
 if(!S.mistakes)S.mistakes={};
+if(!S.perfect)S.perfect={};
+if(!S.best)S.best={};
 
 /* streak update on open */
 (function(){
@@ -1514,6 +1520,8 @@ const APP=()=>document.getElementById('app');
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function lessonById(id){for(const u of UNITS)for(const l of u.lessons)if(l.id===id)return{u,l};return null;}
+const GOOD_PCT=80; // best score at/above this counts as a ✓ pass (no retry nudge)
+function tierOf(id){if(!S.done[id])return null;if(S.perfect[id])return 'perfect';return (S.best[id]||0)>=GOOD_PCT?'good':'partial';}
 function unitProgress(u){const total=u.lessons.length+1;let d=0;u.lessons.forEach(l=>{if(S.done[l.id])d++;});if(S.done['boss-'+u.id])d++;return{d,total};}
 function unitUnlocked(ui){if(S.unlockAll||ui===0)return true;const prev=UNITS[ui-1];return !!S.done['boss-'+prev.id];}
 function lessonUnlocked(u,li){if(S.unlockAll||li===0)return true;return !!S.done[u.lessons[li-1].id];}
@@ -1556,19 +1564,23 @@ function renderHome(){
     u.lessons.forEach((l,li)=>{
       const open=unlocked&&lessonUnlocked(u,li);
       const done=S.done[l.id];
-      const cls=done?'done':(open?'':'locked');
+      const tier=tierOf(l.id);
+      const perfect=tier==='perfect';
+      const cls=done?('done '+tier):(open?'':'locked');
       const off=li%2===1?'off1':(li%2===0&&li>0?'off2':'');
-      const bg=done?u.color:(open?u.color:'');
+      const title=(done&&!perfect)?(' title="Best '+(S.best[l.id]||0)+(tier==='good'?'% — passed; revisit to perfect it':'% — revisit to perfect it')+'"'):'';
       h+='<div class="node-wrap '+off+'">'
-        +'<button class="node '+cls+'" '+(open?('data-lesson="'+l.id+'"'):'')+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
-        +'<div class="node-label">'+l.title+'</div></div>';
+        +'<button class="node '+cls+'" '+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
+        +'<div class="node-label">'+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
     // boss node
     const bopen=unlocked&&bossUnlocked(u);
     const bdone=S.done['boss-'+u.id];
+    const btier=tierOf('boss-'+u.id);
+    const bperfect=btier==='perfect';
     h+='<div class="node-wrap">'
-      +'<button class="node boss '+(bdone?'done':(bopen?'':'locked'))+'" '+(bopen?('data-boss="'+u.id+'"'):'')+' style="'+(bopen||bdone?'background:'+u.colorD:'')+'">'+(bopen||bdone?'👑':'🔒')+'</button>'
-      +'<div class="node-label">'+u.boss.title+'</div></div>';
+      +'<button class="node boss '+(bdone?('done '+btier):(bopen?'':'locked'))+'" '+(bopen?('data-boss="'+u.id+'"'):'')+((bdone&&!bperfect)?(' title="Best '+(S.best['boss-'+u.id]||0)+'% — revisit"'):'')+' style="'+(bopen||bdone?'background:'+u.colorD:'')+'">'+(bopen||bdone?'👑':'🔒')+'</button>'
+      +'<div class="node-label">'+u.boss.title+(bdone&&!bperfect?' <span class="pct">'+(S.best['boss-'+u.id]||0)+'%</span>':'')+'</div></div>';
     h+='</div></div>';
   });
 
@@ -1958,12 +1970,17 @@ function finishRun(timedOut){
   if(R.mode==='review'){commitRun(true);return resultsScreen(true);}
   if(R.mode==='boss'){
     const ok = !timedOut && R.hearts>0 && acc()>=0.6;
-    if(ok){S.done['boss-'+R.unit.id]=true;commitRun(true);}
+    if(ok){S.done['boss-'+R.unit.id]=true;recordResult('boss-'+R.unit.id);commitRun(true);}
     else{commitRun(false);}
     return resultsScreen(ok);
   }
-  if(R.hearts>0){S.done[R.lesson.id]=true;commitRun(true);resultsScreen(true);}
+  if(R.hearts>0){S.done[R.lesson.id]=true;recordResult(R.lesson.id);commitRun(true);resultsScreen(true);}
   else{commitRun(false);resultsScreen(false);}
+}
+function recordResult(id){
+  const flawless=R.mistakes===0 && R.correct===R.graded;
+  S.perfect[id]=S.perfect[id]||flawless;
+  S.best[id]=Math.max(S.best[id]||0, R.graded?Math.round(R.correct/R.graded*100):100);
 }
 function acc(){return R.graded?R.correct/R.graded:0;}
 function commitRun(success){
