@@ -447,7 +447,7 @@ a{color:var(--accent);text-decoration:none}
           .gc-note { font-size: 12px; color: var(--color-text-tertiary); margin-top: 12px; line-height: 1.6; }
           .gc-note b { color: var(--color-text-secondary); font-weight: 500; }
           </style>
-          <div class="viz-embed gc-wrap" id="gcWrap" onclick="event.stopPropagation()">
+          <div class="gc-wrap" id="gcWrap" onclick="event.stopPropagation()">
             <div class="gc-cap">G-Counter — 3 nodes A, B, C, each tracks its own increments. Two replicas diverged during a partition:</div>
             <div class="gc-row"><span class="gc-name">Replica 1</span><span class="gc-sub">saw A+2, B+1</span><span class="gc-vec"><span class="gc-cell"><b>A</b>2</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>0</span></span></div>
             <div class="gc-row"><span class="gc-name">Replica 2</span><span class="gc-sub">saw B+1, C+3</span><span class="gc-vec"><span class="gc-cell"><b>A</b>0</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>3</span></span><span class="gc-diverge">← diverged</span></div>
