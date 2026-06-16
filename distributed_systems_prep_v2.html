@@ -1655,7 +1655,7 @@ function renderStep(){
   let h=topbarHTML()+'<div class="stage" id="stage"></div>';
   h+='<div class="combo" id="combo"></div>';
   APP().innerHTML=h;
-  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(confirm('Quit this quest? Progress in it will be lost.'))renderHome();else if(R.mode==='boss')startTimer();};
+  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome();return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome();else startTimer();};
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
