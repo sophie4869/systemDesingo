@@ -322,7 +322,7 @@ a{color:var(--accent);text-decoration:none}
   </div>
   <div class="nav-section">
     <div class="nav-label">ML infrastructure</div>
-    <div class="nav-item" onclick="showSection('mlinfra',this)"><span class="nav-dot"></span>ML systems (GDM)</div>
+    <div class="nav-item" onclick="showSection('mlinfra',this)"><span class="nav-dot"></span>ML systems</div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Practice</div>
@@ -931,7 +931,8 @@ Read  &rarr;                              TAIL</div>
 </svg>
 <div class="sga-ex">Run <b>compensating</b> txns in reverse: C2 refunds the charge, C1 cancels the order. Each C is a <b>semantic undo</b> (a refund/cancel row), NOT a DB rollback — and must be <b>idempotent</b> so retries are safe.</div>
 </div>
-          <p><strong>Choreography:</strong> each service reacts to events from others — decentralised, hard to track overall progress. <strong>Orchestration:</strong> a central saga orchestrator sends commands to each service — clearer flow, easier to debug, single point of control.</p>
+          <p><strong>Choreography:</strong> each service reacts to events from others — decentralised, hard to track overall progress.</p>
+          <p><strong>Orchestration:</strong> a central saga orchestrator sends commands to each service — clearer flow, easier to debug, single point of control.</p>
           <p>Critical requirements: every step must be idempotent (safe to retry), and every step must be compensable (semantic undo is possible). There's no atomic rollback — compensation is an application-level undo that may itself fail.</p>
           <div class="tag-row"><span class="tag">eventual consistency</span><span class="tag">idempotency required</span><span class="tag">no atomic rollback</span></div>
         </div>
@@ -1095,7 +1096,9 @@ Read  &rarr;                              TAIL</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Idempotency &amp; at-least-once delivery</div><div class="card-sub">Safe retry semantics</div></div><span class="badge badge-red">Critical</span></div>
         <div class="card-body">
           <p>Networks duplicate messages. Clients retry on timeout not knowing if the first attempt succeeded. Design operations to be idempotent: applying the same operation multiple times has the same effect as once.</p>
-          <p><strong>Idempotency keys:</strong> client generates a UUID per request. Server stores the key and result. On retry, returns the stored result without re-executing. <strong>Natural idempotency:</strong> PUT (set to this value) is naturally idempotent; POST (create) is not. <strong>Conditional writes:</strong> write only if current version matches — rejects duplicate writes that would update an already-updated record.</p>
+          <p><strong>Idempotency keys:</strong> client generates a UUID per request. Server stores the key and result. On retry, returns the stored result without re-executing.</p>
+          <p><strong>Natural idempotency:</strong> PUT (set to this value) is naturally idempotent; POST (create) is not.</p>
+          <p><strong>Conditional writes:</strong> write only if current version matches — rejects duplicate writes that would update an already-updated record.</p>
           <p>Exactly-once delivery is possible but expensive — it's usually implemented as at-least-once delivery + idempotent consumers, which is equivalent and much cheaper.</p>
           <div class="tag-row"><span class="tag">UUID idempotency key</span><span class="tag">at-least-once + idempotent = exactly-once</span></div>
         </div>
@@ -2418,8 +2421,8 @@ Processing time = when the stream processor sees the event
   <!-- ML Infrastructure -->
   <div id="section-mlinfra" class="section">
     <div class="section-intro">
-      <h2>ML systems (GDM-adjacent)</h2>
-      <p>At Google DeepMind, interviewers may frame standard distributed systems problems in an ML infrastructure context, or ask directly about feature stores, model serving, or training pipelines. These are engineering problems first — ML knowledge is not required to answer them well.</p>
+      <h2>ML systems</h2>
+      <p>Interviewers may frame standard distributed systems problems in an ML infrastructure context, or ask directly about feature stores, model serving, or training pipelines. These are engineering problems first — ML knowledge is not required to answer them well.</p>
     </div>
     <div class="cards">
 
