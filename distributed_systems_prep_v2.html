@@ -500,6 +500,7 @@ const UNITS=[
    {t:'teach',h:'How to prevent it',body:[
      {k:'point',i:'✅',t:'<b>Majority election</b> (Raft/Paxos): only the side with a quorum can elect — a partitioned minority can’t make a 2nd leader.'},
      {k:'point',i:'🎟️',t:'<b>Fencing tokens / epoch numbers</b>: each new term gets a higher number; storage rejects writes from an older term (fences out the stale leader).'},
+     {k:'point',i:'⏳',t:'<b>Leader lease</b>: leadership expires after X seconds — the leader must keep <b>renewing</b> it. Can’t renew (partitioned) → it stops acting. <i>No renew, no power.</i> A new leader waits out the old lease before serving. First line of defence — but it assumes bounded clock skew (a GC pause can fool a leader into thinking the lease still holds), so still pair it with fencing.'},
      {k:'point',i:'🎲',t:'<b>Randomised election timeouts</b> avoid split votes (two candidates tying forever).'}
    ]},
    {t:'sort',q:'Causes split brain, or prevents it?',buckets:['Causes it','Prevents it'],items:[
@@ -510,7 +511,7 @@ const UNITS=[
      ' election (a minority can’t elect) and ',{blank:'fencing',alt:['fencing tokens','epoch']},' tokens so storage rejects the stale leader’s writes.'
    ]},
    {t:'mcq',q:'A partitioned old leader keeps serving writes while a new one is elected. What stops the damage?',o:['a longer timeout','fencing tokens + majority election','more replicas','a bigger cache'],a:1,why:'Only a majority can elect (so the minority old leader can’t commit), and fencing/epoch numbers make storage reject its stale writes.'},
-   {t:'recall',q:'What is split brain and how do you prevent it?',model:['Split brain = two nodes both believe they’re leader and accept writes (returning old leader, or a healed partition) → conflicts/corruption.','Prevent it: require a MAJORITY quorum to elect (a minority can’t form a second leader), and use fencing tokens / epoch numbers so storage rejects an old leader’s writes.']}
+   {t:'recall',q:'What is split brain and how do you prevent it?',model:['Split brain = two nodes both believe they’re leader and accept writes (returning old leader, or a healed partition) → conflicts/corruption.','Prevent it: require a MAJORITY quorum to elect (a minority can’t form a second leader), and use fencing tokens / epoch numbers so storage rejects an old leader’s writes.','A leader lease helps too (the old leader self-demotes when it lapses) but only under bounded clock skew — fencing is the real safety net.']}
   ]}
  ],
  boss:{title:'Replication Boss',time:120,q:[
