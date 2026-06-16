@@ -443,6 +443,8 @@ const UNITS=[
    {t:'sort',q:'Which replication style fits the clue?',buckets:['Single-leader','Leaderless'],items:[
      {text:'PostgreSQL read replicas',b:0},{text:'Cassandra quorum writes',b:1},{text:'one writer, many readers',b:0},{text:'any node accepts writes',b:1}
    ]},
+   {t:'match',q:'Requirement → replication mode.',pairs:[['Must not lose an acked write','Sync / semi-sync'],['Lowest write latency, can lose the tail on crash','Async'],['Leaderless, tune freshness per request','Quorum (W+R>N)']]},
+   {t:'mcq',q:'A payments DB must not lose an acked write even if the primary dies. Replication?',o:['async','synchronous (or semi-sync)','none','LWW'],a:1,why:'Sync/semi-sync waits for a follower ack before confirming, so a committed write survives a primary crash — async would drop the un-replicated tail.'},
    {t:'mcq',q:'Biggest risk of ASYNC replication?',o:['high latency','data loss if leader crashes','too much storage','stale leader'],a:1,why:'Async confirms before followers ack, so a crash drops the un-replicated tail.'},
    {t:'recall',q:'Sync vs async replication — give the tradeoff in one breath.',model:['Sync = durable but doubles write latency (wait for a follower).','Async = fast but risks losing recent writes on a leader crash.','Semi-sync (one follower acks) is the common middle ground.']}
   ]},
@@ -737,6 +739,31 @@ const UNITS=[
    {t:'build',q:'Pick valid ways to serve LINEARIZABLE reads in Raft.',options:['Read from any follower','Leader lease','Read index (heartbeat quorum)','Random replica'],correct:[1,2]},
    {t:'recall',q:'How does Raft keep reads linearizable?',model:['Reads go through the leader, but a partitioned old leader could be stale.','Read-index: record commit index, confirm leadership with a heartbeat majority, wait until applied, then serve.','Or a leader lease (time-bounded) if clocks are trustworthy.']}
   ]},
+  {id:'raft-safe',title:'Safety invariants',steps:[
+   {t:'teach',h:'The guarantees Raft maintains',body:[
+     {k:'point',i:'👑',t:'<b>Election Safety</b>: at most ONE leader per term — majority vote, and each node votes once per term.'},
+     {k:'point',i:'➕',t:'<b>Leader Append-Only</b>: a leader never overwrites or deletes its own entries — it only appends.'},
+     {k:'point',i:'🔗',t:'<b>Log Matching</b>: if two logs share an entry at the same index+term, they’re identical up through that index. Enforced by the prevLogIndex/term consistency check.'}
+   ]},
+   {t:'teach',h:'Why committed entries never vanish',body:[
+     {k:'point',i:'🏆',t:'<b>Leader Completeness</b>: a committed entry is present in every future leader’s log. Guaranteed by the up-to-date vote restriction — a candidate missing committed entries can’t win a majority.'},
+     {k:'point',i:'🎯',t:'<b>State Machine Safety</b>: no two nodes ever apply a different command at the same log index. That’s the payoff of all the above.'}
+   ]},
+   {t:'teach',h:'The commit subtlety (Figure 8)',body:[
+     {k:'callout',c:'warn',t:'A leader commits an entry only once it’s on a majority AND is from its CURRENT term. Counting replicas of a <i>previous-term</i> entry is unsafe — it could still be overwritten.'},
+     {k:'note',t:'Older entries commit indirectly: once a current-term entry above them is committed, they are too.'}
+   ]},
+   {t:'mcq',q:'Why can’t a candidate that’s missing committed entries become leader?',o:['it has a higher id','voters reject a less up-to-date log → it can’t get a majority','the old leader vetoes it','it times out first'],a:1,why:'The up-to-date vote check (Leader Completeness) blocks it — that’s exactly how committed entries survive every future term.'},
+   {t:'mcq',q:'A Raft leader may mark an entry committed once it is…',o:['written to its own log','on a majority','on a majority AND from the leader’s current term','acked by any one follower'],a:2,why:'Committing a previous-term entry by replica count is unsafe (Figure 8); it commits via a current-term entry above it.'},
+   {t:'sort',q:'A real Raft invariant, or made up?',buckets:['Real invariant','Not a Raft rule'],items:[
+     {text:'one leader per term',b:0},{text:'identical index+term ⇒ identical prefix',b:0},{text:'leaders rewrite history to resolve conflicts',b:1},{text:'committed entries appear in all future leaders',b:0}
+   ]},
+   {t:'cloze',q:'Fill the Raft safety blanks.',distract:['epoch','quorum'],text:[
+     '<b>Log Matching</b>: same ',{blank:'index',alt:['index+term']},'+term ⇒ identical logs up to there. ',{blank:'Leader Completeness',alt:['completeness']},
+     ' keeps committed entries in every future leader, enforced by the ',{blank:'up-to-date',alt:['up to date','log']},' vote check. A leader only commits entries from its ',{blank:'current',alt:['own']},' term.'
+   ]},
+   {t:'recall',q:'State Raft’s key safety invariants and how each holds.',model:['Election Safety: ≤1 leader per term — majority vote, one vote per node per term.','Log Matching: identical index+term ⇒ identical prefixes — enforced by the prevLogIndex/term check on AppendEntries.','Leader Completeness: a committed entry is in every future leader’s log — because voters refuse a less up-to-date candidate.','Commit rule: a leader commits only majority-replicated entries from its CURRENT term (Figure 8); older entries commit indirectly. Together → State Machine Safety: everyone applies the same command at each index.']}
+  ]},
   {id:'raft-bft',title:'Byzantine faults',steps:[
    {t:'teach',h:'When nodes can lie',body:[
      {k:'tldr',t:'Raft/Paxos handle CRASH faults (a node stops). Byzantine faults are worse: a node can behave arbitrarily — send conflicting messages, lie, or be compromised.'},
@@ -840,7 +867,10 @@ const UNITS=[
    {q:'You actually need BFT…',o:['always','inside one datacenter','across trust boundaries','for any cache'],a:2},
    {q:'Paxos Phase 2 must reuse…',o:['its own value always','any already-accepted value','the lowest ballot','nothing'],a:1},
    {q:'ZooKeeper leader election uses…',o:['durable znodes','ephemeral sequential znodes','watches only','a range scan'],a:1},
-   {q:'A ZooKeeper zxid is structured as…',o:['a random UUID','epoch:counter','a timestamp','a hash'],a:1}
+   {q:'A ZooKeeper zxid is structured as…',o:['a random UUID','epoch:counter','a timestamp','a hash'],a:1},
+   {q:'Raft Election Safety guarantees…',o:['fast elections','at most one leader per term','no timeouts','strong reads'],a:1},
+   {q:'Committed entries survive future terms because…',o:['leaders copy them','voters reject less up-to-date candidates','of timeouts','of bigger quorums'],a:1},
+   {q:'A leader safely commits an entry when it’s on a majority AND…',o:['acked twice','from its current term','older than 1s','hashed'],a:1}
  ]}
 },
 {
@@ -914,6 +944,8 @@ const UNITS=[
      {k:'point',i:'➕',t:'Add/remove a node → only ~1/N of keys move (not everything).'},
      {k:'point',i:'⚖️',t:'<b>Virtual nodes</b> spread each machine around the ring for even load.'}
    ]},
+   {t:'match',q:'Access pattern → partitioning scheme.',pairs:[['Time-range scans (logs, metrics)','Range'],['Even spread + point lookups','Hash'],['Nodes join/leave often, minimise key movement','Consistent hashing']]},
+   {t:'mcq',q:'You add/remove cache nodes frequently and want minimal key remapping. Use…',o:['hash(key) % N','range partitioning','consistent hashing','one big node'],a:2,why:'mod-N remaps almost everything when N changes; consistent hashing moves only ~1/N keys — ideal for churny membership.'},
    {t:'cloze',q:'Fill the partitioning blanks.',distract:['range','replication'],text:[
      'Naive hash(key) % N is bad because changing ',{blank:'N'},' remaps ',{blank:'almost every',alt:['almost all']},' key. ',
      {blank:'Consistent hashing',alt:['consistent hashing']},' fixes this — only ~1/N keys move — and ',
@@ -1169,6 +1201,8 @@ const UNITS=[
    ]},
    {t:'mcq',q:'Kafka guarantees ordering…',o:['globally','within a partition only','never','per consumer'],a:1,why:'Order holds within a partition; pick the partition key to keep a key’s events ordered.'},
    {t:'mcq',q:'In a Kafka consumer group, a partition is consumed by…',o:['every consumer','exactly one consumer in the group','the leader only','no one'],a:1,why:'One partition → one consumer per group, so consumer parallelism is bounded by the partition count.'},
+   {t:'match',q:'Need → messaging choice.',pairs:[['Replay + many independent readers','Log (Kafka)'],['One consumer per message, work distribution','Queue'],['Must never lose; dupes OK if idempotent','At-least-once'],['Keep one user’s events ordered','Partition by key']]},
+   {t:'mcq',q:'Payment events must never be lost (duplicates tolerable if handled). Delivery semantics?',o:['at-most-once','at-least-once + idempotent consumer','fire-and-forget','exactly-once over the wire'],a:1,why:'At-least-once guarantees no loss; an idempotent consumer makes the inevitable duplicates harmless — the cheap path to an exactly-once effect.'},
    {t:'recall',q:'How do systems achieve "exactly-once" in practice?',model:['Use at-least-once delivery plus idempotent processing (or transactional offset+write).','Repeats become harmless, so the observable effect is exactly-once — much cheaper than true EO delivery.']}
   ]},
   {id:'msg-2',title:'Reliability',steps:[
