@@ -762,6 +762,46 @@ const UNITS=[
      {k:'point',i:'2️⃣',t:'<b>Phase 2 — Accept(n,v)</b>: proposer sends value v — its own, OR the highest accepted value it heard in Phase 1 (it MUST reuse that if one exists). Acceptors accept unless they’ve since promised a higher ballot.'},
      {k:'note',t:'That’s single-decree Paxos — agreement on ONE value. The "reuse the highest already-accepted value" rule is exactly what keeps it safe.'}
    ]},
+   {t:'htmlviz',h:'Paxos — step through a round',
+    html:`<style>
+.pxv-prop{font-size:13px;font-weight:800;color:var(--color-text-primary);background:var(--color-background-info);border:2px solid var(--color-border-info);border-radius:11px;padding:9px 12px;margin-bottom:10px;text-align:center}
+.pxv-prop b{color:var(--color-text-info)}
+.pxv-row{display:flex;gap:8px}
+.pxv-acc{flex:1;border:2px solid var(--color-border-tertiary);border-radius:11px;padding:9px 5px;text-align:center;background:var(--color-background-secondary)}
+.pxv-acc.hot{border-color:var(--color-border-success);background:var(--color-background-success)}
+.pxv-an{font-weight:900;font-size:16px;color:var(--color-text-primary)}
+.pxv-line{font-size:11px;color:var(--color-text-secondary);font-family:var(--font-mono);margin-top:3px}
+.pxv-acc.hot .pxv-line{color:var(--color-text-success);font-weight:700}
+.pxv-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.pxv-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="pxv-panel">
+  <div class="pxv-prop">Proposer → <b>Prepare(n=5)</b> to a majority</div>
+  <div class="pxv-row"><div class="pxv-acc"><div class="pxv-an">A</div><div class="pxv-line">promised: —</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc"><div class="pxv-an">B</div><div class="pxv-line">promised: —</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc"><div class="pxv-an">C</div><div class="pxv-line">promised: —</div><div class="pxv-line">accepted: —</div></div></div>
+  <div class="pxv-ex"><b>Phase 1.</b> The proposer picks ballot <b>5</b> and asks a majority to promise not to accept anything lower.</div>
+</div>
+<div class="pxv-panel">
+  <div class="pxv-prop">Acceptors → <b>Promise(5)</b>, "no value yet"</div>
+  <div class="pxv-row"><div class="pxv-acc hot"><div class="pxv-an">A</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc hot"><div class="pxv-an">B</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc hot"><div class="pxv-an">C</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div></div>
+  <div class="pxv-ex">Each acceptor promises (it hasn't seen a higher ballot) and reports it holds <b>no accepted value yet</b>. A majority promised → proceed.</div>
+</div>
+<div class="pxv-panel">
+  <div class="pxv-prop">Proposer → <b>Accept(5, "X")</b></div>
+  <div class="pxv-row"><div class="pxv-acc"><div class="pxv-an">A</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc"><div class="pxv-an">B</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div><div class="pxv-acc"><div class="pxv-an">C</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: —</div></div></div>
+  <div class="pxv-ex"><b>Phase 2.</b> No prior value was reported, so the proposer is free to propose its own value <b>X</b> at ballot 5.</div>
+</div>
+<div class="pxv-panel">
+  <div class="pxv-prop">Acceptors → <b>Accepted(5, "X")</b> ✓</div>
+  <div class="pxv-row"><div class="pxv-acc hot"><div class="pxv-an">A</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: X@5</div></div><div class="pxv-acc hot"><div class="pxv-an">B</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: X@5</div></div><div class="pxv-acc hot"><div class="pxv-an">C</div><div class="pxv-line">promised: 5</div><div class="pxv-line">accepted: X@5</div></div></div>
+  <div class="pxv-ex">A majority accepted → <b>X is chosen.</b> Consensus reached on a single value.</div>
+</div>
+<div class="pxv-panel">
+  <div class="pxv-prop">New proposer → <b>Prepare(n=6)</b> … learns X@5</div>
+  <div class="pxv-row"><div class="pxv-acc hot"><div class="pxv-an">A</div><div class="pxv-line">promised: 6</div><div class="pxv-line">accepted: X@6</div></div><div class="pxv-acc hot"><div class="pxv-an">B</div><div class="pxv-line">promised: 6</div><div class="pxv-line">accepted: X@6</div></div><div class="pxv-acc hot"><div class="pxv-an">C</div><div class="pxv-line">promised: 6</div><div class="pxv-line">accepted: X@6</div></div></div>
+  <div class="pxv-ex"><b>The safety rule.</b> A later proposer (ballot 6) sees an acceptor already accepted <b>X</b>, so it MUST re-propose X — never its own value. A chosen value can't change.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,5,{panelClass:'pxv-panel',labels:['Phase 1 · Prepare','Phase 1 · Promise','Phase 2 · Accept','Accepted → chosen','Safety: value can’t change']});}},
    {t:'teach',h:'Multi-Paxos & why Raft won',body:[
      {k:'point',i:'📚',t:'<b>Multi-Paxos</b>: elect a stable leader, then SKIP Phase 1 for later entries — amortising election cost across many writes (a replicated log).'},
      {k:'callout',c:'warn',t:'Most new systems pick Raft instead: Paxos has tricky edge cases around leader crashes between phases, and the original paper famously leaves out implementation detail.'}
