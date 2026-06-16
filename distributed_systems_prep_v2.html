@@ -736,9 +736,28 @@ const UNITS=[
    {t:'mcq',q:'Why can routing reads to "the leader" still be unsafe?',o:['leaders are slow','a stale partitioned leader serves old data','leaders can’t read','followers are faster'],a:1,why:'Use leases or the read-index trick to confirm current leadership.'},
    {t:'build',q:'Pick valid ways to serve LINEARIZABLE reads in Raft.',options:['Read from any follower','Leader lease','Read index (heartbeat quorum)','Random replica'],correct:[1,2]},
    {t:'recall',q:'How does Raft keep reads linearizable?',model:['Reads go through the leader, but a partitioned old leader could be stale.','Read-index: record commit index, confirm leadership with a heartbeat majority, wait until applied, then serve.','Or a leader lease (time-bounded) if clocks are trustworthy.']}
+  ]},
+  {id:'raft-bft',title:'Byzantine faults',steps:[
+   {t:'teach',h:'When nodes can lie',body:[
+     {k:'tldr',t:'Raft/Paxos handle CRASH faults (a node stops). Byzantine faults are worse: a node can behave arbitrarily — send conflicting messages, lie, or be compromised.'},
+     {k:'point',i:'🎭',t:'The real question: can honest nodes still agree when some are actively lying?'}
+   ]},
+   {t:'teach',h:'The 3f+1 bound',body:[
+     {k:'keyt',term:'3f+1',def:'to tolerate f Byzantine nodes you need 3f+1 total — vs 2f+1 for crash faults. Liars can actively mislead, so you need a big enough honest majority to outvote them even when some honest nodes are unreachable.'},
+     {k:'point',i:'📜',t:'<b>PBFT</b> made it practical with a three-phase protocol: pre-prepare → prepare → commit.'},
+     {k:'point',i:'⛓️',t:'Blockchains go further — Nakamoto consensus (PoW) and BFT chains (Tendermint, HotStuff) tolerate Byzantine actors at internet scale by making lying prohibitively expensive.'},
+     {k:'callout',c:'mem',t:'<b>Interview reality:</b> inside one trusted datacenter you almost never need BFT — crash-fault consensus is enough and far cheaper. Reach for BFT only across trust boundaries (blockchains, multi-org systems).'}
+   ]},
+   {t:'mcq',q:'To tolerate f Byzantine (lying) nodes, how many total do you need?',o:['f+1','2f+1','3f+1','2f'],a:2,why:'Byzantine nodes can actively lie, so you need 3f+1 (vs 2f+1 for crash-only faults) to keep an honest outvoting majority.'},
+   {t:'mcq',q:'When do you actually reach for BFT in an interview design?',o:['always','inside one trusted datacenter','across trust boundaries (blockchains, multi-org)','for any replication'],a:2,why:'Within a single trusted datacenter, cheaper crash-fault consensus (Raft/Paxos) suffices. BFT is for when participants may be adversarial.'},
+   {t:'cloze',q:'Fill the Byzantine blanks.',distract:['2f','stop'],text:[
+     'Crash faults need ',{blank:'2f+1',alt:['2f + 1']},' nodes; Byzantine faults need ',{blank:'3f+1',alt:['3f + 1']},
+     ' so liars get ',{blank:'outvoted',alt:['out-voted','outvote']},'. ',{blank:'PBFT',alt:['pbft']},' made BFT practical with a three-phase protocol.'
+   ]},
+   {t:'recall',q:'Crash vs Byzantine faults — and when do you need BFT?',model:['Crash fault: a node simply stops responding — Raft/Paxos handle this with a 2f+1 majority.','Byzantine fault: a node behaves arbitrarily (lies, sends conflicting messages, is compromised), needing 3f+1 so honest nodes outvote the liars; PBFT and blockchain protocols (Tendermint, HotStuff, PoW) make it workable.','In practice you rarely need BFT inside a trusted datacenter — reach for it only across trust boundaries (blockchains, multi-org systems).']}
   ]}
  ],
- boss:{title:'Consensus Boss',time:85,q:[
+ boss:{title:'Consensus Boss',time:95,q:[
    {q:'Consensus powers all EXCEPT…',o:['leader election','replicated logs','distributed locks','image compression'],a:3},
    {q:'Consensus is fault-tolerant (vs 2PC) because it needs…',o:['every vote','a majority quorum','no coordinator','zero clocks'],a:1},
    {q:'Paxos, Raft and ZAB are…',o:['caches','the same consensus family','load balancers','clocks'],a:1},
@@ -749,7 +768,9 @@ const UNITS=[
    {q:'Randomised election timeouts prevent…',o:['data loss','split votes / herds','stale reads','partitions'],a:1},
    {q:'A log entry commits after…',o:['leader writes it','a majority acks','any follower acks','a timeout'],a:1},
    {q:'A partitioned old leader risks…',o:['fast reads','serving stale reads','double commits','nothing'],a:1},
-   {q:'Safe linearizable reads use…',o:['any follower','read-index or lease','random nodes','no method'],a:1}
+   {q:'Safe linearizable reads use…',o:['any follower','read-index or lease','random nodes','no method'],a:1},
+   {q:'Tolerating f Byzantine (lying) nodes needs…',o:['f+1','2f+1','3f+1','2f'],a:2},
+   {q:'You actually need BFT…',o:['always','inside one datacenter','across trust boundaries','for any cache'],a:2}
  ]}
 },
 {
