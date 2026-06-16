@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>systemDesingo — Distributed Systems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#58CC02;--green-d:#46a302;--green-bg:#D7FFB8;
+  --blue:#1CB0F6;--blue-d:#1899D6;--blue-bg:#DDF4FF;
+  --red:#FF4B4B;--red-d:#E63946;--red-bg:#FFDFE0;
+  --yellow:#FFC800;--yellow-d:#E6A800;
+  --purple:#CE82FF;--purple-d:#A560E8;--purple-bg:#F3E5FF;
+  --orange:#FF9600;
+  --ink:#3C3C3C;--muted:#777;--faint:#AFAFAF;
+  --bg:#FFFFFF;--panel:#F7F7F7;--line:#E5E5E5;--line-d:#CFCFCF;
+  --r:16px;
+}
+html,body{height:100%;font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:17px;font-weight:700;line-height:1.45;overscroll-behavior:none}
+#app{max-width:560px;margin:0 auto;min-height:100vh;padding-bottom:40px}
+.hidden{display:none!important}
+button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background:none;color:inherit}
+
+/* 3D press buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 18px;font-size:16px;font-weight:800;letter-spacing:.4px;border-radius:var(--r);color:#fff;background:var(--green);box-shadow:0 4px 0 var(--green-d);transition:transform .04s,box-shadow .04s;text-transform:uppercase}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--green-d)}
+.btn.blue{background:var(--blue);box-shadow:0 4px 0 var(--blue-d)}
+.btn.blue:active{box-shadow:0 1px 0 var(--blue-d)}
+.btn.grey{background:#fff;color:var(--muted);border:2px solid var(--line);box-shadow:0 4px 0 var(--line);}
+.btn.grey:active{box-shadow:0 1px 0 var(--line)}
+.btn.red{background:var(--red);box-shadow:0 4px 0 var(--red-d)}
+.btn.ghost{background:transparent;color:var(--blue);box-shadow:none;text-transform:none}
+.btn:disabled{opacity:.5;box-shadow:none;transform:none;cursor:default}
+
+/* Top bar */
+.stickyhead{position:sticky;top:0;z-index:20;background:var(--bg)}
+.topbar{display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--bg)}
+.jumpbar{display:flex;gap:8px;overflow-x:auto;padding:9px 14px;border-bottom:2px solid var(--line);scrollbar-width:none}
+.jumpbar::-webkit-scrollbar{display:none}
+.jchip{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:20px;background:#fff;border:2px solid var(--line);border-bottom-width:3px;font-size:13px;font-weight:800;color:var(--ink);white-space:nowrap;position:relative}
+.jchip .ji{font-size:16px}
+.jchip:active{transform:translateY(2px)}
+.jchip.done{background:var(--c);border-color:var(--c);color:#fff}
+.jchip.lk{opacity:.5}
+.jchip.done::after{content:"✓";margin-left:1px;font-size:12px;font-weight:900}
+.stat{display:flex;align-items:center;gap:5px;font-size:16px;font-weight:800}
+.stat .ic{font-size:19px}
+.stat.fire{color:var(--orange)} .stat.xp{color:var(--yellow-d)} .stat.heart{color:var(--red)} .stat.gem{color:var(--blue)}
+.topbar .spacer{flex:1}
+
+/* Home */
+.hero{padding:22px 18px 6px}
+.hero h1{font-size:27px;font-weight:900;letter-spacing:-.5px}
+.hero p{font-size:15px;color:var(--muted);font-weight:700;margin-top:2px}
+.levelcard{margin:14px 18px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:14px}
+.ring{--p:0;width:58px;height:58px;border-radius:50%;flex-shrink:0;background:conic-gradient(var(--green) calc(var(--p)*1%),var(--line) 0);display:flex;align-items:center;justify-content:center}
+.ring span{width:44px;height:44px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:var(--green-d)}
+.levelcard .lc-meta{flex:1}
+.levelcard .lc-title{font-size:17px;font-weight:900}
+.levelcard .lc-sub{font-size:13px;color:var(--muted);font-weight:700}
+.actions{display:flex;gap:10px;margin:0 18px 4px}
+.act{flex:1;padding:12px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;font-weight:800;font-size:13px;color:var(--muted)}
+.act:active{transform:translateY(2px)}
+.act.hot{border-color:var(--red);color:var(--red-d);background:var(--red-bg)}
+
+.unit{margin:8px 0 4px;scroll-margin-top:118px}
+.unit-head{margin:18px 18px 6px;border-radius:var(--r);padding:14px 18px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.12)}
+.unit-head .u-k{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.85}
+.unit-head .u-t{font-size:20px;font-weight:900;display:flex;align-items:center;gap:8px}
+.unit-head .u-b{font-size:13px;font-weight:700;opacity:.92;margin-top:2px}
+.path{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 4px}
+.node{position:relative;width:74px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .05s}
+.node:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.node.locked{background:#E0E0E0!important;box-shadow:0 5px 0 #C8C8C8;color:#fff;cursor:default}
+.node.done::after{content:"✓";position:absolute;right:-2px;top:-2px;background:var(--yellow);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid var(--bg)}
+.node.boss{width:84px;height:76px;font-size:34px}
+.node-label{font-size:13px;font-weight:800;color:var(--muted);margin-top:-2px}
+.node-wrap{display:flex;flex-direction:column;align-items:center;gap:1px}
+.node-wrap.off1{margin-left:90px}.node-wrap.off2{margin-right:90px}
+
+/* Badges shelf */
+.shelf{margin:18px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.shelf h3{font-size:15px;font-weight:900;margin-bottom:10px}
+.badges{display:flex;flex-wrap:wrap;gap:10px}
+.badge{width:60px;text-align:center}
+.badge .bi{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--yellow);box-shadow:0 3px 0 var(--yellow-d)}
+.badge.lock .bi{background:#ECECEC;box-shadow:0 3px 0 #DADADA;filter:grayscale(1);opacity:.6}
+.badge small{display:block;font-size:10px;font-weight:800;color:var(--muted);margin-top:3px;line-height:1.1}
+
+/* Lesson screen */
+.lesson{padding:0}
+.lhead{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.lhead .close{font-size:26px;color:var(--faint);font-weight:900;width:30px}
+.pbar{flex:1;height:16px;background:var(--line);border-radius:10px;overflow:hidden}
+.pbar > i{display:block;height:100%;background:var(--green);border-radius:10px;transition:width .35s}
+.lhearts{color:var(--red);font-weight:900;display:flex;align-items:center;gap:3px}
+.timer{font-weight:900;color:var(--ink);display:flex;align-items:center;gap:4px}
+.timer.low{color:var(--red)}
+.combo{position:fixed;left:50%;top:64px;transform:translateX(-50%);background:var(--purple);color:#fff;font-weight:900;padding:5px 14px;border-radius:20px;font-size:14px;box-shadow:0 3px 0 var(--purple-d);opacity:0;transition:opacity .2s,transform .2s;z-index:30}
+.combo.show{opacity:1}
+
+.stage{padding:8px 18px 120px}
+.q-title{font-size:22px;font-weight:900;margin:8px 0 16px;line-height:1.3}
+.q-sub{font-size:14px;color:var(--muted);font-weight:700;margin-bottom:14px}
+
+/* Teach blocks */
+.tldr{background:var(--blue-bg);border-radius:14px;padding:12px 14px;font-size:16px;font-weight:800;color:var(--blue-d);margin-bottom:12px;display:flex;gap:8px}
+.tldr .tag{background:var(--blue);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;height:fit-content;letter-spacing:.5px}
+.point{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:15px;font-weight:700}
+.point .pi{font-size:20px;line-height:1.2}
+.point b{font-weight:900;color:var(--ink)}
+.cause{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.cause .box{flex:1;min-width:120px;background:#fff;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:800;text-align:center}
+.cause .arrow{font-size:22px;color:var(--green);font-weight:900}
+.vs{display:flex;gap:10px;margin-bottom:10px}
+.vs .col{flex:1;border-radius:12px;padding:11px 12px;font-size:14px;font-weight:700}
+.vs .col.a{background:var(--green-bg);border:2px solid #B5E89A}
+.vs .col.b{background:var(--blue-bg);border:2px solid #B3E3FF}
+.vs .col h4{font-size:14px;font-weight:900;margin-bottom:4px}
+.keyt{background:var(--purple-bg);border-left:5px solid var(--purple);border-radius:10px;padding:10px 13px;margin-bottom:9px;font-size:15px;font-weight:700}
+.keyt b{color:var(--purple-d);font-weight:900}
+.callout{border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:14px;font-weight:700;display:flex;gap:8px}
+.callout.warn{background:#FFF3D6;color:#8A6100}
+.callout.note{background:var(--green-bg);color:#3a6b13}
+.callout.mem{background:#FFE9F4;color:#A8327D}
+
+/* Options (mcq) */
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{width:100%;text-align:left;padding:14px 16px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;font-size:16px;font-weight:800;color:var(--ink);transition:all .1s}
+.opt:active{transform:translateY(2px)}
+.opt.sel{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-d)}
+.opt.correct{border-color:var(--green);background:var(--green-bg);color:var(--green-d)}
+.opt.wrong{border-color:var(--red);background:var(--red-bg);color:var(--red-d)}
+.opt.dim{opacity:.5}
+
+/* sort */
+.sortcard{background:#fff;border:2px solid var(--line);border-bottom-width:5px;border-radius:18px;padding:26px 18px;font-size:18px;font-weight:900;text-align:center;margin-bottom:16px;min-height:90px;display:flex;align-items:center;justify-content:center}
+.sortcard.flash-g{border-color:var(--green);background:var(--green-bg)}
+.sortcard.flash-r{border-color:var(--red);background:var(--red-bg);animation:shake .3s}
+.bucketrow{display:flex;gap:10px}
+.bucketrow .btn{font-size:14px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+
+/* match */
+.matchgrid{display:flex;gap:10px}
+.matchcol{flex:1;display:flex;flex-direction:column;gap:9px}
+.mitem{padding:13px 12px;border:2px solid var(--line);border-bottom-width:4px;border-radius:13px;background:#fff;font-size:14px;font-weight:800;text-align:left;min-height:54px}
+.mitem.sel{border-color:var(--blue);background:var(--blue-bg)}
+.mitem.done{border-color:var(--green);background:var(--green-bg);color:var(--green-d);opacity:.7}
+.mitem.bad{border-color:var(--red);background:var(--red-bg);animation:shake .3s}
+
+/* order */
+.orderzone{min-height:54px;border:2px dashed var(--line-d);border-radius:13px;padding:8px;margin-bottom:12px;display:flex;flex-direction:column;gap:7px}
+.bank{display:flex;flex-direction:column;gap:8px}
+.chip{padding:12px 13px;border:2px solid var(--line);border-bottom-width:4px;border-radius:12px;background:#fff;font-weight:800;font-size:14px;text-align:left}
+.chip.placed{background:var(--blue-bg);border-color:var(--blue);color:var(--blue-d)}
+.chip .num{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:var(--blue);color:#fff;border-radius:50%;font-size:12px;margin-right:8px}
+.chip.ok{background:var(--green-bg);border-color:var(--green)}
+.chip.no{background:var(--red-bg);border-color:var(--red)}
+
+/* build (multi-select) */
+.buildgrid{display:flex;flex-wrap:wrap;gap:9px}
+.bopt{padding:11px 14px;border:2px solid var(--line);border-bottom-width:4px;border-radius:13px;background:#fff;font-weight:800;font-size:14px}
+.bopt.on{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-d)}
+.bopt.good{border-color:var(--green);background:var(--green-bg)}
+.bopt.miss{border-color:var(--red);background:var(--red-bg)}
+
+/* recall */
+.recall textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);resize:vertical}
+.recall textarea:focus{outline:none;border-color:var(--blue)}
+.model{background:var(--green-bg);border-radius:14px;padding:13px 15px;margin-top:12px}
+.model h4{font-size:13px;font-weight:900;color:#3a6b13;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.model li{font-size:15px;font-weight:700;margin:0 0 6px 18px;color:#2f5a10}
+.gradebtns{display:flex;gap:8px;margin-top:12px}
+.gradebtns .btn{font-size:13px;padding:12px 8px}
+
+/* cloze (fill-the-blank) */
+.cloze{font-size:18px;font-weight:700;line-height:2.2;color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:15px 17px;margin-bottom:14px}
+.slot{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:3px 11px;margin:0 3px;border:2px dashed var(--blue);border-radius:9px;background:var(--blue-bg);color:var(--blue-d);font-weight:800;font-size:16px;vertical-align:middle;line-height:1.2}
+.slot.filled{border-style:solid}
+.slot.sgood{border-style:solid;border-color:var(--green);background:var(--green-bg);color:var(--green-d)}
+.slot.sbad{border-style:solid;border-color:var(--red);background:var(--red-bg);color:var(--red-d)}
+.wordbank{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+.word{padding:11px 16px;border:2px solid var(--line);border-bottom-width:4px;border-radius:13px;background:#fff;font-weight:800;font-size:15px;color:var(--ink)}
+.word:active{transform:translateY(2px)}
+.word:disabled{opacity:.35}
+
+/* footer action bar */
+.footbar{position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:2px solid var(--line);padding:14px 18px;z-index:15}
+.footbar .inner{max-width:560px;margin:0 auto}
+.feedback{position:fixed;bottom:0;left:0;right:0;z-index:16;padding:16px 18px 18px;border-top-left-radius:18px;border-top-right-radius:18px}
+.feedback .inner{max-width:560px;margin:0 auto}
+.feedback.good{background:var(--green-bg)}
+.feedback.bad{background:var(--red-bg)}
+.feedback h4{font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.feedback.good h4{color:var(--green-d)} .feedback.bad h4{color:var(--red-d)}
+.feedback p{font-size:14px;font-weight:700;margin-bottom:12px}
+.feedback.good p{color:#3a6b13} .feedback.bad p{color:#9b2c2c}
+
+/* results / fail */
+.center{text-align:center;padding:50px 24px}
+.center .big{font-size:64px;margin-bottom:10px}
+.center h2{font-size:26px;font-weight:900;margin-bottom:8px}
+.center p{font-size:16px;color:var(--muted);font-weight:700;margin-bottom:22px}
+.statrow{display:flex;gap:12px;justify-content:center;margin-bottom:24px}
+.statbox{background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:12px 18px;min-width:90px}
+.statbox .v{font-size:24px;font-weight:900}
+.statbox .l{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.statbox.xp .v{color:var(--yellow-d)} .statbox.combo .v{color:var(--purple-d)} .statbox.acc .v{color:var(--green-d)}
+
+/* toast */
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-120px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-weight:800;font-size:14px;z-index:50;display:flex;gap:8px;align-items:center;transition:transform .35s;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.confetti{font-size:30px;animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+.flash-correct{animation:flashg .4s} @keyframes flashg{0%{background:var(--green-bg)}100%{background:transparent}}
+
+/* small helpers */
+.tip{font-size:13px;color:var(--faint);font-weight:700;text-align:center;margin-top:10px}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   SysQuest — gamified distributed-systems interview prep
+   ========================================================================= */
+
+/* ---------------- persistence ---------------- */
+const SAVE_KEY='dsq_v2_save';
+function load(){try{return JSON.parse(localStorage.getItem(SAVE_KEY))||{};}catch(e){return{};}}
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
+var S=Object.assign({xp:0,done:{},badges:{},streak:0,lastDay:null,recallNailed:0,unlockAll:false,mistakes:{}},load());
+if(!S.mistakes)S.mistakes={};
+
+/* streak update on open */
+(function(){
+  const today=new Date().toISOString().slice(0,10);
+  if(S.lastDay!==today){
+    const y=new Date(Date.now()-864e5).toISOString().slice(0,10);
+    S.streak=(S.lastDay===y)?(S.streak+1):1;
+    S.lastDay=today;save();
+  }
+})();
+
+const HEARTS=5;
+const levelOf=xp=>Math.floor(xp/100)+1;
+const xpInLevel=xp=>xp%100;
+
+/* ---------------- content ----------------
+   step types: teach, mcq, sort, match, order, build, recall
+   ------------------------------------------------------------------ */
+const UNITS=[
+{
+ id:'cap',title:'CAP & Consistency',icon:'⚖️',color:'#1CB0F6',colorD:'#1899D6',
+ blurb:'When the network breaks, what do you give up?',
+ lessons:[
+  {id:'cap-1',title:'CAP in 60s',steps:[
+   {t:'teach',h:'The whole game',body:[
+     {k:'tldr',t:'In a distributed system the network WILL split. CAP is what you do when it does.'},
+     {k:'cause',a:'Network partition happens',b:'You must pick: stay Consistent OR stay Available'},
+     {k:'point',i:'🌐',t:'A <b>partition</b> = some nodes can’t talk to others. Not "if" — "when".'}
+   ]},
+   {t:'teach',h:'Meet C, A, P',body:[
+     {k:'keyt',term:'C — Consistency',def:'every read gets the newest write (or an error). One source of truth.'},
+     {k:'keyt',term:'A — Availability',def:'every request gets an answer — but it might be stale.'},
+     {k:'keyt',term:'P — Partition tolerance',def:'the system keeps working through a network split.'}
+   ]},
+   {t:'mcq',q:'Partitions in a real network are…',o:['rare, ignore them','inevitable — so P is non-negotiable','only a cloud problem','fixable with retries'],a:1,why:'Networks fail. P is a given, so the real choice is C vs A during a split.'},
+   {t:'teach',h:'So the choice is…',body:[
+     {k:'tldr',t:'P is mandatory. During a partition you really choose CP or AP.'},
+     {k:'vs',a:{h:'CP',t:'Refuse some requests to stay correct. (HBase, ZooKeeper, Spanner)'},b:{h:'AP',t:'Answer anyway, maybe stale. (Cassandra, Riak, the Dynamo paper)'}},
+     {k:'callout',c:'note',t:'Nuance: the <b>Dynamo paper</b> is the canonical AP design, but <b>DynamoDB</b> the product is subtler — single-region writes are strongly serialized with optional strongly-consistent reads; only <em>global tables</em> are async/eventual across regions.'}
+   ]},
+   {t:'sort',q:'CP or AP? Sort fast.',buckets:['CP (consistent)','AP (available)'],items:[
+     {text:'ZooKeeper',b:0},{text:'Cassandra',b:1},{text:'Spanner',b:0},{text:'Riak',b:1},{text:'HBase',b:0}
+   ]},
+   {t:'mcq',q:'Cassandra is…',o:['CP','AP','CA','none'],a:1,why:'Cassandra favours availability + partition tolerance, with tunable consistency.'},
+   {t:'cloze',q:'You’re BERT — unmask the key terms.',distract:['latency','durability'],text:[
+     'In CAP: ',{blank:'consistency'},' = every read sees the newest write. ',
+     {blank:'availability'},' = every request still gets an answer (maybe stale). ',
+     'Partitions are ',{blank:'inevitable'},', so during a split you really pick ',
+     {blank:'CP'},' vs ',{blank:'AP'},'.'
+   ]},
+   {t:'recall',q:'Explain CAP to a friend in 3 sentences. Say it out loud, then check.',model:['Networks partition, so P is a given.','During a partition you choose: stay consistent (reject some requests) or stay available (serve possibly-stale data).','That’s CP vs AP — e.g. Spanner is CP, Cassandra is AP.']}
+  ]},
+  {id:'cap-2',title:'PACELC',steps:[
+   {t:'teach',h:'CAP’s missing half',body:[
+     {k:'tldr',t:'CAP only covers partitions. But what about normal time?'},
+     {k:'cause',a:'Else (no partition)',b:'You still trade Latency vs Consistency'},
+     {k:'point',i:'⏱️',t:'Staying consistent needs <b>coordination</b> — and coordination costs <b>time</b>.'}
+   ]},
+   {t:'teach',h:'The PACELC label',body:[
+     {k:'keyt',term:'P → A or C',def:'during a Partition, pick Availability or Consistency.'},
+     {k:'keyt',term:'E → L or C',def:'Else (normal), pick low Latency or Consistency.'},
+     {k:'mnemonic',t:'Read it: "If Partition then A/C, Else L/C."'},
+     {k:'point',i:'🏷️',t:'Examples: <b>Dynamo (paper)</b> / <b>Cassandra</b> = PA/EL, <b>Spanner</b> = PC/EC, <b>MongoDB</b> = PA/EC (single-primary fails over → PA, but primary reads are consistent → EC).'},
+     {k:'callout',c:'note',t:'<b>DynamoDB</b> the product is subtler than the Dynamo paper — single-region is closer to PC/EC (serialized writes, optional strong reads); only <em>global tables</em> are PA/EL across regions.'}
+   ]},
+   {t:'match',q:'Match the system to its PACELC label.',pairs:[['Cassandra','PA/EL'],['Spanner','PC/EC'],['MongoDB','PA/EC']]},
+   {t:'mcq',q:'MongoDB (default) is usually labelled…',o:['PA/EL','PA/EC','PC/EL','CA'],a:1,why:'Single-primary fails over (PA); reads from primary are strongly consistent (EC).'},
+   {t:'recall',q:'Why is PACELC more useful than CAP in an interview? Say it, then check.',model:['CAP only describes behaviour during a (rare) partition.','PACELC also captures the everyday tradeoff: consistency vs latency when healthy.','It maps better to real choices like "QUORUM reads cost latency".']}
+  ]},
+  {id:'cap-3',title:'Consistency ladder',steps:[
+   {t:'teach',h:'Not just on/off',body:[
+     {k:'tldr',t:'Consistency is a ladder from cheap+weak to strong+slow.'},
+     {k:'keyt',term:'Linearizable',def:'acts like ONE copy; once a write finishes, everyone sees it. Strongest, slowest.'},
+     {k:'keyt',term:'Eventual',def:'replicas converge … eventually. Reads can be stale. Cheapest.'},
+     {k:'point',i:'🎯',t:'<b>Sequential</b> consistency gives one agreed order of ops — but, unlike <b>linearizable</b>, it need NOT match real wall-clock time. That real-time constraint is the only difference between them.'}
+   ]},
+   {t:'teach',h:'Useful middle rungs',body:[
+     {k:'point',i:'🔁',t:'<b>Read-your-writes</b>: you always see your own updates.'},
+     {k:'point',i:'➡️',t:'<b>Monotonic reads</b>: reads never go backwards in time.'},
+     {k:'point',i:'🔗',t:'<b>Causal</b>: cause is always seen before effect.'}
+   ]},
+   {t:'order',q:'Drag from WEAKEST to STRONGEST.',items:['Eventual','Read-your-writes','Causal','Linearizable']},
+   {t:'mcq',q:'Linearizable vs sequential consistency — the difference?',o:['linearizable allows stale reads','linearizable adds a real-time ordering constraint','they’re identical','sequential is stronger'],a:1,why:'Both give a total order; linearizability also respects wall-clock real-time order.'},
+   {t:'recall',q:'Name 2 features where EVENTUAL consistency is totally fine, and 1 where it is NOT.',model:['Fine: like counts, view counts, feeds, search indexes.','Not fine: account balance, inventory, "did my payment go through?".','Rule: spend strong consistency only where a wrong answer is unacceptable.']}
+  ]}
+ ],
+ boss:{title:'CAP Boss',time:75,q:[
+   {q:'P in CAP stands for…',o:['Performance','Partition tolerance','Persistence','Parallelism'],a:1},
+   {q:'During a partition, an AP system will…',o:['reject requests','answer, possibly stale','crash','elect a leader'],a:1},
+   {q:'Spanner is best described as…',o:['AP','CP / PC-EC','CA','eventual'],a:1},
+   {q:'"Read-your-writes" guarantees…',o:['global real-time order','you see your own updates','no data loss','lower latency'],a:1},
+   {q:'The cost of strong consistency is mainly…',o:['storage','latency + availability','CPU','none'],a:1},
+   {q:'Eventual consistency is a fine fit for…',o:['bank balance','like counts','distributed locks','inventory'],a:1},
+   {q:'PACELC’s "E" branch trades…',o:['A vs C','L vs C','C vs P','reads vs writes'],a:1}
+ ]}
+},
+{
+ id:'repl',title:'Replication & Quorums',icon:'📑',color:'#58CC02',colorD:'#46a302',
+ blurb:'Copy data so failures don’t lose it — without chaos.',
+ lessons:[
+  {id:'repl-1',title:'Who can write?',steps:[
+   {t:'teach',h:'Three shapes',body:[
+     {k:'keyt',term:'Single-leader',def:'one writer, many read-replicas (e.g. PostgreSQL / MySQL primary + replicas). Simple, most common.'},
+     {k:'keyt',term:'Multi-leader',def:'a leader per region. Fast writes — but conflicts.'},
+     {k:'callout',c:'warn',t:'Those conflicts need resolution. <b>Last-Write-Wins (LWW)</b> is simple but, under clock skew, can silently drop the "losing" concurrent write. (Leaderless writes hit this too.)'},
+     {k:'keyt',term:'Leaderless',def:'any replica takes writes; use quorums. (Dynamo, Cassandra)'}
+   ]},
+   {t:'teach',h:'Sync vs async (single-leader)',body:[
+     {k:'vs',a:{h:'Sync',t:'Leader waits for follower ack. Durable, but slower.'},b:{h:'Async',t:'Leader replies now. Fast, but a crash can lose recent writes.'}},
+     {k:'callout',c:'warn',t:'Async + leader crash = the un-replicated tail of writes is gone.'}
+   ]},
+   {t:'sort',q:'Which replication style fits the clue?',buckets:['Single-leader','Leaderless'],items:[
+     {text:'PostgreSQL read replicas',b:0},{text:'Cassandra quorum writes',b:1},{text:'one writer, many readers',b:0},{text:'any node accepts writes',b:1}
+   ]},
+   {t:'mcq',q:'Biggest risk of ASYNC replication?',o:['high latency','data loss if leader crashes','too much storage','stale leader'],a:1,why:'Async confirms before followers ack, so a crash drops the un-replicated tail.'},
+   {t:'recall',q:'Sync vs async replication — give the tradeoff in one breath.',model:['Sync = durable but doubles write latency (wait for a follower).','Async = fast but risks losing recent writes on a leader crash.','Semi-sync (one follower acks) is the common middle ground.']}
+  ]},
+  {id:'repl-2',title:'Quorum math',steps:[
+   {t:'teach',h:'The magic inequality',body:[
+     {k:'tldr',t:'W + R > N forces the read and write sets to overlap — so a read CAN see the latest write.'},
+     {k:'point',i:'🔢',t:'<b>N</b> replicas, <b>W</b> ack a write, <b>R</b> answer a read.'},
+     {k:'point',i:'🎯',t:'If W+R>N, the read set and write set <b>must overlap</b> on ≥1 node that has the latest write.'},
+     {k:'callout',c:'warn',t:'It’s a guarantee only IF: the write hit a full quorum, same replica set (no sloppy quorum), no concurrent conflicting write, and reads reconcile by version/timestamp. Otherwise you can still read stale.'}
+   ]},
+   {t:'mcq',q:'N=3, W=2, R=2. One write replica failed. Can a read still see the latest value?',o:['Yes — W+R=4>3 forces overlap','No, quorum is broken','only with hinted handoff','only if all 3 reply'],a:0,why:'4>3 means every read quorum overlaps the write quorum on at least one node.'},
+   {t:'teach',h:'Staying up under partitions',body:[
+     {k:'keyt',term:'Sloppy quorum',def:'take writes on stand-in nodes during a partition (stay available).'},
+     {k:'keyt',term:'Hinted handoff',def:'stand-in holds the write, hands it back when the home node returns.'},
+     {k:'callout',c:'warn',t:'Sloppy quorum BREAKS the W+R>N overlap — reads can be stale until handoff finishes.'}
+   ]},
+   {t:'mcq',q:'A sloppy quorum trades away…',o:['durability','the W+R>N overlap guarantee','write speed','idempotency'],a:1,why:'It keeps you available but loses the strict freshness overlap.'},
+   {t:'cloze',q:'Unmask the quorum rule.',distract:['diverge','N+1'],text:[
+     'With ',{blank:'N'},' replicas, ',{blank:'W'},' must ack a write and ',{blank:'R'},' answer a read. If ',
+     {blank:'W+R>N',alt:['W + R > N']},', the read and write sets must ',{blank:'overlap'},' on a fresh node.'
+   ]},
+   {t:'recall',q:'Why does W+R>N let a read see the latest write — and when can it still be stale?',model:['W nodes hold the latest write, R nodes answer the read; if W+R>N the two sets can’t be disjoint, so they share ≥1 node with the newest value.','Caveats: only if the write reached a full quorum, the same replica set (no sloppy quorum), no concurrent conflicting write, and the read reconciles by version/timestamp.','Break any of those and you can still read stale.']}
+  ]},
+  {id:'repl-3',title:'Staying in sync',steps:[
+   {t:'teach',h:'Fixing drift',body:[
+     {k:'keyt',term:'Read repair',def:'fix stale replicas when a read notices a mismatch.'},
+     {k:'keyt',term:'Anti-entropy',def:'a background job that reconciles replicas constantly.'},
+     {k:'point',i:'🌳',t:'<b>Merkle trees</b>: equal root hash → identical (O(1)); otherwise descend only mismatching branches — finding one divergent range is ~log-depth, and the work grows with the number of differing ranges (no full O(N) scan when few keys differ).'}
+   ]},
+   {t:'build',q:'Pick the tools an AP store uses to converge replicas.',options:['Read repair','Two-phase commit','Anti-entropy','Merkle trees','A single global lock'],correct:[0,2,3]},
+   {t:'recall',q:'How does a Merkle tree make anti-entropy cheap?',model:['Each leaf hashes a key range; parents hash their children.','It cheaply narrows the changed ranges: equal roots are O(1), descending to one divergent range is roughly logarithmic.','Many differences cost proportional work — but you never full-scan when only a few keys differ.']}
+  ]},
+  {id:'repl-4',title:'Replication-lag bugs',steps:[
+   {t:'teach',h:'Async lag breaks reads',body:[
+     {k:'tldr',t:'Async followers trail the leader — so a follower read can be stale, causing subtle bugs.'},
+     {k:'cause',a:'Write to leader, then read from a lagging follower',b:'You don’t see your own write yet'}
+   ]},
+   {t:'teach',h:'Three guarantees that patch it',body:[
+     {k:'keyt',term:'Read-your-writes',def:'you always see your OWN latest write (read from leader / your region).'},
+     {k:'keyt',term:'Monotonic reads',def:'reads never go backwards in time (stick to one replica).'},
+     {k:'keyt',term:'Consistent prefix',def:'causally ordered writes are seen in that order — no effect before cause.'}
+   ]},
+   {t:'match',q:'Match the bug to the guarantee that fixes it.',pairs:[['"I posted but don’t see it"','Read-your-writes'],['Refresh shows an OLDER value','Monotonic reads'],['Reply appears before its question','Consistent prefix']]},
+   {t:'cloze',q:'Fill the replication-lag blanks.',distract:['linearizable','quorum'],text:[
+     {blank:'Read-your-writes',alt:['read your writes','read-your-write']},' = see your own writes. ',{blank:'Monotonic',alt:['monotonic']},' reads = time never goes backwards. ',
+     {blank:'Consistent prefix',alt:['consistent-prefix','consistent']},' = causally ordered writes are seen in order.'
+   ]},
+   {t:'mcq',q:'You update your profile, reload, and the OLD value shows. Which guarantee was missing?',o:['monotonic reads','read-your-writes','consistent prefix','linearizability'],a:1,why:'Seeing your own just-written data requires read-your-writes (route your reads to the leader/your region).'},
+   {t:'recall',q:'Name the three replication-lag read guarantees and what each fixes.',model:['Read-your-writes: you see your own updates (don’t read a lagging follower for your own data).','Monotonic reads: time never moves backward (pin a user to one replica).','Consistent prefix: causally related writes appear in order (no effect-before-cause).']}
+  ]},
+  {id:'repl-5',title:'Logs & gossip',steps:[
+   {t:'teach',h:'How changes ship: the replication log',body:[
+     {k:'point',i:'📝',t:'<b>Statement-based</b>: ship the SQL. Breaks on NOW()/RAND() — non-deterministic across replicas.'},
+     {k:'point',i:'🧱',t:'<b>WAL shipping</b>: ship raw byte-level changes. Fast, but tied to the storage-engine version.'},
+     {k:'point',i:'🪶',t:'<b>Logical (row-based)</b>: ship before/after row values. Engine-independent — what CDC reads.'}
+   ]},
+   {t:'teach',h:'Gossip protocol',body:[
+     {k:'tldr',t:'No coordinator: each node periodically swaps state with a few RANDOM peers.'},
+     {k:'point',i:'🦠',t:'Info spreads epidemically in ~<b>O(log N)</b> rounds — membership, failures, ring state.'},
+     {k:'point',i:'🌍',t:'Used by <b>Dynamo, Cassandra, Consul</b> for decentralised membership (no single point of failure).'}
+   ]},
+   {t:'mcq',q:'Why is statement-based replication risky?',o:['it’s too big','non-deterministic functions (NOW/RAND) diverge across replicas','it can’t do inserts','it needs a leader'],a:1,why:'Replaying the same statement can yield different results, so replicas drift. Row-based logs avoid this.'},
+   {t:'cloze',q:'Fill the gossip blanks.',distract:['leader','broadcast'],text:[
+     'Gossip has no ',{blank:'coordinator',alt:['leader','central']},': each node swaps state with ',{blank:'random'},' peers, so info spreads in ~',{blank:'O(log N)',alt:['log n','logn','log(n)']},' rounds. Cassandra and Dynamo use it for ',{blank:'membership'},'.'
+   ]},
+   {t:'mcq',q:'How fast does gossip propagate across N nodes?',o:['O(N)','O(log N)','O(1)','O(N²)'],a:1,why:'Epidemic spread roughly doubles reach each round → logarithmic rounds, with no coordinator.'},
+   {t:'recall',q:'What is a gossip protocol and where is it used?',model:['Each node periodically exchanges state with a few random peers; info spreads epidemically in ~O(log N) rounds.','Decentralised, no single point of failure — used for membership / failure detection in Dynamo, Cassandra, Consul.']}
+  ]},
+  {id:'repl-6',title:'Resolving conflicts',steps:[
+   {t:'teach',h:'Concurrent writes = siblings',body:[
+     {k:'cause',a:'Two clients write the same key concurrently (leaderless / multi-leader)',b:'Two conflicting versions ("siblings") now exist'},
+     {k:'point',i:'🧭',t:'<b>Version vectors</b> detect whether two writes are concurrent or one supersedes the other.'}
+   ]},
+   {t:'teach',h:'How to resolve',body:[
+     {k:'keyt',term:'LWW',def:'keep the highest timestamp. Simple, but silently drops the other write (clock skew!).'},
+     {k:'keyt',term:'CRDT / merge',def:'data types that merge deterministically (counters, sets) — no lost writes.'},
+     {k:'keyt',term:'App-level / siblings',def:'return both versions and let the app/user merge (e.g. shopping-cart union).'}
+   ]},
+   {t:'sort',q:'Lossy or safe conflict resolution?',buckets:['Lossy','Safe (no loss)'],items:[
+     {text:'Last-Write-Wins',b:0},{text:'CRDT merge',b:1},{text:'return siblings to the app',b:1}
+   ]},
+   {t:'mcq',q:'What detects whether two writes are concurrent vs one-after-another?',o:['LWW timestamps','version vectors','a Bloom filter','a quorum'],a:1,why:'Version (vector) clocks capture causality, so you know if writes truly conflict or one supersedes.'},
+   {t:'recall',q:'Give three ways to resolve a leaderless write conflict, weakest to safest.',model:['LWW (highest timestamp wins) — simple but lossy under clock skew.','CRDT / merge — deterministic merge, no lost writes for supported types.','Return siblings to the app to merge (e.g. union a shopping cart). Version vectors decide what actually conflicts.']}
+  ]},
+  {id:'repl-7',title:'Failover & split brain',steps:[
+   {t:'teach',h:'Failover is dangerous',body:[
+     {k:'cause',a:'Leader dies → promote a follower',b:'Async lag means the new leader may MISS recent writes (data loss)'},
+     {k:'point',i:'🗳️',t:'<b>Who promotes?</b> A controller or the nodes themselves must elect a new leader — and agree on exactly one.'}
+   ]},
+   {t:'teach',h:'Split brain',body:[
+     {k:'tldr',t:'The old leader returns (or a partition heals) and now TWO nodes accept writes as leader.'},
+     {k:'callout',c:'warn',t:'Two leaders = conflicting writes / corruption. The classic failure of naive failover.'}
+   ]},
+   {t:'teach',h:'How to prevent it',body:[
+     {k:'point',i:'✅',t:'<b>Majority election</b> (Raft/Paxos): only the side with a quorum can elect — a partitioned minority can’t make a 2nd leader.'},
+     {k:'point',i:'🎟️',t:'<b>Fencing tokens / epoch numbers</b>: each new term gets a higher number; storage rejects writes from an older term (fences out the stale leader).'},
+     {k:'point',i:'🎲',t:'<b>Randomised election timeouts</b> avoid split votes (two candidates tying forever).'}
+   ]},
+   {t:'sort',q:'Causes split brain, or prevents it?',buckets:['Causes it','Prevents it'],items:[
+     {text:'electing on the minority side',b:0},{text:'majority-quorum election',b:1},{text:'fencing tokens / epochs',b:1},{text:'two leaders both accept writes',b:0}
+   ]},
+   {t:'cloze',q:'Fill the split-brain blanks.',distract:['cache','replica'],text:[
+     {blank:'Split brain',alt:['split-brain']},' = two nodes both think they’re leader. Prevent it with a ',{blank:'majority',alt:['quorum']},
+     ' election (a minority can’t elect) and ',{blank:'fencing',alt:['fencing tokens','epoch']},' tokens so storage rejects the stale leader’s writes.'
+   ]},
+   {t:'mcq',q:'A partitioned old leader keeps serving writes while a new one is elected. What stops the damage?',o:['a longer timeout','fencing tokens + majority election','more replicas','a bigger cache'],a:1,why:'Only a majority can elect (so the minority old leader can’t commit), and fencing/epoch numbers make storage reject its stale writes.'},
+   {t:'recall',q:'What is split brain and how do you prevent it?',model:['Split brain = two nodes both believe they’re leader and accept writes (returning old leader, or a healed partition) → conflicts/corruption.','Prevent it: require a MAJORITY quorum to elect (a minority can’t form a second leader), and use fencing tokens / epoch numbers so storage rejects an old leader’s writes.']}
+  ]}
+ ],
+ boss:{title:'Replication Boss',time:120,q:[
+   {q:'Most common replication topology?',o:['Multi-leader','Single-leader','Leaderless','No replication'],a:1},
+   {q:'Async replication mainly risks…',o:['latency','data loss on crash','storage','deadlock'],a:1},
+   {q:'W+R>N guarantees…',o:['lower latency','read/write set overlap','no conflicts','strong order'],a:1},
+   {q:'N=5, you want strong reads with W=3. Pick R…',o:['1','2','3','any'],a:2},
+   {q:'Hinted handoff is paired with…',o:['strict quorum','sloppy quorum','2PC','Raft'],a:1},
+   {q:'Merkle trees are used for…',o:['encryption','anti-entropy diffing','load balancing','caching'],a:1},
+   {q:'LWW conflict resolution can…',o:['never lose data','silently drop a write','prevent partitions','add latency'],a:1},
+   {q:'Read-your-writes guarantees…',o:['global order','you see your own writes','no lag','lower cost'],a:1},
+   {q:'Statement-based replication breaks on…',o:['inserts','NOW()/RAND() non-determinism','reads','indexes'],a:1},
+   {q:'Gossip spreads membership in…',o:['O(N)','O(log N)','O(1)','never'],a:1},
+   {q:'Concurrent writes are detected with…',o:['LWW','version vectors','TTL','a cache'],a:1},
+   {q:'Split brain is prevented by…',o:['longer timeouts','majority election + fencing','more replicas','a bigger cache'],a:1}
+ ]}
+},
+{
+ id:'raft',title:'Consensus (Raft)',icon:'🗳️',color:'#CE82FF',colorD:'#A560E8',
+ blurb:'Make many nodes agree — even when some die.',
+ lessons:[
+  {id:'raft-1',title:'Why consensus',steps:[
+   {t:'teach',h:'The job',body:[
+     {k:'tldr',t:'Consensus = many nodes agree on ONE value, despite failures.'},
+     {k:'point',i:'👑',t:'Powers <b>leader election</b>, <b>distributed locks</b>, and <b>replicated logs</b>.'}
+   ]},
+   {t:'teach',h:'The hard limit',body:[
+     {k:'keyt',term:'FLP impossibility',def:'in a pure async network with 1 faulty node, no algorithm always agrees.'},
+     {k:'point',i:'❓',t:'You can’t tell a <b>crashed</b> node from a <b>slow</b> one.'},
+     {k:'note',c:'note',t:'Real systems dodge FLP with timeouts (partial synchrony) — that’s what Raft does.'}
+   ]},
+   {t:'mcq',q:'How do Raft/Paxos get around FLP?',o:['quantum clocks','timeouts / partial synchrony','more nodes','ignoring failures'],a:1,why:'Assuming the network is eventually timely lets them make progress.'},
+   {t:'recall',q:'In one line: what does FLP say, and how do real systems cope?',model:['FLP: pure-async consensus can’t guarantee termination with even one fault.','You can’t distinguish crashed from slow.','Fix: add timeouts/partial synchrony (Raft, Paxos).']}
+  ]},
+  {id:'raft-2',title:'Raft elections',steps:[
+   {t:'teach',h:'Terms & heartbeats',body:[
+     {k:'point',i:'🕒',t:'<b>Terms</b> = ever-increasing numbers; each starts with an election.'},
+     {k:'point',i:'💓',t:'Leader sends <b>heartbeats</b>. No heartbeat → a follower suspects failure.'},
+     {k:'point',i:'🎲',t:'<b>Randomised timeout</b> (150–300ms) avoids everyone running at once.'}
+   ]},
+   {t:'teach',h:'Winning an election',body:[
+     {k:'cause',a:'Timeout fires → become candidate, vote self, ask others',b:'Win with a STRICT MAJORITY'},
+     {k:'keyt',term:'Up-to-date check',def:'voters refuse a candidate whose log is behind → winner has all committed entries.'}
+   ]},
+   {t:'order',q:'Put a Raft election in order.',items:['Heartbeats stop','Follower’s random timer fires','It becomes a candidate & votes for itself','Others grant votes','Majority reached → new leader']},
+   {t:'mcq',q:'A candidate becomes leader when it gets…',o:['the most recent log','votes from ALL nodes','a strict majority','the lowest id'],a:2,why:'Majority (quorum) wins; plus its log must be up-to-date.'},
+   {t:'cloze',q:'Unmask the Raft election.',distract:['leader','minority'],text:[
+     'A follower waits for ',{blank:'heartbeats'},'. After a randomised ',{blank:'timeout'},
+     ', it becomes a ',{blank:'candidate'},', votes for itself, and wins with a strict ',
+     {blank:'majority'},' — but only if its ',{blank:'log'},' is up-to-date.'
+   ]},
+   {t:'recall',q:'Walk me through a Raft leader election (the interview classic).',model:['Followers expect heartbeats; if none arrives before a randomised timeout, one becomes a candidate in a new term.','It votes for itself and requests votes; nodes won’t vote for a less up-to-date log.','With a strict majority it becomes leader and starts sending heartbeats.']}
+  ]},
+  {id:'raft-3',title:'Log & safe reads',steps:[
+   {t:'teach',h:'Replicating the log',body:[
+     {k:'cause',a:'Leader appends, sends AppendEntries',b:'Commit once a MAJORITY acks'},
+     {k:'point',i:'🧱',t:'<b>prevLogIndex/term</b> must match — else the follower rejects and the leader walks back.'}
+   ]},
+   {t:'teach',h:'The stale-leader trap',body:[
+     {k:'callout',c:'warn',t:'An old leader partitioned away may still answer reads — returning STALE data.'},
+     {k:'vs',a:{h:'Lease read',t:'time-bounded "I’m still leader" — fast, needs clocks.'},b:{h:'Read index',t:'confirm leadership via a heartbeat quorum — safe, no clocks.'}}
+   ]},
+   {t:'mcq',q:'Why can routing reads to "the leader" still be unsafe?',o:['leaders are slow','a stale partitioned leader serves old data','leaders can’t read','followers are faster'],a:1,why:'Use leases or the read-index trick to confirm current leadership.'},
+   {t:'build',q:'Pick valid ways to serve LINEARIZABLE reads in Raft.',options:['Read from any follower','Leader lease','Read index (heartbeat quorum)','Random replica'],correct:[1,2]},
+   {t:'recall',q:'How does Raft keep reads linearizable?',model:['Reads go through the leader, but a partitioned old leader could be stale.','Read-index: record commit index, confirm leadership with a heartbeat majority, wait until applied, then serve.','Or a leader lease (time-bounded) if clocks are trustworthy.']}
+  ]}
+ ],
+ boss:{title:'Raft Boss',time:75,q:[
+   {q:'Consensus powers all EXCEPT…',o:['leader election','replicated logs','distributed locks','image compression'],a:3},
+   {q:'FLP is dodged with…',o:['timeouts','more RAM','GPUs','sharding'],a:0},
+   {q:'A Raft candidate wins with…',o:['any vote','a strict majority','all votes','seniority'],a:1},
+   {q:'Randomised election timeouts prevent…',o:['data loss','split votes / herds','stale reads','partitions'],a:1},
+   {q:'A log entry commits after…',o:['leader writes it','a majority acks','any follower acks','a timeout'],a:1},
+   {q:'A partitioned old leader risks…',o:['fast reads','serving stale reads','double commits','nothing'],a:1},
+   {q:'Safe linearizable reads use…',o:['any follower','read-index or lease','random nodes','no method'],a:1}
+ ]}
+},
+{
+ id:'txn',title:'Transactions',icon:'🔐',color:'#FF9600',colorD:'#E07F00',
+ blurb:'All-or-nothing across many nodes — the hard part.',
+ lessons:[
+  {id:'txn-1',title:'Atomic commit',steps:[
+   {t:'teach',h:'Two-phase commit (2PC)',body:[
+     {k:'tldr',t:'Get many nodes to commit together — or none at all.'},
+     {k:'cause',a:'Phase 1: coordinator asks "ready?" — all vote',b:'Phase 2: all yes → commit, else abort'},
+     {k:'callout',c:'warn',t:'If the coordinator dies after "ready" but before deciding, participants are stuck holding locks — the blocking problem.'}
+   ]},
+   {t:'mcq',q:'Why is 2PC called a blocking protocol?',o:['it locks the whole DB','a coordinator crash leaves participants in-doubt holding locks','phase 2 is slow','votes are sequential'],a:1,why:'In-doubt participants can’t unilaterally decide, so they wait (holding locks) until the coordinator recovers.'},
+   {t:'teach',h:'Saga: the microservices answer',body:[
+     {k:'point',i:'🧩',t:'Split one big txn into local txns, each with a <b>compensating</b> undo.'},
+     {k:'vs',a:{h:'Choreography',t:'services react to each other’s events. Decentralised, harder to trace.'},b:{h:'Orchestration',t:'a central coordinator drives steps. Clearer, single control point.'}},
+     {k:'callout',c:'warn',t:'No atomic rollback — compensation is a semantic undo that can itself fail. Every step must be idempotent.'}
+   ]},
+   {t:'mcq',q:'In a Saga, step 3 of 5 fails. What happens?',o:['atomic rollback of all','compensating txns undo steps 1–2','wait for step 3','retry forever'],a:1,why:'Sagas undo completed steps in reverse with compensations — there’s no atomic rollback.'},
+   {t:'recall',q:'Explain the 2PC blocking problem in 2 sentences.',model:['After voting "ready", a participant must wait for the coordinator’s decision and can’t abort on its own.','If the coordinator crashes then, participants block (holding locks) until it recovers. That’s the coordinator SPOF.']}
+  ]},
+  {id:'txn-2',title:'Isolation & retries',steps:[
+   {t:'teach',h:'Isolation levels',body:[
+     {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads (only committed data).'},
+     {k:'point',i:'🔁',t:'<b>Repeatable read</b>: re-reading a row gives the same value.'},
+     {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time.'},
+     {k:'note',t:'Snapshot Isolation (MVCC) is cheap but allows write skew; SSI detects and aborts it.'}
+   ]},
+   {t:'cloze',q:'Fill the isolation blanks.',distract:['phantom','linearizable'],text:[
+     'Snapshot Isolation prevents ',{blank:'dirty'},' and ',{blank:'non-repeatable'},' reads but still allows ',
+     {blank:'write skew',alt:['write-skew']},'. ',{blank:'SSI'},' detects conflicts and aborts a txn to fix it.'
+   ]},
+   {t:'mcq',q:'Which level prevents dirty reads but allows non-repeatable reads?',o:['read uncommitted','read committed','repeatable read','serializable'],a:1,why:'Read committed shows only committed data, but a row can change between two reads.'},
+   {t:'build',q:'Pick ways to make a write safely retryable.',options:['Idempotency key','Conditional (compare-and-set) write','Naturally idempotent PUT','New random ID each retry','Fire-and-forget'],correct:[0,1,2]},
+   {t:'recall',q:'Why is "at-least-once + idempotent consumer" equal to exactly-once?',model:['Networks duplicate and clients retry, so you’ll get repeats (at-least-once).','An idempotent consumer makes repeats harmless — applying twice = applying once.','So the observable effect is exactly-once, far cheaper than true exactly-once delivery.']}
+  ]}
+ ],
+ boss:{title:'Transactions Boss',time:70,q:[
+   {q:'2PC’s main weakness is…',o:['speed','coordinator crash blocks participants','storage','no locks'],a:1},
+   {q:'A Saga handles failure with…',o:['atomic rollback','compensating transactions','2PC','retries only'],a:1},
+   {q:'Serializable isolation means…',o:['some interleavings','as-if one-at-a-time','dirty reads ok','no locks'],a:1},
+   {q:'Snapshot Isolation can still suffer…',o:['dirty reads','write skew','torn writes','nothing'],a:1},
+   {q:'Idempotency keys prevent…',o:['slow writes','duplicate effects on retry','deadlock','stale reads'],a:1},
+   {q:'Orchestration vs choreography differ in…',o:['speed','central vs distributed control','durability','cost'],a:1}
+ ]}
+},
+{
+ id:'part',title:'Partitioning',icon:'🧩',color:'#14B8A6',colorD:'#0E8C7F',
+ blurb:'Split data across nodes to scale — without hot spots.',
+ lessons:[
+  {id:'part-1',title:'How to split',steps:[
+   {t:'teach',h:'Range vs hash',body:[
+     {k:'vs',a:{h:'Range',t:'contiguous key ranges. Great for range scans — but timestamp keys = hot partition.'},b:{h:'Hash',t:'even spread, no range scans (scatter-gather).'}},
+     {k:'callout',c:'warn',t:'Sharding by current timestamp sends all writes to one partition — a classic hot shard.'}
+   ]},
+   {t:'sort',q:'Range or hash partitioning?',buckets:['Range','Hash'],items:[
+     {text:'fast time-range scans',b:0},{text:'even write spread',b:1},{text:'sorted keys per node',b:0},{text:'no natural range queries',b:1}
+   ]},
+   {t:'teach',h:'Consistent hashing',body:[
+     {k:'tldr',t:'Place nodes + keys on a ring; a key goes to the next node clockwise.'},
+     {k:'point',i:'➕',t:'Add/remove a node → only ~1/N of keys move (not everything).'},
+     {k:'point',i:'⚖️',t:'<b>Virtual nodes</b> spread each machine around the ring for even load.'}
+   ]},
+   {t:'cloze',q:'Fill the partitioning blanks.',distract:['range','replication'],text:[
+     'Naive hash(key) % N is bad because changing ',{blank:'N'},' remaps ',{blank:'almost every',alt:['almost all']},' key. ',
+     {blank:'Consistent hashing',alt:['consistent hashing']},' fixes this — only ~1/N keys move — and ',
+     {blank:'virtual nodes',alt:['vnodes']},' even out the load.'
+   ]},
+   {t:'recall',q:'Why is consistent hashing better than hash mod N?',model:['With mod N, changing the node count remaps nearly all keys → massive churn / cache wipeout.','Consistent hashing only moves ~1/N keys when a node joins or leaves.','Virtual nodes keep load balanced across heterogeneous machines.']}
+  ]},
+  {id:'part-2',title:'Indexes & routing',steps:[
+   {t:'teach',h:'Secondary indexes',body:[
+     {k:'vs',a:{h:'Local (per-shard)',t:'write is local + fast; read = scatter-gather all shards. (MongoDB)'},b:{h:'Global (by term)',t:'read hits one shard; write updates many, often async. (DynamoDB GSI)'}}
+   ]},
+   {t:'mcq',q:'A DynamoDB Global Secondary Index is…',o:['local, scatter-gather','global, often async (can be stale)','always strongly consistent','impossible'],a:1,why:'Global indexes are partitioned by the indexed term and updated asynchronously.'},
+   {t:'teach',h:'Request routing',body:[
+     {k:'point',i:'🧭',t:'Client must find "which node owns this key" as membership changes.'},
+     {k:'point',i:'🗺️',t:'Options: a routing proxy, a partition-aware client, or any-node redirect.'},
+     {k:'note',t:'The partition map itself often lives in ZooKeeper/etcd or spreads via gossip.'}
+   ]},
+   {t:'recall',q:'How does a client find the right shard for a key?',model:['Via a routing tier/proxy, a partition-aware client, or any-node redirect (forward/MOVED).','The partition map is kept in a coordination service (ZooKeeper/etcd) or gossiped between nodes.']}
+  ]}
+ ],
+ boss:{title:'Partitioning Boss',time:65,q:[
+   {q:'Range partitioning is great for…',o:['even load','range scans','hashing','encryption'],a:1},
+   {q:'hash(key) % N breaks because…',o:['hashes collide','adding a node remaps almost all keys','it’s slow','ranges break'],a:1},
+   {q:'Virtual nodes exist to…',o:['save memory','balance load + handle mixed hardware','enable ranges','encrypt'],a:1},
+   {q:'A local secondary index needs … on read',o:['one shard','scatter-gather','no reads','a lock'],a:1},
+   {q:'DynamoDB GSIs are…',o:['sync','async / possibly stale','local','disabled'],a:1},
+   {q:'The partition map is usually stored in…',o:['the app','ZooKeeper/etcd or gossip','a CSV','DNS'],a:1}
+ ]}
+},
+{
+ id:'cache',title:'Caching',icon:'⚡',color:'#F4B400',colorD:'#C98A00',
+ blurb:'Serve hot data fast — and survive expiry storms.',
+ lessons:[
+  {id:'cache-1',title:'Patterns',steps:[
+   {t:'teach',h:'Cache-aside',body:[
+     {k:'tldr',t:'App checks cache; on miss, read DB and populate. TTL is your only consistency knob.'},
+     {k:'callout',c:'warn',t:'On writes, DELETE the key (don’t update it) — update races can cache a stale value forever.'}
+   ]},
+   {t:'teach',h:'Write strategies',body:[
+     {k:'vs',a:{h:'Write-through',t:'write cache + DB together. Always warm, but slower + write pollution.'},b:{h:'Write-behind',t:'write cache now, flush DB later. Fast, but a crash loses data.'}}
+   ]},
+   {t:'sort',q:'Consistent or fast-but-risky?',buckets:['Consistent','Fast/risky'],items:[
+     {text:'write-through',b:0},{text:'write-behind',b:1}
+   ]},
+   {t:'mcq',q:'Biggest risk of write-behind caching?',o:['high latency','data loss if cache crashes before flush','too consistent','no hits'],a:1,why:'It acks before persisting, so an untimely crash drops un-flushed writes.'},
+   {t:'recall',q:'On a write, why delete the cache key instead of updating it?',model:['Concurrent update-then-set can interleave and leave a stale value cached indefinitely.','Deleting forces the next read to repopulate cleanly from the source of truth.']}
+  ]},
+  {id:'cache-2',title:'Failure modes',steps:[
+   {t:'teach',h:'Cache stampede',body:[
+     {k:'cause',a:'A hot key expires',b:'Thousands of misses hit the DB at once → it falls over'},
+     {k:'point',i:'🔒',t:'Fix 1: a mutex so only one request rebuilds the value.'},
+     {k:'point',i:'🎲',t:'Fix 2: jittered TTLs so keys don’t all expire together.'},
+     {k:'point',i:'♻️',t:'Fix 3: stale-while-revalidate — serve old, refresh in background.'}
+   ]},
+   {t:'teach',h:'Bloom filters',body:[
+     {k:'tldr',t:'A tiny probabilistic set: answers "definitely NOT here" or "maybe here".'},
+     {k:'point',i:'✅',t:'<b>No false negatives</b> — a "no" is certain; a "yes" might be wrong.'},
+     {k:'point',i:'⚡',t:'Used to skip pointless disk/cache lookups (e.g. LSM-tree reads, "have we seen this key?").'}
+   ]},
+   {t:'cloze',q:'Fill the stampede blanks.',distract:['eviction','sharding'],text:[
+     'When a popular key ',{blank:'expires'},', many requests miss at once and hammer the ',
+     {blank:'database',alt:['DB','db']},'. Fixes: a ',{blank:'mutex',alt:['lock']},' so one request rebuilds it, ',
+     {blank:'jittered',alt:['jitter']},' TTLs, or ',{blank:'stale-while-revalidate'},'.'
+   ]},
+   {t:'mcq',q:'A Bloom filter can tell you with certainty that an item is…',o:['present','definitely NOT present','recently used','large'],a:1,why:'No false negatives: "no" is certain, "yes" is "maybe". Great to skip pointless disk reads.'},
+   {t:'recall',q:'Name 2 ways to prevent a cache stampede.',model:['Mutex/lock so only the first miss rebuilds; others wait.','Jittered TTLs to spread expirations; or stale-while-revalidate to serve stale while refreshing.']}
+  ]}
+ ],
+ boss:{title:'Caching Boss',time:65,q:[
+   {q:'Cache-aside consistency relies on…',o:['the TTL','2PC','quorums','nothing'],a:0},
+   {q:'On a write you should…',o:['update the key','delete the key','ignore cache','lock the DB'],a:1},
+   {q:'Write-behind risks…',o:['latency','data loss on crash','too consistent','no hits'],a:1},
+   {q:'A cache stampede happens when…',o:['cache is empty','a hot key expires en masse','TTL is long','LRU runs'],a:1},
+   {q:'Jittered TTLs help by…',o:['saving memory','spreading expirations','encrypting','evicting LRU'],a:1},
+   {q:'Bloom filters have no…',o:['false positives','false negatives','memory use','hashing'],a:1}
+ ]}
+},
+{
+ id:'time',title:'Time & Ordering',icon:'⏱️',color:'#CE82FF',colorD:'#A560E8',
+ blurb:'Clocks lie. Order events without trusting them.',
+ lessons:[
+  {id:'time-1',title:'Logical clocks',steps:[
+   {t:'teach',h:'Lamport clocks',body:[
+     {k:'tldr',t:'A counter per process. Local/send: +1. Receive: max(local, msg)+1.'},
+     {k:'callout',c:'warn',t:'A→B implies clock(A)<clock(B), but NOT the reverse. Can’t detect concurrency.'}
+   ]},
+   {t:'teach',h:'Vector clocks',body:[
+     {k:'point',i:'🧮',t:'One counter per process. Compare element-wise.'},
+     {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
+     {k:'point',i:'∥',t:'Neither dominates → concurrent. Now you CAN tell.'}
+   ]},
+   {t:'cloze',q:'Fill the clock blanks.',distract:['physical','atomic'],text:[
+     'Lamport clocks give a ',{blank:'partial'},' order but can’t spot ',{blank:'concurrent'},
+     ' events. ',{blank:'Vector',alt:['vector']},' clocks compare ',{blank:'element-wise',alt:['elementwise']},
+     ' to reveal the full happened-before relation.'
+   ]},
+   {t:'mcq',q:'V(A) < V(B) means…',o:['A has fewer events','A causally happened-before B','wall clock earlier','they’re concurrent'],a:1,why:'Every entry ≤ and at least one strictly less → A → B.'},
+   {t:'recall',q:'Why do vector clocks beat Lamport clocks?',model:['Lamport gives ordering but can’t distinguish concurrent from causally-ordered events.','Vector clocks track one counter per process, so element-wise comparison reveals concurrency.']}
+  ]},
+  {id:'time-2',title:'Physical time',steps:[
+   {t:'teach',h:'TrueTime & HLC',body:[
+     {k:'keyt',term:'TrueTime (Spanner)',def:'returns an interval [earliest,latest]; wait out the uncertainty (commit wait) for global order.'},
+     {k:'keyt',term:'HLC',def:'hybrid logical clock — physical time + a logical counter; respects causality, no special hardware.'}
+   ]},
+   {t:'mcq',q:'Spanner’s commit wait exists to…',o:['save power','ensure no later txn gets a smaller timestamp','reduce storage','batch writes'],a:1,why:'Waiting out the clock uncertainty preserves external consistency globally.'},
+   {t:'teach',h:'Failure detection',body:[
+     {k:'point',i:'❓',t:'You can’t tell crashed from slow (FLP). All detectors are imperfect.'},
+     {k:'point',i:'🗣️',t:'Phi-accrual gives a tunable suspicion level instead of a binary alive/dead.'}
+   ]},
+   {t:'teach',h:'Gossip protocol',body:[
+     {k:'tldr',t:'No central registry: each node tells a few RANDOM peers, and news spreads like a rumour.'},
+     {k:'point',i:'📈',t:'Reaches all N nodes in ~<b>O(log N)</b> rounds — decentralised, no single point of failure.'},
+     {k:'vs',a:{h:'Anti-entropy',t:'compare full state + reconcile (Merkle diff). Thorough, always converges.'},b:{h:'Rumour-mongering',t:'gossip a fresh change for a while, then stop. Fast + cheap.'}},
+     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul (SWIM). Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
+   ]},
+   {t:'mcq',q:'How does a gossip protocol spread state across the cluster?',o:['a leader pushes to everyone','each node tells random peers; spreads in ~O(log N) rounds','every node broadcasts to all each second','only via ZooKeeper'],a:1,why:'Decentralised epidemic spread — random peer exchange, O(log N) convergence, no coordinator or SPOF.'},
+   {t:'recall',q:'What does TrueTime do differently from a normal clock?',model:['It exposes uncertainty as an interval [earliest, latest] instead of a single point.','Spanner waits out that interval (commit wait) so timestamps never disagree on order — external consistency.']}
+  ]}
+ ],
+ boss:{title:'Time Boss',time:70,q:[
+   {q:'Lamport clocks give only a…',o:['total real-time order','partial order','vector','lease'],a:1},
+   {q:'Vector clocks can detect…',o:['clock drift','concurrency','partitions','leaders'],a:1},
+   {q:'V(A) ≤ V(B), not equal, means…',o:['concurrent','A → B','B → A','unrelated'],a:1},
+   {q:'TrueTime returns…',o:['a single time','an interval','a vector','a counter'],a:1},
+   {q:'HLC’s advantage is…',o:['no clocks','physical-time-close + causal, no special HW','infinite precision','no drift'],a:1},
+   {q:'FLP says you can’t distinguish…',o:['fast vs slow nodes','crashed vs slow','leader vs follower','read vs write'],a:1}
+ ]}
+},
+{
+ id:'msg',title:'Messaging & Streaming',icon:'📨',color:'#58CC02',colorD:'#46a302',
+ blurb:'Decouple services and absorb spikes with queues & logs.',
+ lessons:[
+  {id:'msg-1',title:'Queues vs logs',steps:[
+   {t:'teach',h:'Two shapes',body:[
+     {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
+     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'}
+   ]},
+   {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
+     {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
+   ]},
+   {t:'teach',h:'Delivery semantics',body:[
+     {k:'point',i:'1️⃣',t:'<b>At-most-once</b>: may lose, never duplicate.'},
+     {k:'point',i:'🔁',t:'<b>At-least-once</b>: never lose, may duplicate → need idempotency.'},
+     {k:'point',i:'🎯',t:'<b>Exactly-once</b>: hard; usually = at-least-once + idempotent processing.'}
+   ]},
+   {t:'cloze',q:'Fill the delivery blanks.',distract:['ordered','synchronous'],text:[
+     'The pragmatic default is ',{blank:'at-least-once'},' delivery, which can ',{blank:'duplicate'},
+     ' messages — so consumers must be ',{blank:'idempotent'},'. True exactly-once over a network is ',{blank:'impossible'},'.'
+   ]},
+   {t:'mcq',q:'Kafka guarantees ordering…',o:['globally','within a partition only','never','per consumer'],a:1,why:'Order holds within a partition; pick the partition key to keep a key’s events ordered.'},
+   {t:'recall',q:'How do systems achieve "exactly-once" in practice?',model:['Use at-least-once delivery plus idempotent processing (or transactional offset+write).','Repeats become harmless, so the observable effect is exactly-once — much cheaper than true EO delivery.']}
+  ]},
+  {id:'msg-2',title:'Reliability',steps:[
+   {t:'teach',h:'Outbox & CDC',body:[
+     {k:'cause',a:'Writing DB + publishing event separately',b:'A crash between them = lost/phantom events (dual-write problem)'},
+     {k:'point',i:'📦',t:'<b>Outbox</b>: write business row + outbox row in one txn; a relay publishes it.'},
+     {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
+   ]},
+   {t:'mcq',q:'The transactional outbox solves…',o:['cache misses','the dual-write problem','leader election','hot keys'],a:1,why:'One local txn writes both the data and the event; a relay/CDC publishes reliably.'},
+   {t:'teach',h:'Backpressure & DLQs',body:[
+     {k:'point',i:'🌊',t:'Pull-based consumers (Kafka) get backpressure for free; bound your buffers.'},
+     {k:'point',i:'☠️',t:'Poison messages → a dead-letter queue after N retries, so the pipeline isn’t blocked.'}
+   ]},
+   {t:'recall',q:'What is the dual-write problem and how does the outbox fix it?',model:['Writing to the DB and a broker separately has no atomicity — a crash leaves them inconsistent.','The outbox writes the row + an event in ONE DB txn; a relay (or CDC) then publishes, at-least-once.']}
+  ]}
+ ],
+ boss:{title:'Messaging Boss',time:70,q:[
+   {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
+   {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
+   {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
+   {q:'The outbox pattern fixes…',o:['hot keys','dual-write inconsistency','stale reads','GC pauses'],a:1},
+   {q:'Poison messages go to a…',o:['cache','dead-letter queue','replica','leader'],a:1},
+   {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0}
+ ]}
+},
+{
+ id:'lb',title:'Load Balancing',icon:'🔀',color:'#1CB0F6',colorD:'#1899D6',
+ blurb:'Spread traffic for scale and survive dead backends.',
+ lessons:[
+  {id:'lb-1',title:'L4 vs L7',steps:[
+   {t:'teach',h:'Two layers',body:[
+     {k:'vs',a:{h:'L4 (transport)',t:'routes by IP/port, no payload peek. Fast, connection-level.'},b:{h:'L7 (application)',t:'reads HTTP — route by path/header, TLS, retries. Pricier.'}}
+   ]},
+   {t:'sort',q:'L4 or L7?',buckets:['L4','L7'],items:[
+     {text:'route by URL path',b:1},{text:'raw TCP forwarding',b:0},{text:'TLS termination',b:1},{text:'lowest overhead',b:0}
+   ]},
+   {t:'teach',h:'Algorithms',body:[
+     {k:'point',i:'🔄',t:'Round-robin / weighted; least-connections.'},
+     {k:'point',i:'🎯',t:'<b>Power of two choices</b>: sample 2 random, pick the lighter — near-optimal, O(1).'},
+     {k:'point',i:'🧷',t:'Consistent hashing for affinity (same key → same backend).'}
+   ]},
+   {t:'mcq',q:'Why does "power of two choices" beat strict least-connections?',o:['it’s simpler','avoids herding everyone onto one "best" node','uses less memory','needs no health checks'],a:1,why:'Sampling two avoids the stampede onto a single least-loaded node.'},
+   {t:'recall',q:'When do you need an L7 load balancer over L4?',model:['When routing depends on HTTP content (path, header, cookie), or you want TLS termination, retries, rewrites.','L4 is faster but can only route by IP/port and pins a whole connection.']}
+  ]},
+  {id:'lb-2',title:'Health & global',steps:[
+   {t:'teach',h:'Health checks',body:[
+     {k:'point',i:'🩺',t:'Active probes /healthz; passive ejects hosts on repeated 5xx.'},
+     {k:'callout',c:'warn',t:'Deep checks + a shared dependency blip can eject ALL hosts at once — "fail open" to avoid that.'}
+   ]},
+   {t:'teach',h:'Going global & stateless',body:[
+     {k:'point',i:'🌍',t:'GeoDNS or anycast routes users to the nearest/healthy region.'},
+     {k:'note',t:'Prefer stateless servers (state in Redis/JWT) so any node serves any request — no sticky sessions.'}
+   ]},
+   {t:'recall',q:'Why prefer stateless servers over sticky sessions?',model:['Stateless = any instance can serve any request, so scaling and failover are trivial.','Sticky sessions pin users to a node, breaking even load and losing state on failover. Externalise state instead.']}
+  ]}
+ ],
+ boss:{title:'Load Balancing Boss',time:65,q:[
+   {q:'An L4 LB routes by…',o:['HTTP path','IP/port','cookie','header'],a:1},
+   {q:'TLS termination needs…',o:['L4','L7','DNS','anycast'],a:1},
+   {q:'Power-of-two-choices avoids…',o:['encryption','herding onto one node','range scans','GC'],a:1},
+   {q:'Anycast helps with…',o:['storage','fast regional failover/routing','hashing','locks'],a:1},
+   {q:'Sticky sessions hurt because…',o:['too fast','break even load + lose state on failover','no TLS','too cheap'],a:1},
+   {q:'A health-check death spiral is mitigated by…',o:['deeper checks','fail-open thresholds','more retries','sticky sessions'],a:1}
+ ]}
+},
+{
+ id:'rl',title:'Rate Limiting',icon:'🚦',color:'#FF4B4B',colorD:'#E63946',
+ blurb:'Protect services from overload and abuse.',
+ lessons:[
+  {id:'rl-1',title:'Algorithms',steps:[
+   {t:'teach',h:'Bucket families',body:[
+     {k:'vs',a:{h:'Token bucket',t:'tokens refill at rate R, capacity B. Allows bursts up to B.'},b:{h:'Leaky bucket',t:'constant drain. Smooths output, no bursts.'}}
+   ]},
+   {t:'mcq',q:'You must allow short bursts but cap the average. Which?',o:['leaky bucket','token bucket','fixed window','none'],a:1,why:'Token bucket permits a burst up to capacity, then enforces the refill rate.'},
+   {t:'teach',h:'Window counters',body:[
+     {k:'point',i:'🪟',t:'<b>Fixed window</b>: simple, but boundary bursts (2× at the edge).'},
+     {k:'point',i:'🌊',t:'<b>Sliding window counter</b>: weight previous window — smooth, O(1).'}
+   ]},
+   {t:'sort',q:'Bursty-friendly or smoothing?',buckets:['Allows bursts','Smooths/strict'],items:[
+     {text:'token bucket',b:0},{text:'leaky bucket',b:1}
+   ]},
+   {t:'recall',q:'Token bucket vs leaky bucket — when each?',model:['Token bucket: allow bursts up to B, average bounded by R — good for APIs.','Leaky bucket: constant outflow, no bursts — good when the downstream needs smooth traffic.']}
+  ]},
+  {id:'rl-2',title:'Distributed',steps:[
+   {t:'teach',h:'Across a fleet',body:[
+     {k:'cause',a:'Per-instance counters',b:'N instances × R = N×R effective limit (wrong!)'},
+     {k:'point',i:'🧰',t:'Use a shared store (Redis INCR/Lua) or distribute quota slices per node.'},
+     {k:'point',i:'📨',t:'Respond 429 + Retry-After; limit at the edge/gateway.'}
+   ]},
+   {t:'cloze',q:'Fill the distributed-limit blanks.',distract:['cache','shard'],text:[
+     'Per-instance counters give an effective limit of ',{blank:'N×R',alt:['NxR','N*R']},'. Use a shared ',
+     {blank:'Redis',alt:['redis']},' counter or per-node ',{blank:'quota'},', and return ',{blank:'429'},' with Retry-After.'
+   ]},
+   {t:'recall',q:'Why are per-instance counters wrong for a global limit?',model:['Each of N instances independently allows R, so total ≈ N×R, not R.','Fix with a shared counter (Redis) or by handing each node a slice of the global quota.']}
+  ]}
+ ],
+ boss:{title:'Rate Limiting Boss',time:60,q:[
+   {q:'Token bucket allows…',o:['no bursts','bursts up to capacity','only smoothing','infinite rate'],a:1},
+   {q:'Leaky bucket gives…',o:['bursts','constant outflow','no limit','random drops'],a:1},
+   {q:'Fixed windows suffer…',o:['boundary bursts','no limit','high memory','drift'],a:0},
+   {q:'A global limit across nodes needs…',o:['per-node counters','a shared store or quota','no coordination','DNS'],a:1},
+   {q:'On limit, return…',o:['200','429 + Retry-After','500','301'],a:1},
+   {q:'Best place to rate-limit is…',o:['the database','the edge/gateway','the cache','the client only'],a:1}
+ ]}
+},
+{
+ id:'scale',title:'Scalability & Numbers',icon:'📈',color:'#EC4899',colorD:'#C9377D',
+ blurb:'Estimate first, then scale. Know the numbers.',
+ lessons:[
+  {id:'scale-1',title:'Estimate',steps:[
+   {t:'teach',h:'Back-of-envelope',body:[
+     {k:'point',i:'👥',t:'QPS ≈ DAU × actions ÷ 86,400. Peak ≈ 2–10× average.'},
+     {k:'point',i:'💾',t:'Storage ≈ writes/day × bytes × retention × replication (×3).'},
+     {k:'point',i:'🔥',t:'Cache the hot ~20% (80/20). Size = hot keys × value size.'}
+   ]},
+   {t:'teach',h:'Latency numbers to know',body:[
+     {k:'point',i:'⚡',t:'Memory read ≈ <b>100 ns</b>; SSD random read ≈ <b>16 µs</b> (~100× slower).'},
+     {k:'point',i:'🏢',t:'Round trip within a datacenter ≈ <b>0.5 ms</b>.'},
+     {k:'point',i:'🌍',t:'Cross-continent round trip ≈ <b>150 ms</b> — dwarfs the rest, so cache/CDN near users.'}
+   ]},
+   {t:'order',q:'Order these latencies FASTEST → SLOWEST.',items:['Memory read (~100ns)','SSD read (~16µs)','Datacenter round trip (~0.5ms)','Cross-continent round trip (~150ms)']},
+   {t:'mcq',q:'Roughly, 1 day in seconds is…',o:['~3,600','~86,400','~1,000,000','~604,800'],a:1,why:'86,400 ≈ 10^5 — the handiest estimation constant.'},
+   {t:'recall',q:'Give the 3-step recipe for capacity estimation.',model:['Traffic: DAU × actions ÷ 86,400 → QPS; peak = 2–10×.','Storage: writes/day × bytes × retention × replication.','Cache: 80/20 — size the hot working set, not total reads.']}
+  ]},
+  {id:'scale-2',title:'Scale out',steps:[
+   {t:'teach',h:'Vertical vs horizontal',body:[
+     {k:'vs',a:{h:'Vertical',t:'bigger box. Simple, but a ceiling + SPOF.'},b:{h:'Horizontal',t:'more boxes. Unbounded + fault-tolerant, but adds coordination.'}},
+     {k:'note',t:'Make app servers stateless → the DB becomes the bottleneck (hence replicas, sharding, caching).'}
+   ]},
+   {t:'teach',h:'Storage engines',body:[
+     {k:'vs',a:{h:'LSM-tree',t:'sequential writes + compaction. Write-optimized (Cassandra, RocksDB).'},b:{h:'B-tree',t:'update-in-place. Read/range-optimized (Postgres, MySQL).'}}
+   ]},
+   {t:'cloze',q:'Fill the storage-engine blanks.',distract:['hash','cache'],text:[
+     'Write-heavy ingest (logs, time-series) suits an ',{blank:'LSM',alt:['LSM-tree']},'-tree: ',
+     {blank:'sequential'},' writes plus background ',{blank:'compaction'},'. Read/range-heavy work suits a ',{blank:'B-tree',alt:['btree','B tree']},'.'
+   ]},
+   {t:'mcq',q:'For a write-heavy time-series workload, pick…',o:['B-tree','LSM-tree','in-memory hash','none'],a:1,why:'LSM buffers in memory and flushes sequentially — high write throughput.'},
+   {t:'recall',q:'Why does making app servers stateless matter for scaling?',model:['Any instance can serve any request, so you just add instances behind a load balancer.','State moves to DB/cache/token, and the database becomes the scaling bottleneck to address with replicas/sharding.']}
+  ]}
+ ],
+ boss:{title:'Scalability Boss',time:70,q:[
+   {q:'Peak QPS is usually…',o:['= average','2–10× average','100× average','< average'],a:1},
+   {q:'1 day ≈ … seconds',o:['3.6k','86.4k','1M','600k'],a:1},
+   {q:'Horizontal scaling adds…',o:['a ceiling','coordination complexity','nothing','a SPOF'],a:1},
+   {q:'LSM-trees are…',o:['read-optimized','write-optimized','in-memory only','encrypted'],a:1},
+   {q:'B-trees excel at…',o:['write bursts','reads + range scans','compaction','hashing'],a:1},
+   {q:'Stateless servers make … the bottleneck',o:['the LB','the database','DNS','the cache'],a:1}
+ ]}
+},
+{
+ id:'rel',title:'Reliability',icon:'🛡️',color:'#0EA5A0',colorD:'#0E8C7F',
+ blurb:'Failure is normal. Contain it gracefully.',
+ lessons:[
+  {id:'rel-1',title:'Targets & breakers',steps:[
+   {t:'teach',h:'SLI / SLO / error budget',body:[
+     {k:'keyt',term:'SLI → SLO → SLA',def:'measured number → internal target → customer promise (with penalties).'},
+     {k:'point',i:'💰',t:'Error budget = 100% − SLO. 99.9% ≈ 43 min/month of allowed downtime.'}
+   ]},
+   {t:'teach',h:'Circuit breaker',body:[
+     {k:'cause',a:'A dependency starts failing/slow',b:'Breaker OPENS → fail fast, stop the cascade'},
+     {k:'point',i:'🔁',t:'CLOSED → (too many fails) OPEN → (cooldown) HALF-OPEN → test → CLOSED/OPEN.'}
+   ]},
+   {t:'cloze',q:'Fill the resilience blanks.',distract:['retry','shard'],text:[
+     'A circuit breaker ',{blank:'opens',alt:['open']},' after too many failures and ',{blank:'fails fast',alt:['fail fast','fail-fast']},
+     ', preventing a ',{blank:'cascading',alt:['cascade']},' failure. Always pair calls with a ',{blank:'timeout'},'.'
+   ]},
+   {t:'mcq',q:'An OPEN circuit breaker…',o:['passes calls','fails fast without calling','queues calls','retries forever'],a:1,why:'Failing fast frees threads and lets the dependency recover.'},
+   {t:'recall',q:'What is an error budget and how do teams use it?',model:['Error budget = 100% − SLO (e.g. 0.1% ≈ 43 min/month for 99.9%).','Budget left → ship features; budget spent → freeze releases and fix stability.']}
+  ]},
+  {id:'rel-2',title:'Retries & multi-region',steps:[
+   {t:'teach',h:'Retries done right',body:[
+     {k:'point',i:'📈',t:'Exponential backoff: 1s, 2s, 4s…'},
+     {k:'point',i:'🎲',t:'<b>Jitter</b> so clients don’t retry in sync (retry storm).'},
+     {k:'callout',c:'warn',t:'Retry at ONE layer only — 3 layers × 3 retries = 27× amplification in an incident.'}
+   ]},
+   {t:'mcq',q:'Why add jitter to backoff?',o:['retry faster','prevent synchronized retry storms','make idempotent','cut latency'],a:1,why:'Randomness spreads retries so a recovering service isn’t re-stampeded.'},
+   {t:'teach',h:'Multi-region & DR',body:[
+     {k:'vs',a:{h:'Active-passive',t:'standby takes over on failure. Simple; failover delay.'},b:{h:'Active-active',t:'all regions serve; needs conflict resolution.'}},
+     {k:'point',i:'⏱️',t:'RPO ≈ data you can lose (replication lag); RTO ≈ time to recover.'}
+   ]},
+   {t:'recall',q:'Explain RPO vs RTO in one line each.',model:['RPO = how much data you can afford to lose — set by replication lag (sync≈0, async≈lag).','RTO = how fast you must be back — set by failover automation + DNS/anycast propagation.']}
+  ]}
+ ],
+ boss:{title:'Reliability Boss',time:70,q:[
+   {q:'Error budget =',o:['SLO','100% − SLO','SLA','uptime'],a:1},
+   {q:'An OPEN breaker…',o:['passes calls','fails fast','queues','retries'],a:1},
+   {q:'Jitter on retries prevents…',o:['data loss','retry storms','stale reads','GC'],a:1},
+   {q:'Retry amplification is fixed by…',o:['more retries','retrying at one layer','no timeouts','sticky sessions'],a:1},
+   {q:'RPO is bounded by…',o:['DNS TTL','replication lag','RTO','CPU'],a:1},
+   {q:'Active-active needs…',o:['no replication','conflict resolution','one region','a lock'],a:1}
+ ]}
+},
+{
+ id:'pat',title:'Design Patterns',icon:'🧠',color:'#A560E8',colorD:'#7C3AED',
+ blurb:'Recognise the shape, reuse the playbook.',
+ lessons:[
+  {id:'pat-1',title:'Spot the pattern',steps:[
+   {t:'teach',h:'Core playbooks',body:[
+     {k:'point',i:'📡',t:'<b>Real-time updates</b>: polling → SSE → WebSocket; pub/sub server-side.'},
+     {k:'point',i:'⏳',t:'<b>Long-running tasks</b>: enqueue job, return id, workers process.'},
+     {k:'point',i:'🔒',t:'<b>Contention</b>: DB transaction / optimistic CAS before distributed locks.'}
+   ]},
+   {t:'match',q:'Match the problem to its pattern.',pairs:[['Live chat updates','Real-time push'],['Video transcoding','Long-running task'],['Last concert seat','Contention control']]},
+   {t:'teach',h:'More playbooks',body:[
+     {k:'point',i:'📖',t:'<b>Scaling reads</b>: index → replicas → cache/CDN.'},
+     {k:'point',i:'✍️',t:'<b>Scaling writes</b>: shard by a good key; batch; buffer bursts.'},
+     {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3 + CDN.'},
+     {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index (geohash/quadtree).'}
+   ]},
+   {t:'mcq',q:'Large file uploads should…',o:['stream through app servers','use presigned URLs direct to blob storage','go in the DB','be base64'],a:1,why:'Keep gigabytes off the app tier; serve via CDN.'},
+   {t:'recall',q:'For a feed, when fanout-on-write vs fanout-on-read?',model:['Fanout-on-write (push): precompute timelines — cheap reads, expensive for celebrities.','Fanout-on-read (pull): assemble at read time — cheap writes, costly reads.','Hybrid: push for normal users, pull/merge for celebrities.']}
+  ]}
+ ],
+ boss:{title:'Patterns Boss',time:65,q:[
+   {q:'Start real-time updates with…',o:['WebSockets','HTTP polling','gRPC','a queue'],a:1},
+   {q:'Slow work (video encode) should be…',o:['synchronous','an async worker job','in the DB','dropped'],a:1},
+   {q:'First tool for contention is…',o:['distributed lock','DB transaction / CAS','2PC','sharding'],a:1},
+   {q:'Scaling reads order:',o:['cache→replica→index','index→replica→cache','replica→index→cache','none'],a:1},
+   {q:'Large blobs use…',o:['app streaming','presigned URLs + CDN','the DB','email'],a:1},
+   {q:'Proximity search needs a…',o:['B-tree','geospatial index','bloom filter','queue'],a:1}
+ ]}
+},
+{
+ id:'fw',title:'Interview Framework',icon:'🎯',color:'#58CC02',colorD:'#46a302',
+ blurb:'Structure beats panic. Drive the conversation.',
+ lessons:[
+  {id:'fw-1',title:'The flow',steps:[
+   {t:'teach',h:'A repeatable structure',body:[
+     {k:'point',i:'1️⃣',t:'Requirements: functional (top 3!) + non-functional (quantified).'},
+     {k:'point',i:'2️⃣',t:'Core entities → API → high-level design (boxes that satisfy the API).'},
+     {k:'point',i:'3️⃣',t:'Deep dives: harden against NFRs, bottlenecks, failure.'},
+     {k:'point',i:'🔑',t:'API tips: derive the current user from the <b>auth token</b> (never the request body); paginate feeds with a <b>cursor (keyset)</b>, not offset.'},
+     {k:'point',i:'🧮',t:'Do back-of-envelope math <b>only when a number changes the design</b> (e.g. does the heap fit on one node?) — not as ritual.'}
+   ]},
+   {t:'order',q:'Order the interview steps.',items:['Clarify requirements','Define core entities + API','High-level design','Deep dives','Wrap up: bottlenecks & SPOFs']},
+   {t:'mcq',q:'Per the delivery framework, do upfront capacity math when…',o:['always, in detail','only when a number changes the design','never','at the end'],a:1,why:'Estimate only when it drives a decision (e.g. does the heap fit on one node?).'},
+   {t:'teach',h:'Common mistakes',body:[
+     {k:'callout',c:'warn',t:'Designing before clarifying; over-engineering for 1K users; hand-waving the hard part; ignoring failure.'}
+   ]},
+   {t:'recall',q:'Name the non-functional requirements you should always probe.',model:['Consistency vs availability, scale (DAU/QPS/read:write), latency targets.','Durability, security/compliance, fault tolerance — quantify the top 3–5 that matter here.']}
+  ]},
+  {id:'fw-2',title:'Make the call',steps:[
+   {t:'teach',h:'The recurring forks',body:[
+     {k:'tldr',t:'Most designs hit the same forks. Memorize the deciding QUESTION, not a default answer.'},
+     {k:'vs',a:{h:'SQL',t:'transactions, joins, strong consistency (orders, payments).'},b:{h:'NoSQL',t:'huge scale + simple access, flexible schema, write-heavy.'}},
+     {k:'vs',a:{h:'Strong consistency',t:'balances, uniqueness, "did it commit?"'},b:{h:'Eventual',t:'likes, views, search indexes, analytics.'}}
+   ]},
+   {t:'sort',q:'SQL or NoSQL for this workload?',buckets:['SQL','NoSQL'],items:[
+     {text:'Payments with multi-row transactions',b:0},{text:'10M writes/sec of sensor data',b:1},{text:'Complex joins + ad-hoc queries',b:0},{text:'Flexible schema, simple key access',b:1}
+   ]},
+   {t:'match',q:'Match the use-case to the right datastore.',pairs:[['Cache / sessions','Key-value (Redis)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph DB'],['Append-heavy time-series','Wide-column (Cassandra)']]},
+   {t:'mcq',q:'Correctness is critical (money, inventory, locks). Pick…',o:['AP (availability)','CP (consistency)','eventual','LWW'],a:1,why:'When a wrong answer is unacceptable, choose consistency (CP) even at some availability cost.'},
+   {t:'mcq',q:'Caller needs the result now and the work is short. Sync or async?',o:['async via a queue','synchronous','always async','fire-and-forget'],a:1,why:'Sync is simpler with clear back-pressure; go async only for slow/heavy work, spikes, or decoupling.'},
+   {t:'cloze',q:'Fill the decision blanks.',distract:['offset','vertical'],text:[
+     'Choose ',{blank:'SQL'},' for transactions and joins; ',{blank:'NoSQL'},' for huge scale + simple access. Use ',
+     {blank:'eventual',alt:['eventual consistency']},' consistency for likes/views, but ',{blank:'strong',alt:['strong consistency']},' for balances and "did it commit?".'
+   ]},
+   {t:'recall',q:'Give the deciding question for: SQL vs NoSQL, CP vs AP, sync vs async.',model:['SQL vs NoSQL: "do I need transactions/joins/strong consistency, or huge-scale simple access?"','CP vs AP: "is a wrong/stale answer unacceptable here?" (money → CP; feeds → AP).','Sync vs async: "does the caller need the result now and is the work short?" If yes, sync.']}
+  ]}
+ ],
+ boss:{title:'Framework Boss',time:60,q:[
+   {q:'Prioritise how many functional requirements?',o:['all of them','the top ~3','none','10+'],a:1},
+   {q:'Current user should come from…',o:['request body','the auth token','a path param','user-typed input'],a:1},
+   {q:'Capacity math is worth doing when…',o:['always','it changes the design','never','only at start'],a:1},
+   {q:'Pagination for feeds should be…',o:['offset','cursor/keyset','none','random'],a:1},
+   {q:'The deep-dive phase is where you…',o:['draw boxes','harden vs NFRs & failure','clarify scope','estimate'],a:1},
+   {q:'A common failure is…',o:['clarifying too much','designing before clarifying','listening','simple designs'],a:1}
+ ]}
+},
+{
+ id:'data',title:'Data & ML Infra',icon:'🤖',color:'#1CB0F6',colorD:'#1899D6',
+ blurb:'Pipelines, storage tiers, and serving models at scale.',
+ lessons:[
+  {id:'data-1',title:'Pipelines & storage',steps:[
+   {t:'teach',h:'Batch vs stream; ELT',body:[
+     {k:'vs',a:{h:'Batch',t:'process big chunks on a schedule. High throughput, high latency.'},b:{h:'Stream',t:'process events as they arrive (Flink/Kafka Streams). Low latency.'}},
+     {k:'note',t:'Modern default is ELT: load raw into a warehouse (BigQuery/Snowflake), transform with SQL.'}
+   ]},
+   {t:'sort',q:'Batch or streaming?',buckets:['Batch','Streaming'],items:[
+     {text:'nightly report',b:0},{text:'fraud alert in seconds',b:1},{text:'huge throughput, latency ok',b:0},{text:'live dashboard',b:1}
+   ]},
+   {t:'teach',h:'Storage tiers',body:[
+     {k:'point',i:'💽',t:'<b>Block</b> (EBS): one VM, low-latency DB volumes.'},
+     {k:'point',i:'📂',t:'<b>File</b> (EFS/NFS): shared POSIX across many workers.'},
+     {k:'point',i:'🪣',t:'<b>Object</b> (S3): HTTP, 11 nines, immutable — media, data lakes, checkpoints.'}
+   ]},
+   {t:'mcq',q:'Where do you store ML training data and model checkpoints?',o:['block volume','object storage (S3/GCS)','the app server','a queue'],a:1,why:'Object storage is cheap, durable, and globally accessible — ideal for datasets & checkpoints.'},
+   {t:'recall',q:'Why is ELT the modern default over ETL?',model:['Cheap columnar warehouses make it fine to load raw data first.','Transform on-demand with SQL in the warehouse, and re-run transforms without re-ingesting from source.']}
+  ]},
+  {id:'data-2',title:'Serving ML',steps:[
+   {t:'teach',h:'Feature stores & serving',body:[
+     {k:'keyt',term:'Feature store',def:'serve the SAME features at train and inference time (offline + online) to avoid skew.'},
+     {k:'point',i:'⚡',t:'Online serving: low-latency KV (Redis/DynamoDB); batch features precomputed.'}
+   ]},
+   {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
+   {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
+  ]}
+ ],
+ boss:{title:'Data & ML Boss',time:65,q:[
+   {q:'Streaming beats batch when you need…',o:['throughput','low latency','cheap storage','simplicity'],a:1},
+   {q:'ELT loads raw data into…',o:['the app','a warehouse, transform later','a queue','a cache'],a:1},
+   {q:'Object storage (S3) is best for…',o:['DB volumes','blobs/datasets/checkpoints','low-latency random I/O','locks'],a:1},
+   {q:'A feature store prevents…',o:['hot keys','train/serve skew','partitions','GC'],a:1},
+   {q:'Online feature serving uses…',o:['a warehouse','low-latency KV store','tape','a CSV'],a:1},
+   {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1}
+ ]}
+},
+{
+ id:'conc',title:'Concurrency Control',icon:'🧵',color:'#6366F1',colorD:'#4F46E5',
+ blurb:'The anomaly zoo — and how databases stop it.',
+ lessons:[
+  {id:'conc-1',title:'Anomaly zoo',steps:[
+   {t:'teach',h:'Read phenomena',body:[
+     {k:'point',i:'🩸',t:'<b>Dirty read</b>: you read another txn’s uncommitted write.'},
+     {k:'point',i:'🔁',t:'<b>Non-repeatable read</b> (read skew): a row changes value mid-txn.'},
+     {k:'point',i:'👻',t:'<b>Phantom</b>: a query’s result set gains/loses rows mid-txn.'}
+   ]},
+   {t:'teach',h:'The sneaky write anomalies',body:[
+     {k:'keyt',term:'Lost update',def:'two read-modify-write cycles; one silently clobbers the other. Same object.'},
+     {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant.'},
+     {k:'mnemonic',t:'Same object → lost update. Different objects, shared assumption → write skew.'}
+   ]},
+   {t:'sort',q:'Same object or different objects?',buckets:['Same object','Different objects'],items:[
+     {text:'Lost update',b:0},{text:'Write skew',b:1}
+   ]},
+   {t:'cloze',q:'Fill the anomaly blanks.',distract:['dirty','phantom'],text:[
+     'A ',{blank:'lost update',alt:['lost-update']},' is two writes to the SAME object; ',{blank:'write skew',alt:['write-skew']},
+     ' is two writes to DIFFERENT objects that jointly break a rule. The fix for both is ',{blank:'serializable',alt:['serializability']},' isolation (or SSI).'
+   ]},
+   {t:'mcq',q:'Two on-call doctors each clock off because each sees the other still on. That’s…',o:['a dirty read','a phantom','write skew','a lost update'],a:2,why:'Disjoint writes that together break an invariant = write skew. Needs serializable/SSI.'},
+   {t:'recall',q:'Explain lost update vs write skew.',model:['Lost update: two read-modify-write cycles on the SAME object — one overwrites the other. Fix with atomic op / SELECT FOR UPDATE / compare-and-set.','Write skew: two txns read an overlapping set and write DIFFERENT rows that jointly violate a constraint. Fix with serializable/SSI.']}
+  ]},
+  {id:'conc-2',title:'Mechanisms',steps:[
+   {t:'teach',h:'Locking the pessimistic way',body:[
+     {k:'point',i:'🔒',t:'<b>2PL</b>: grow (acquire locks) then shrink (release at commit). Shared reads coexist; exclusive writes don’t.'},
+     {k:'point',i:'👻',t:'Predicate / index-range locks block phantoms.'},
+     {k:'callout',c:'warn',t:'2PL invites deadlocks — cycles of txns each waiting on the other’s lock.'},
+     {k:'point',i:'🔁',t:'Handle deadlocks by <b>detection</b> (find a wait cycle → abort a victim) or <b>prevention</b> (consistent lock ordering, lock timeouts, wait-die / wound-wait).'}
+   ]},
+   {t:'teach',h:'Optimistic & versioned',body:[
+     {k:'keyt',term:'OCC',def:'no locks; at commit, check if your read set changed — abort & retry if so. Great at low contention.'},
+     {k:'keyt',term:'MVCC',def:'keep multiple row versions; readers see a snapshot and never block writers. Powers Snapshot Isolation.'},
+     {k:'keyt',term:'SSI',def:'optimistic serializable — tracks rw-conflicts and aborts dangerous ones (PostgreSQL Serializable).'}
+   ]},
+   {t:'cloze',q:'Fill the mechanism blanks.',distract:['serializable','sharding'],text:[
+     '2PL is ',{blank:'pessimistic'},' (lock up front); OCC is ',{blank:'optimistic'},' (validate at ',{blank:'commit'},
+     '). ',{blank:'MVCC'},' keeps multiple versions so readers don’t block writers.'
+   ]},
+   {t:'mcq',q:'You expect LOW contention. Which control fits best?',o:['2PL (pessimistic)','OCC (optimistic)','a global lock','serial execution'],a:1,why:'OCC avoids lock overhead and rarely has to retry when conflicts are rare.'},
+   {t:'build',q:'Pick valid ways to handle deadlocks.',options:['Consistent lock ordering','Lock timeouts','Wait-die / wound-wait','Acquire even more locks','Detect a cycle & abort a victim'],correct:[0,1,2,4]},
+   {t:'recall',q:'When would you choose OCC over 2PL?',model:['OCC when contention is low — most txns commit without conflict, so skipping locks is a net win.','2PL (pessimistic) when contention is high, so you avoid wasteful aborts/retries.']}
+  ]}
+ ],
+ boss:{title:'Concurrency Boss',time:70,q:[
+   {q:'Dirty read =',o:['stale snapshot','reading uncommitted data','a phantom','a deadlock'],a:1},
+   {q:'Write skew is stopped by…',o:['read committed','serializable / SSI','no locks','TTL'],a:1},
+   {q:'Lost update is two writes to…',o:['different objects','the same object','an index','a queue'],a:1},
+   {q:'2PL is…',o:['optimistic','pessimistic','lock-free','async'],a:1},
+   {q:'MVCC lets readers…',o:['block writers','see a snapshot without blocking','skip commits','avoid versions'],a:1},
+   {q:'OCC fits best when contention is…',o:['high','low','unknown','irrelevant'],a:1}
+ ]}
+},
+{
+ id:'model',title:'Data Models & Encoding',icon:'🗃️',color:'#0891B2',colorD:'#0E7490',
+ blurb:'Relational, document, graph — and schema evolution.',
+ lessons:[
+  {id:'model-1',title:'Pick a model',steps:[
+   {t:'teach',h:'Three shapes of data',body:[
+     {k:'point',i:'🧱',t:'<b>Relational</b>: tables + joins. Great for many-to-many and ad-hoc queries.'},
+     {k:'point',i:'📄',t:'<b>Document</b>: nested JSON per entity. Great for one-to-many, locality, flexible schema.'},
+     {k:'point',i:'🕸️',t:'<b>Graph</b>: nodes + edges. Great for many-to-many, multi-hop traversals.'}
+   ]},
+   {t:'match',q:'Match the model to its sweet spot.',pairs:[['Relational','Many-to-many + joins'],['Document','Self-contained nested record'],['Graph','Multi-hop relationships']]},
+   {t:'mcq',q:'Highly connected data with multi-hop queries (social graph, fraud rings) suits…',o:['document','graph','key-value','column'],a:1,why:'Graph DBs make multi-hop traversals cheap; the same in SQL means many recursive joins.'},
+   {t:'teach',h:'Normalize vs denormalize',body:[
+     {k:'cause',a:'Denormalize (duplicate data)',b:'Faster reads, but harder writes + consistency'},
+     {k:'note',t:'Normalize for write integrity; denormalize for read speed. Most systems do both, per access pattern.'}
+   ]},
+   {t:'recall',q:'When document model over relational?',model:['Document fits self-contained, one-to-many records read together (locality) with a flexible schema.','Relational wins for many-to-many relationships, joins, and ad-hoc queries across entities.']}
+  ]},
+  {id:'model-2',title:'Encoding & evolution',steps:[
+   {t:'teach',h:'Wire formats',body:[
+     {k:'vs',a:{h:'JSON/XML',t:'human-readable, verbose, weak typing. Easy but big.'},b:{h:'Avro / Protobuf / Thrift',t:'compact binary + a schema; fast and small.'}},
+     {k:'note',t:'A schema registry lets producers and consumers evolve independently.'}
+   ]},
+   {t:'teach',h:'Compatibility',body:[
+     {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
+     {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
+   ]},
+   {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
+     {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
+     ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
+   ]},
+   {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
+   {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
+  ]}
+ ],
+ boss:{title:'Data Models Boss',time:65,q:[
+   {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
+   {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
+   {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
+   {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
+   {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
+   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1}
+ ]}
+},
+{
+ id:'batch',title:'Batch & Stream',icon:'🌊',color:'#EA580C',colorD:'#C2410C',
+ blurb:'MapReduce, dataflow, windows, and exactly-once.',
+ lessons:[
+  {id:'batch-1',title:'Batch processing',steps:[
+   {t:'teach',h:'MapReduce',body:[
+     {k:'cause',a:'Map (transform each record) → shuffle by key',b:'Reduce (aggregate per key) → output'},
+     {k:'point',i:'🗺️',t:'<b>Map</b> emits key→value; <b>Reduce</b> folds all values for a key.'}
+   ]},
+   {t:'teach',h:'Beyond MapReduce',body:[
+     {k:'vs',a:{h:'MapReduce',t:'materializes every intermediate step to disk. Robust but slow.'},b:{h:'Dataflow (Spark/Flink)',t:'keeps intermediates in memory, pipelines stages. Much faster.'}},
+     {k:'point',i:'🔗',t:'Joins: sort-merge, broadcast-hash (small side), partitioned-hash.'}
+   ]},
+   {t:'mcq',q:'Why do Spark/Flink beat classic MapReduce?',o:['they use SQL','they don’t materialize every intermediate step to disk','they avoid the shuffle','they need no cluster'],a:1,why:'Dataflow engines pipeline stages in memory instead of writing each step to disk.'},
+   {t:'recall',q:'Describe map and reduce in one line each.',model:['Map: transform each input record into key→value pairs (embarrassingly parallel).','Reduce: gather all values for a key (after a shuffle) and aggregate them into output.']}
+  ]},
+  {id:'batch-2',title:'Stream processing',steps:[
+   {t:'teach',h:'Time & windows',body:[
+     {k:'point',i:'⏰',t:'<b>Event time</b> (when it happened) vs <b>processing time</b> (when seen). Prefer event time.'},
+     {k:'point',i:'🪟',t:'Windows: tumbling (fixed, non-overlap), hopping (overlap), session (by activity gap).'},
+     {k:'point',i:'🌊',t:'<b>Watermarks</b> bound how long to wait for late events.'}
+   ]},
+   {t:'teach',h:'Correctness',body:[
+     {k:'point',i:'💾',t:'Stateful operators checkpoint their state for fault tolerance.'},
+     {k:'point',i:'🎯',t:'Exactly-once = checkpoints + idempotent/transactional sinks.'}
+   ]},
+   {t:'cloze',q:'Fill the streaming blanks.',distract:['offset','partition'],text:[
+     'Group by ',{blank:'event time',alt:['event-time']},', not processing time. ',{blank:'Watermarks',alt:['watermark']},
+     ' bound lateness, and ',{blank:'tumbling'},' windows are fixed and non-overlapping. Checkpoints give ',{blank:'exactly-once'},' processing.'
+   ]},
+   {t:'match',q:'Match the window to its shape.',pairs:[['Tumbling','Fixed, non-overlapping'],['Hopping','Fixed, overlapping'],['Session','Bounded by an activity gap']]},
+   {t:'mcq',q:'Which window groups events by gaps of inactivity?',o:['tumbling','hopping','session','global'],a:2,why:'A session window closes after a period of no events for that key.'},
+   {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
+  ]}
+ ],
+ boss:{title:'Batch & Stream Boss',time:70,q:[
+   {q:'Reduce runs after…',o:['the map + shuffle','the output','nothing','a window'],a:0},
+   {q:'Dataflow engines beat MapReduce by…',o:['using SQL','not materializing every step','skipping reduce','avoiding joins'],a:1},
+   {q:'Prefer which clock for stream windows?',o:['processing time','event time','wall clock','NTP'],a:1},
+   {q:'A tumbling window is…',o:['overlapping','fixed + non-overlapping','gap-based','infinite'],a:1},
+   {q:'Watermarks handle…',o:['hot keys','late events','encryption','sharding'],a:1},
+   {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1}
+ ]}
+},
+{
+ id:'trouble',title:'Distributed Trouble',icon:'⚠️',color:'#BE185D',colorD:'#9D174D',
+ blurb:'Networks drop, clocks drift, processes pause.',
+ lessons:[
+  {id:'trouble-1',title:'Networks & clocks',steps:[
+   {t:'teach',h:'Unreliable networks',body:[
+     {k:'tldr',t:'You can’t tell a lost request from a slow one — a timeout is just a guess.'},
+     {k:'point',i:'⏳',t:'Too short = false failures; too long = slow detection. There’s no perfect timeout.'}
+   ]},
+   {t:'teach',h:'Unreliable clocks',body:[
+     {k:'vs',a:{h:'Time-of-day clock',t:'wall-clock; can jump backward on NTP sync. Don’t measure durations with it.'},b:{h:'Monotonic clock',t:'only goes forward; use it for elapsed time / timeouts.'}},
+     {k:'callout',c:'warn',t:'Clock skew breaks Last-Write-Wins — a laggy clock can silently drop the newer write.'}
+   ]},
+   {t:'cloze',q:'Fill the clock blanks.',distract:['vector','logical'],text:[
+     'Measure durations with the ',{blank:'monotonic'},' clock, never the ',{blank:'time-of-day',alt:['time of day','wall-clock','wall clock']},
+     ' clock which can jump on NTP sync. Clock ',{blank:'skew'},' makes ',{blank:'LWW',alt:['last-write-wins']},' silently drop writes.'
+   ]},
+   {t:'mcq',q:'To measure how long an operation took, use…',o:['the time-of-day clock','the monotonic clock','a vector clock','NTP directly'],a:1,why:'Monotonic clocks never jump backward; time-of-day can be reset by NTP mid-measurement.'},
+   {t:'recall',q:'Time-of-day vs monotonic clock — when each?',model:['Time-of-day: for timestamps/calendar time, but it can jump (NTP) — bad for durations.','Monotonic: always increases — use it for elapsed time, timeouts, and benchmarks.']}
+  ]},
+  {id:'trouble-2',title:'Pauses & truth',steps:[
+   {t:'teach',h:'Process pauses',body:[
+     {k:'cause',a:'GC stop-the-world / VM migration / paging',b:'A node freezes, then resumes thinking no time passed'},
+     {k:'callout',c:'warn',t:'A paused lock holder can wake up after its lease expired and corrupt data — TTL alone won’t save you.'}
+   ]},
+   {t:'teach',h:'Truth is decided by majority',body:[
+     {k:'point',i:'🗳️',t:'A node can’t trust its own view; a quorum/majority decides what’s true.'},
+     {k:'point',i:'🎟️',t:'<b>Fencing tokens</b>: every lock grant gets an increasing number; storage rejects an older token.'}
+   ]},
+   {t:'mcq',q:'A GC-paused client resumes holding a now-expired lock. What makes writes safe?',o:['a longer TTL','fencing tokens','a faster network','retries'],a:1,why:'Storage rejects writes carrying a token lower than the highest it has seen — the stale holder is fenced out.'},
+   {t:'build',q:'Pick real causes of an unexpected multi-second pause.',options:['GC stop-the-world','VM live migration','Memory paging/swapping','A tight CPU loop','SIGSTOP'],correct:[0,1,2,4]},
+   {t:'recall',q:'Why is a TTL lock unsafe without fencing tokens?',model:['A paused client’s clock doesn’t advance — it can wake after the lease expired, unaware it’s stale.','Fencing tokens (monotonic per grant) let storage reject the old holder’s writes, preventing corruption.']}
+  ]}
+ ],
+ boss:{title:'Trouble Boss',time:70,q:[
+   {q:'A network timeout is…',o:['exact','a guess','always right','unnecessary'],a:1},
+   {q:'Measure elapsed time with…',o:['time-of-day clock','monotonic clock','vector clock','NTP'],a:1},
+   {q:'Clock skew can break…',o:['hashing','last-write-wins','TCP','compression'],a:1},
+   {q:'A GC pause can make a node…',o:['faster','hold a stale lock','skip writes','rebalance'],a:1},
+   {q:'Stale lock holders are stopped by…',o:['longer TTL','fencing tokens','retries','bigger heap'],a:1},
+   {q:'In a distributed system, truth is decided by…',o:['one node','a quorum/majority','the client','the clock'],a:1}
+ ]}
+},
+{
+ id:'decide',title:'Design Decisions',icon:'🧭',color:'#0EA5E9',colorD:'#0284C7',
+ blurb:'One scenario, two paths — pick fast and justify.',
+ lessons:[
+  {id:'decide-1',title:'Pick a side',steps:[
+   {t:'teach',h:'The recurring forks',body:[
+     {k:'tldr',t:'Most designs come down to a few binary forks. Memorize the deciding question, not a default answer.'},
+     {k:'point',i:'🗄️',t:'<b>SQL vs NoSQL</b>: transactions/joins/strong consistency → SQL; huge scale + simple access → NoSQL.'},
+     {k:'point',i:'📨',t:'<b>Queue vs log</b>: one consumer, no replay → queue; many subscribers + replay → log.'},
+     {k:'point',i:'⚡',t:'<b>Cache vs read replica</b>: hot keys / sub-ms → cache; scale all reads → replica.'},
+     {k:'point',i:'⏱️',t:'<b>Sync vs async</b>: caller needs the result now → sync; slow work / spikes / fan-out → async.'},
+     {k:'point',i:'🗣️',t:'Say the deciding question out loud, then commit + justify — interviewers grade the <b>why</b>.'}
+   ]},
+   {t:'sort',q:'SQL or NoSQL?',buckets:['SQL','NoSQL'],items:[
+     {text:'transactions + joins (orders, payments)',b:0},{text:'huge scale, simple access, flexible schema',b:1},{text:'strong consistency on money',b:0},{text:'write-heavy event firehose',b:1}
+   ]},
+   {t:'sort',q:'Message queue or log (Kafka)?',buckets:['Queue','Log'],items:[
+     {text:'one consumer per message, no replay',b:0},{text:'multiple subscribers + replay',b:1},{text:'ordered event stream',b:1},{text:'work distribution',b:0}
+   ]},
+   {t:'sort',q:'Cache or read replica?',buckets:['Cache','Read replica'],items:[
+     {text:'hot keys, sub-ms reads',b:0},{text:'scale ALL reads incl. cold',b:1},{text:'offload the primary / analytics',b:1},{text:'cut repeated lookups',b:0}
+   ]},
+   {t:'sort',q:'Sync or async?',buckets:['Sync','Async'],items:[
+     {text:'caller needs the result now',b:0},{text:'slow / heavy work',b:1},{text:'spikes to absorb, fan-out',b:1},{text:'short work, clear back-pressure',b:0}
+   ]},
+   {t:'recall',q:'CP vs AP — what is the deciding question?',model:['"Is a wrong/stale answer acceptable here?"','No (money, inventory, locks) → CP. Yes (feeds, counts, search) → AP for availability + latency.']}
+  ]},
+  {id:'decide-2',title:'Which datastore?',steps:[
+   {t:'teach',h:'Match data to store',body:[
+     {k:'point',i:'🧱',t:'<b>Relational</b>: ACID txns, joins, strong consistency.'},
+     {k:'point',i:'🪣',t:'<b>Wide-column</b> (Cassandra): huge write throughput, time-series.'},
+     {k:'point',i:'🔎',t:'<b>Search</b> (Elasticsearch): full-text + faceted. <b>Graph</b>: multi-hop relationships.'},
+     {k:'note',t:'Pick by access pattern + consistency need, never by brand familiarity.'}
+   ]},
+   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)']]},
+   {t:'sort',q:'Strong or eventual consistency?',buckets:['Strong','Eventual'],items:[
+     {text:'account balance',b:0},{text:'like / view counts',b:1},{text:'inventory',b:0},{text:'search index',b:1}
+   ]},
+   {t:'cloze',q:'Fill the datastore decision rule.',distract:['cache','queue'],text:[
+     'Need transactions or joins → ',{blank:'SQL',alt:['relational']},'. Write-heavy at huge scale → ',
+     {blank:'wide-column',alt:['wide column','Cassandra']},'. Full-text search → ',{blank:'Elasticsearch',alt:['search']},
+     '. In the interview the ',{blank:'justification',alt:['reasoning','why']},' is graded, not the pick.'
+   ]},
+   {t:'mcq',q:'Feed delivery for a celebrity with 50M followers — fanout on write or read?',o:['pure fanout-on-write','fanout-on-read / hybrid for celebrities','neither','sharding'],a:1,why:'Pushing one post to 50M timelines is too expensive; pull/merge celebrity posts at read time (hybrid).'},
+   {t:'recall',q:'How do you choose a database in an interview?',model:['State the access pattern and consistency need first ("read-heavy key lookups, eventual is fine").','Then name the store and justify: "so a wide-column KV like Cassandra fits." The justification is what’s graded.']}
+  ]}
+ ],
+ boss:{title:'Decisions Boss',time:75,q:[
+   {q:'Orders + payments need…',o:['NoSQL for scale','SQL (transactions/joins)','a cache','a queue'],a:1},
+   {q:'You need replay + multiple subscribers →',o:['a queue (SQS)','a log (Kafka)','a cache','a cron'],a:1},
+   {q:'Hot-key sub-ms reads →',o:['read replica','cache','bigger DB','sharding'],a:1},
+   {q:'Slow heavy work with spikes →',o:['sync call','async + queue','a lock','a join'],a:1},
+   {q:'Account balance needs…',o:['eventual','strong consistency','a cache TTL','LWW'],a:1},
+   {q:'Full-text search →',o:['Postgres LIKE','Elasticsearch','a graph DB','Redis'],a:1},
+   {q:'Celebrity feed fanout →',o:['write to all 50M','read-time / hybrid','no fanout','a cron'],a:1}
+ ]}
+},
+{
+ id:'mock',title:'Mock Designs',icon:'🎤',color:'#7C3AED',colorD:'#6D28D9',
+ blurb:'Full end-to-end design reps — the real 45-minute interview.',
+ lessons:[
+  {id:'mock-1',title:'URL shortener',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design Bitly. Functional: create short link, redirect, basic analytics.'},
+     {k:'point',i:'📐',t:'NFRs: <b>read-heavy</b> (~100:1), low-latency redirects, high availability, codes globally unique.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · core API. Say them out loud.',model:['Entities: urls(code PK, long_url, owner, created_at, click_count).','API: POST /urls {long_url} → {code}; GET /{code} → 301/302 redirect; GET /urls/{code} → analytics.','Current user from the auth token.']},
+   {t:'mcq',q:'Best way to generate unique short codes?',o:['hash the URL and truncate (collisions)','base62-encode a unique counter/ID','a random string, retry on clash','a UUID v4'],a:1,why:'Base62 of a monotonic ID is collision-free and short (~7 chars covers 3.5e12). Hash-truncate risks collisions.'},
+   {t:'build',q:'4 · Pick the high-level components.',options:['ID/counter generator','KV store (code → URL)','CDN / cache for redirects','Async analytics pipeline','A graph database','A relational DB with heavy joins'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Where is the main load / bottleneck?',o:['writing new links','the redirect reads (100:1) — cache/CDN them','analytics','the ID generator'],a:1,why:'Reads dominate ~100:1; serve redirects from cache/CDN + read replicas, never the primary.'},
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: cache/CDN hot codes + read replicas; shard the KV store by code.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use a mutex/stale-while-revalidate.']}
+  ]},
+  {id:'mock-2',title:'News feed / Twitter',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Post a tweet, follow users, see a home timeline (recent posts from people you follow).'},
+     {k:'point',i:'📐',t:'NFRs: read-heavy, feed <200ms, ~100M DAU, eventual consistency is fine.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: users, tweets(snowflake id, author, text, ts), follows(follower, followee), timeline cache.','API: POST /tweets; GET /feed?cursor=&limit; POST/DELETE /follows. Cursor (keyset) pagination.']},
+   {t:'mcq',q:'Feed delivery for NORMAL users?',o:['fanout-on-read (assemble each time)','fanout-on-write (precompute timelines)','recompute nightly','no caching'],a:1,why:'Reads dominate, so precompute each user’s timeline on write — cheap reads.'},
+   {t:'build',q:'4 · High-level components.',options:['Fanout-on-write workers','Timeline cache (Redis)','Follow-graph store','Object store + CDN for media','A global lock service'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · The hard bottleneck?',o:['posting tweets','celebrity fanout (1 post → millions of writes)','following users','storing media'],a:1,why:'Fanning out a celebrity’s post to 50M timelines is too expensive on write.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Hybrid fanout: push for normal users, pull/merge celebrity tweets at read time.','Time-sortable IDs (Snowflake) give ordering for free.','Failure: replication lag → read-your-writes for your own posts; viral spikes → cache + read-time merge.']}
+  ]},
+  {id:'mock-3',title:'Chat / WhatsApp',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'1:1 + group messaging, delivery + read receipts, presence, offline delivery.'},
+     {k:'point',i:'📐',t:'NFRs: low latency, ordered per conversation, durable, huge fan-in of connections.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: conversations, messages(conv_id, msg_id snowflake, sender, body), members(last_read_id).','API: POST send {client_msg_id, text} (idempotency); GET history?before=; WS subscribe for realtime + receipts.']},
+   {t:'mcq',q:'Real-time delivery uses…',o:['HTTP polling forever','persistent WebSocket + pub/sub fanout','email','a nightly batch'],a:1,why:'WebSocket (or SSE) pushes messages instantly; pub/sub fans out to the recipient’s connection. Poll only as fallback.'},
+   {t:'build',q:'4 · High-level components.',options:['WebSocket gateway servers','Pub/Sub for fanout','Message store (wide-column)','Presence + push-notification service','A relational DB with cross-shard joins'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['storing messages','millions of persistent connections + large-group fanout','presence','read receipts'],a:1,why:'Holding millions of live connections is stateful and hard; route by consistent hashing.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Stateful gateways in a consistent-hash ring; pub/sub routes to the recipient’s gateway.','Idempotency keys (client_msg_id) for at-least-once; per-conversation snowflake gives ordering.','Failure: a gateway dies → client reconnects elsewhere; undelivered messages are persisted + redelivered.']}
+  ]},
+  {id:'mock-4',title:'Ticket booking',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Browse events/seats, hold a seat, book it, pay — with NO double-booking.'},
+     {k:'point',i:'📐',t:'NFRs: strong consistency on seats, extreme contention at on-sale, payment integrity.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: events, seats(status[AVAILABLE|HELD|BOOKED], held_by, hold_expires_at, version), bookings.','API: hold(seat), confirm(seat), release(seat).']},
+   {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with the DB: UPDATE … WHERE status=AVAILABLE (compare-and-set). Reach for distributed locks only if data spans systems.'},
+   {t:'build',q:'4 · High-level components.',options:['Relational DB (ACID)','Seat hold with TTL','Payment via saga','Virtual waiting room / queue for spikes','A cache as the source of truth'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['browsing seats','contention on popular seats / hot DB rows at on-sale','payment','email confirmation'],a:1,why:'Everyone grabs the same seats at 10:00 — hot rows. Shed load with a waiting-room queue.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Optimistic CAS on seat status + a hold TTL (fencing) that auto-releases abandoned holds.','Waiting-room queue to serialize/shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → TTL releases it back to AVAILABLE.']}
+  ]},
+  {id:'mock-5',title:'Distributed rate limiter',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Limit requests per user/API-key, across many gateway nodes, with low latency.'},
+     {k:'point',i:'📐',t:'NFRs: accurate-ish global limit, tiny added latency, decide fail-open vs fail-closed.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: counters keyed by (key, window) or (key → token bucket state).','API: middleware allow/deny per request; on deny return 429 + Retry-After.']},
+   {t:'mcq',q:'Algorithm: allow short bursts but cap the average?',o:['leaky bucket','token bucket','fixed window','no limiter can'],a:1,why:'Token bucket bursts up to capacity, then enforces the refill rate.'},
+   {t:'build',q:'4 · High-level components.',options:['Token-bucket logic','Shared Redis counters (atomic INCR/Lua)','Per-node local quota + periodic sync','Edge / API-gateway enforcement','A relational DB write per request'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['the algorithm','the shared counter becomes a hotspot / SPOF','the gateway','the client'],a:1,why:'A single shared store per request is a hotspot; mitigate with local pre-checks + quota distribution.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Redis Lua token-bucket, or hand each node a slice of the global quota; sticky-route a key to one node.','Enforce at the edge/gateway before expensive backends; return 429 + Retry-After.','Failure: Redis down → fail-open (allow) to avoid taking the whole API down.']}
+  ]},
+  {id:'mock-6',title:'Video upload + streaming',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Upload large videos, transcode to multiple renditions, stream to millions (adaptive bitrate).'},
+     {k:'point',i:'📐',t:'NFRs: huge egress bandwidth, global low latency, resumable uploads.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: videos(metadata, status), renditions (per quality).','API: request presigned upload URL; get manifest (HLS/DASH) + stream segments.']},
+   {t:'mcq',q:'Large uploads should…',o:['stream bytes through app servers','use a presigned URL direct to object storage (S3)','go into the database','be emailed'],a:1,why:'Presigned URL → client uploads straight to S3, keeping gigabytes off your app tier.'},
+   {t:'build',q:'4 · High-level components.',options:['Presigned-URL upload to S3','Transcoding worker pool (queue)','CDN for delivery','Metadata DB + object storage','Synchronous transcode in the request'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['metadata writes','serving the bytes — egress bandwidth (Tbps)','transcoding speed','upload size'],a:1,why:'Average egress is enormous; a CDN is mandatory — no origin serves that.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Resumable chunked upload → S3; async transcode pipeline (long-running tasks) into ABR renditions; deliver via CDN.','Failure: a transcode job fails → retry / dead-letter; partial upload resumes; reconcile DB metadata with S3 event notifications.']}
+  ]},
+  {id:'mock-7',title:'Metrics / log pipeline',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Ingest millions of events/sec, store time-series, power dashboards + alerts.'},
+     {k:'point',i:'📐',t:'NFRs: high write throughput, range queries by time, bounded retention cost.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: time-series points (metric, host/tags, timestamp, value).','API: ingest (batched), query a metric over a time range, define alert rules.']},
+   {t:'mcq',q:'How do you partition the storage?',o:['by user id','by (metric/series, time bucket) in a TSDB','randomly','one big table'],a:1,why:'Bucketing by series + time keeps partitions bounded and makes range queries touch only relevant buckets.'},
+   {t:'build',q:'4 · High-level components.',options:['Ingestion buffer (Kafka)','Stream processor (Flink) for aggregation','Time-series DB','Rollup / downsampling jobs','Object store for cold data','One relational table for every point'],correct:[0,1,2,3,4]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['querying','write volume + high cardinality + retention cost','alerting','dashboards'],a:1,why:'Sustained high-cardinality writes and years of retention dominate; fix with rollups + TTL tiers.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Kafka absorbs spikes → stream aggregation → TSDB; downsample raw → 1-min → 1-hour with TTL per tier; long-range queries read coarse rollups.','Failure: ingestion spike → Kafka buffers / backpressure; idempotent writes give exactly-once aggregation.']}
+  ]},
+  {id:'mock-8',title:'Payment / order system',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Place an order across order, payment, and inventory services — charged exactly once.'},
+     {k:'point',i:'📐',t:'NFRs: correctness > availability, idempotent, no double-charge, no oversell.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: orders, payments(idempotency_key), inventory(reserved).','API: POST /orders {idempotency_key, items}; the saga steps reserve → charge → confirm.']},
+   {t:'mcq',q:'Cross-service atomicity?',o:['2PC across all services','a Saga with compensating transactions','a global lock','eventual, no coordination'],a:1,why:'Microservices use a saga: local txns + compensations on failure (2PC blocks and is fragile).'},
+   {t:'build',q:'4 · High-level components.',options:['Saga orchestrator','Idempotency keys','Outbox + CDC for reliable events','Inventory reservation (CAS)','2PC across all services'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck / risk?',o:['order volume','correctness under retries (duplicate charges)','browsing','search'],a:1,why:'Networks retry, so without idempotency you double-charge. Idempotency keys give exactly-once effect.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Orchestrated saga: reserve inventory (CAS) → charge → confirm; compensate in reverse on failure (refund, release).','Outbox + CDC for reliable event publishing.','Failure: payment succeeds but confirm is lost → idempotent retry reconciles; CAS reservation prevents oversell.']}
+  ]},
+  {id:'mock-9',title:'Feature store / model serving',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Serve ML features consistently at train AND inference time, with low-latency online lookups.'},
+     {k:'point',i:'📐',t:'NFRs: no train/serve skew, sub-10ms online reads, fresh streaming features.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: feature definitions, an offline store (warehouse) for training, an online store (KV) for inference.','API: get_online_features(entity_ids); materialize batch features; register a feature definition.']},
+   {t:'mcq',q:'Avoid train/serve skew with…',o:['separate code for each','a feature store serving the SAME definitions offline + online','retraining nightly','a bigger model'],a:1,why:'One source of feature definitions for both training and serving prevents the values from diverging.'},
+   {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
+  ]}
+ ],
+ boss:{title:'Mock Designs Boss',time:110,q:[
+   {q:'URL shortener: short codes via…',o:['hash + truncate','base62 of a counter/ID','UUID v4','random retry'],a:1},
+   {q:'Twitter feed for normal users:',o:['fanout-on-read','fanout-on-write','nightly batch','no cache'],a:1},
+   {q:'Twitter celebrity post:',o:['fanout-on-write to all','fanout-on-read / hybrid','block posting','shard harder'],a:1},
+   {q:'Chat real-time delivery:',o:['polling','WebSocket + pub/sub','email','cron'],a:1},
+   {q:'Ticket double-booking, first tool:',o:['distributed lock','DB atomic CAS / transaction','2PC','queue only'],a:1},
+   {q:'Rate limiter algorithm for bursts:',o:['leaky bucket','token bucket','fixed window','none'],a:1},
+   {q:'Large video upload:',o:['through app servers','presigned URL to S3','into the DB','base64'],a:1},
+   {q:'Order system cross-service atomicity:',o:['2PC','saga + compensations','global lock','none'],a:1},
+   {q:'Metrics storage partitioning:',o:['by user','by (series, time bucket)','random','one table'],a:1},
+   {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1}
+ ]}
+}
+];
+
+/* locked / coming-soon topics shown on the map */
+/* All v1.0 topics are now playable units. Add your own by appending to UNITS above:
+   {id,title,icon,color,colorD,blurb,lessons:[{id,title,steps:[...]}],boss:{title,time,q:[...]}}
+   step types: teach, mcq, sort, match, order, build, recall, cloze. */
+const SOON=[];
+
+/* ---------------- badges ---------------- */
+const BADGES=[
+ {id:'first',icon:'🌱',name:'First Steps',test:s=>Object.keys(s.done).length>=1},
+ {id:'cap',icon:'⚖️',name:'CAP Crusher',test:s=>s.done['boss-cap']},
+ {id:'repl',icon:'📑',name:'Replicator',test:s=>s.done['boss-repl']},
+ {id:'raft',icon:'🗳️',name:'Raft Wrangler',test:s=>s.done['boss-raft']},
+ {id:'streak3',icon:'🔥',name:'3-Day Streak',test:s=>s.streak>=3},
+ {id:'lvl5',icon:'⭐',name:'Level 5',test:s=>levelOf(s.xp)>=5},
+ {id:'recall',icon:'🧠',name:'Deep Recall',test:s=>s.recallNailed>=5},
+ {id:'flawless',icon:'💎',name:'Flawless',test:s=>s.flawless},
+ {id:'allbosses',icon:'👑',name:'Boss Slayer',test:s=>UNITS.every(u=>s.done['boss-'+u.id])},
+ {id:'lvl10',icon:'🏆',name:'Level 10',test:s=>levelOf(s.xp)>=10}
+];
+function checkBadges(){
+  let earned=null;
+  BADGES.forEach(b=>{if(!S.badges[b.id]&&b.test(S)){S.badges[b.id]=true;earned=b;}});
+  if(earned){save();toast('🏅 Badge unlocked: '+earned.name);}
+}
+
+/* ---------------- toast ---------------- */
+let toastT=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+/* ---------------- helpers ---------------- */
+const APP=()=>document.getElementById('app');
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function lessonById(id){for(const u of UNITS)for(const l of u.lessons)if(l.id===id)return{u,l};return null;}
+function unitProgress(u){const total=u.lessons.length+1;let d=0;u.lessons.forEach(l=>{if(S.done[l.id])d++;});if(S.done['boss-'+u.id])d++;return{d,total};}
+function unitUnlocked(ui){if(S.unlockAll||ui===0)return true;const prev=UNITS[ui-1];return !!S.done['boss-'+prev.id];}
+function lessonUnlocked(u,li){if(S.unlockAll||li===0)return true;return !!S.done[u.lessons[li-1].id];}
+function bossUnlocked(u){if(S.unlockAll)return true;return u.lessons.every(l=>S.done[l.id]);}
+
+/* ============================ HOME ============================ */
+function renderHome(){
+  const lvl=levelOf(S.xp), prog=xpInLevel(S.xp);
+  let h='';
+  h+='<div class="stickyhead">';
+  h+='<div class="topbar">'
+    +'<div class="stat fire"><span class="ic">🔥</span>'+S.streak+'</div>'
+    +'<div class="stat xp"><span class="ic">⚡</span>'+S.xp+'</div>'
+    +'<div class="spacer"></div>'
+    +'<div class="stat gem"><span class="ic">🏅</span>'+Object.keys(S.badges).length+'</div>'
+    +'</div>';
+  const SHORT={cap:'CAP',repl:'Repl',raft:'Raft',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
+  h+='<div class="jumpbar">';
+  UNITS.forEach((u,ui)=>{const bd=S.done['boss-'+u.id];const open=unitUnlocked(ui);
+    h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'" data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
+  h+='</div></div>';
+  h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master distributed systems for your interview — one quick quest at a time.</p></div>';
+  h+='<div class="levelcard"><div class="ring" style="--p:'+prog+'"><span>'+lvl+'</span></div>'
+    +'<div class="lc-meta"><div class="lc-title">Level '+lvl+'</div><div class="lc-sub">'+prog+'/100 XP to level '+(lvl+1)+'</div></div></div>';
+  const nMist=Object.keys(S.mistakes).length;
+  h+='<div class="actions">'
+    +'<button class="act'+(nMist?' hot':'')+'" id="reviewBtn">🩹 Review mistakes'+(nMist?' ('+nMist+')':'')+'</button>'
+    +'<button class="act" id="unlockBtn">'+(S.unlockAll?'🔓 Free-roam: ON':'🔒 Free-roam: OFF')+'</button>'
+    +'</div>';
+
+  UNITS.forEach((u,ui)=>{
+    const unlocked=unitUnlocked(ui);
+    const {d,total}=unitProgress(u);
+    h+='<div class="unit" id="unit-'+u.id+'">';
+    h+='<div class="unit-head" style="background:'+u.color+'">'
+      +'<div class="u-k">Unit '+(ui+1)+' · '+d+'/'+total+'</div>'
+      +'<div class="u-t">'+u.icon+' '+u.title+(unlocked?'':' 🔒')+'</div>'
+      +'<div class="u-b">'+u.blurb+'</div></div>';
+    h+='<div class="path">';
+    u.lessons.forEach((l,li)=>{
+      const open=unlocked&&lessonUnlocked(u,li);
+      const done=S.done[l.id];
+      const cls=done?'done':(open?'':'locked');
+      const off=li%2===1?'off1':(li%2===0&&li>0?'off2':'');
+      const bg=done?u.color:(open?u.color:'');
+      h+='<div class="node-wrap '+off+'">'
+        +'<button class="node '+cls+'" '+(open?('data-lesson="'+l.id+'"'):'')+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
+        +'<div class="node-label">'+l.title+'</div></div>';
+    });
+    // boss node
+    const bopen=unlocked&&bossUnlocked(u);
+    const bdone=S.done['boss-'+u.id];
+    h+='<div class="node-wrap">'
+      +'<button class="node boss '+(bdone?'done':(bopen?'':'locked'))+'" '+(bopen?('data-boss="'+u.id+'"'):'')+' style="'+(bopen||bdone?'background:'+u.colorD:'')+'">'+(bopen||bdone?'👑':'🔒')+'</button>'
+      +'<div class="node-label">'+u.boss.title+'</div></div>';
+    h+='</div></div>';
+  });
+
+  // coming soon
+  if(SOON.length)h+='<div class="unit"><div class="unit-head" style="background:#BDBDBD"><div class="u-k">Coming soon</div><div class="u-t">🚧 More units</div><div class="u-b">'+SOON.join(' · ')+'</div></div></div>';
+
+  // badges shelf
+  h+='<div class="shelf"><h3>🏅 Badges</h3><div class="badges">';
+  BADGES.forEach(b=>{const got=S.badges[b.id];h+='<div class="badge '+(got?'':'lock')+'"><div class="bi">'+b.icon+'</div><small>'+b.name+'</small></div>';});
+  h+='</div></div>';
+
+  h+='<div class="tip">Progress saves automatically on this device.</div>';
+
+  APP().innerHTML=h;
+  APP().querySelectorAll('[data-lesson]').forEach(n=>n.onclick=()=>startLesson(n.dataset.lesson));
+  APP().querySelectorAll('[data-boss]').forEach(n=>n.onclick=()=>startBoss(n.dataset.boss));
+  document.getElementById('reviewBtn').onclick=startReview;
+  document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
+  APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
+  try{window.scrollTo(0,0);}catch(e){}
+}
+
+/* ============================ LESSON RUNNER ============================ */
+var R=null; // active run state
+function startLesson(id){
+  const {u,l}=lessonById(id);
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  renderStep();
+}
+function startBoss(uid){
+  const u=UNITS.find(x=>x.id===uid);
+  const steps=shuffle(u.boss.q).map(q=>({t:'mcq',q:q.q,o:q.o,a:q.a,boss:true}));
+  R={mode:'boss',unit:u,bossTitle:u.boss.title,steps,idx:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:u.boss.time,timeLeft:u.boss.time};
+  startTimer();
+  renderStep();
+}
+function startReview(){
+  const steps=shuffle(Object.values(S.mistakes)).slice(0,15);
+  if(!steps.length){toast('No mistakes to review — nice! 🎉');return;}
+  R={mode:'review',unit:{id:'review'},steps,idx:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  renderStep();
+}
+
+let timerH=null;
+function startTimer(){
+  stopTimer();
+  timerH=setInterval(()=>{
+    R.timeLeft--;
+    const el=document.getElementById('timerTxt');
+    if(el){el.textContent=R.timeLeft+'s';el.parentElement.classList.toggle('low',R.timeLeft<=15);}
+    if(R.timeLeft<=0){stopTimer();finishRun(true);}
+  },1000);
+}
+function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
+
+function topbarHTML(){
+  const pct=Math.round(R.idx/R.steps.length*100);
+  let right='';
+  if(R.mode==='boss'){right='<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>';}
+  return '<div class="lhead">'
+    +'<button class="close" id="quitBtn">×</button>'
+    +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
+    +'<div class="lhearts">❤️ '+R.hearts+'</div>'
+    +right+'</div>';
+}
+
+function renderStep(){
+  if(R.idx>=R.steps.length){finishRun(false);return;}
+  const step=R.steps[R.idx];
+  let h=topbarHTML()+'<div class="stage" id="stage"></div>';
+  h+='<div class="combo" id="combo"></div>';
+  APP().innerHTML=h;
+  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(confirm('Quit this quest? Progress in it will be lost.'))renderHome();else if(R.mode==='boss')startTimer();};
+  const stage=document.getElementById('stage');
+  ({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze}[step.t])(stage,step);
+  try{window.scrollTo(0,0);}catch(e){}
+}
+
+function showCombo(){
+  if(R.combo>=2){const c=document.getElementById('combo');if(c){c.textContent='🔥 '+R.combo+' combo!';c.classList.add('show');setTimeout(()=>c.classList.remove('show'),900);}}
+}
+
+function nextStep(){R.idx++;renderStep();}
+
+/* feedback bar + advance */
+function feedback(ok,msg,onNext){
+  const bar=document.createElement('div');
+  bar.className='feedback '+(ok?'good':'bad');
+  bar.innerHTML='<div class="inner"><h4>'+(ok?'✅ Nice!':'❌ Not quite')+'</h4><p>'+msg+'</p><button class="btn '+(ok?'':'red')+'" id="contBtn">Continue</button></div>';
+  APP().appendChild(bar);
+  let done=false;
+  const go=()=>{if(done)return;done=true;clearTimeout(tm);bar.remove();onNext();};
+  document.getElementById('contBtn').onclick=go;
+  // auto-advance on a correct answer; wrong answers wait so you can read the explanation
+  const tm=ok?setTimeout(go,1300):null;
+}
+
+/* heart / xp / combo bookkeeping for graded steps */
+function grade(ok,gain){
+  R.graded++;
+  if(ok){R.correct++;R.combo++;R.maxCombo=Math.max(R.maxCombo,R.combo);const bonus=Math.max(0,R.combo-1)*2;R.xp+=gain+bonus;showCombo();}
+  else{R.combo=0;R.hearts--;R.mistakes++;}
+  const heartEl=document.querySelector('.lhearts');if(heartEl)heartEl.textContent='❤️ '+R.hearts;
+}
+
+/* mistake bank — records graded steps you miss, removes them once mastered */
+function sigOf(step){return step.q?(step.t+'|'+step.q):(step.t+'|'+JSON.stringify(step.text||step.items||step.pairs||step.options||''));}
+function finishGraded(step,perfect){
+  const sig=sigOf(step);
+  if(perfect){if(S.mistakes[sig])delete S.mistakes[sig];}
+  else{const c=Object.assign({},step);delete c.__d;S.mistakes[sig]=c;}
+  save();
+}
+
+/* ---------- step: teach ---------- */
+function blockHTML(b){
+  if(b.k==='tldr')return '<div class="tldr"><span class="tag">TL;DR</span><span>'+b.t+'</span></div>';
+  if(b.k==='point')return '<div class="point"><span class="pi">'+b.i+'</span><span>'+b.t+'</span></div>';
+  if(b.k==='cause')return '<div class="cause"><div class="box">'+b.a+'</div><div class="arrow">→</div><div class="box">'+b.b+'</div></div>';
+  if(b.k==='vs')return '<div class="vs"><div class="col a"><h4>'+b.a.h+'</h4>'+b.a.t+'</div><div class="col b"><h4>'+b.b.h+'</h4>'+b.b.t+'</div></div>';
+  if(b.k==='keyt')return '<div class="keyt"><b>'+b.term+'</b> — '+b.def+'</div>';
+  if(b.k==='callout')return '<div class="callout '+b.c+'"><span>'+(b.c==='warn'?'⚠️':b.c==='mem'?'🧠':'💡')+'</span><span>'+b.t+'</span></div>';
+  if(b.k==='note')return '<div class="callout note"><span>💡</span><span>'+b.t+'</span></div>';
+  if(b.k==='mnemonic')return '<div class="callout mem"><span>🧠</span><span>'+b.t+'</span></div>';
+  return '';
+}
+function stTeach(stage,step){
+  let h='<div class="q-sub">📘 Learn</div><div class="q-title">'+step.h+'</div>';
+  step.body.forEach(b=>h+=blockHTML(b));
+  stage.innerHTML=h;
+  footBtn('Got it',()=>nextStep());
+}
+
+/* ---------- step: mcq ---------- */
+function stMcq(stage,step){
+  let h='<div class="q-sub">'+(step.boss?'⚡ Speed round':'🧩 Quick check')+'</div><div class="q-title">'+step.q+'</div><div class="opts">';
+  step.o.forEach((o,i)=>h+='<button class="opt" data-i="'+i+'">'+o+'</button>');
+  h+='</div>';stage.innerHTML=h;
+  let locked=false;
+  stage.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+    if(locked)return;locked=true;
+    const i=+b.dataset.i, ok=i===step.a;
+    stage.querySelectorAll('.opt').forEach((x,j)=>{x.classList.add('dim');if(j===step.a)x.classList.add('correct');});
+    b.classList.remove('dim');b.classList.add(ok?'correct':'wrong');
+    grade(ok,10);finishGraded(step,ok);
+    if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),650);return;}
+    if(step.boss){setTimeout(()=>nextStep(),ok?550:900);}
+    else feedback(ok,ok?(step.why||'Correct.'):(step.why||'Review and continue.'),nextStep);
+  });
+}
+
+/* ---------- step: sort ---------- */
+function stSort(stage,step){
+  let qi=0,wrong=0;const items=shuffle(step.items);
+  function draw(){
+    if(qi>=items.length){finishGraded(step,wrong===0);nextStep();return;}
+    const it=items[qi];
+    let locked=false;
+    stage.innerHTML='<div class="q-sub">👆 Sort it</div><div class="q-title">'+step.q+'</div>'
+      +'<div class="sortcard" id="sc">'+it.text+'</div>'
+      +'<div class="bucketrow"><button class="btn grey" data-b="0">'+step.buckets[0]+'</button><button class="btn blue" data-b="1">'+step.buckets[1]+'</button></div>';
+    stage.querySelectorAll('[data-b]').forEach(btn=>btn.onclick=()=>{
+      if(locked)return;locked=true;
+      const b=+btn.dataset.b, ok=b===it.b;
+      const sc=document.getElementById('sc');
+      sc.classList.add(ok?'flash-g':'flash-r');
+      grade(ok,6);if(!ok)wrong++;
+      if(!ok)sc.textContent=it.text+'  →  '+step.buckets[it.b];
+      if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
+      setTimeout(()=>{qi++;draw();},ok?420:950);
+    });
+  }
+  draw();
+}
+
+/* ---------- step: match ---------- */
+function stMatch(stage,step){
+  const L=shuffle(step.pairs.map((p,i)=>({t:p[0],i})));
+  const Rr=shuffle(step.pairs.map((p,i)=>({t:p[1],i})));
+  let h='<div class="q-sub">🔗 Match pairs</div><div class="q-title">'+step.q+'</div><div class="matchgrid"><div class="matchcol" id="mL"></div><div class="matchcol" id="mR"></div></div>';
+  stage.innerHTML=h;
+  const cL=document.getElementById('mL'),cR=document.getElementById('mR');
+  L.forEach(x=>{const b=document.createElement('button');b.className='mitem';b.textContent=x.t;b.dataset.i=x.i;b.dataset.side='L';cL.appendChild(b);});
+  Rr.forEach(x=>{const b=document.createElement('button');b.className='mitem';b.textContent=x.t;b.dataset.i=x.i;b.dataset.side='R';cR.appendChild(b);});
+  let selL=null,selR=null,left=step.pairs.length,wrong=0;
+  function clearSel(){selL&&selL.classList.remove('sel');selR&&selR.classList.remove('sel');selL=selR=null;}
+  function tryMatch(){
+    if(!selL||!selR)return;
+    if(selL.dataset.i===selR.dataset.i){
+      [selL,selR].forEach(e=>{e.classList.remove('sel');e.classList.add('done');e.disabled=true;});
+      grade(true,7);clearSel();left--;
+      if(left===0){finishGraded(step,wrong===0);setTimeout(()=>nextStep(),450);}
+    }else{
+      const a=selL,b=selR;a.classList.add('bad');b.classList.add('bad');grade(false,0);wrong++;
+      setTimeout(()=>{a.classList.remove('bad','sel');b.classList.remove('bad','sel');},350);clearSel();
+      if(R.hearts<=0)setTimeout(()=>finishRun(false),500);
+    }
+  }
+  stage.querySelectorAll('.mitem').forEach(b=>b.onclick=()=>{
+    if(b.classList.contains('done'))return;
+    if(b.dataset.side==='L'){selL&&selL.classList.remove('sel');selL=b;}
+    else{selR&&selR.classList.remove('sel');selR=b;}
+    b.classList.add('sel');tryMatch();
+  });
+}
+
+/* ---------- step: order ---------- */
+function stOrder(stage,step){
+  const correct=step.items;
+  const bank=shuffle(correct.map((t,i)=>({t,i})));
+  let placed=[];
+  function draw(){
+    let h='<div class="q-sub">🔢 Put in order</div><div class="q-title">'+step.q+'</div>';
+    h+='<div class="orderzone" id="zone">'+(placed.length?'':'<span class="muted" style="font-weight:700;font-size:13px">tap chips below in order…</span>')+'</div>';
+    h+='<div class="bank" id="bank"></div>';
+    stage.innerHTML=h;
+    const zone=document.getElementById('zone');zone.innerHTML=placed.length?'':zone.innerHTML;
+    placed.forEach((p,n)=>{const d=document.createElement('div');d.className='chip placed';d.innerHTML='<span class="num">'+(n+1)+'</span>'+p.t;zone.appendChild(d);});
+    const bk=document.getElementById('bank');
+    bank.forEach(b=>{if(placed.find(p=>p.id===b.i))return;const el=document.createElement('button');el.className='chip';el.textContent=b.t;el.onclick=()=>{placed.push({t:b.t,id:b.i});if(placed.length===correct.length)check();else draw();};bk.appendChild(el);});
+    if(placed.length){footBtn('Undo last',()=>{placed.pop();draw();},'grey');}
+  }
+  function check(){
+    let ok=placed.every((p,n)=>p.id===n);
+    grade(ok,16);finishGraded(step,ok);
+    let h='<div class="q-sub">🔢 Put in order</div><div class="q-title">'+step.q+'</div><div class="bank">';
+    placed.forEach((p,n)=>{const right=p.id===n;h+='<div class="chip '+(right?'ok':'no')+'"><span class="num">'+(n+1)+'</span>'+p.t+(right?'  ✓':'  ✗')+'</div>';});
+    h+='</div>';stage.innerHTML=h;
+    clearFoot();
+    if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
+    feedback(ok,ok?'Perfect order!':'Correct order: '+correct.join(' → '),nextStep);
+  }
+  draw();
+}
+
+/* ---------- step: build (multi-select) ---------- */
+function stBuild(stage,step){
+  const sel=new Set();
+  let h='<div class="q-sub">🛠️ Build it</div><div class="q-title">'+step.q+'</div><div class="buildgrid" id="bg"></div>';
+  stage.innerHTML=h;
+  const bg=document.getElementById('bg');
+  step.options.forEach((o,i)=>{const b=document.createElement('button');b.className='bopt';b.textContent=o;b.onclick=()=>{if(sel.has(i)){sel.delete(i);b.classList.remove('on');}else{sel.add(i);b.classList.add('on');}};bg.appendChild(b);});
+  footBtn('Check',()=>{
+    const correct=new Set(step.correct);
+    const ok=sel.size===correct.size&&[...sel].every(i=>correct.has(i));
+    bg.querySelectorAll('.bopt').forEach((b,i)=>{b.disabled=true;b.classList.remove('on');if(correct.has(i))b.classList.add('good');else if(sel.has(i))b.classList.add('miss');});
+    grade(ok,16);finishGraded(step,ok);clearFoot();
+    if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
+    feedback(ok,ok?'Exactly the right set!':'Green = correct picks.',nextStep);
+  });
+}
+
+/* ---------- step: recall (output / explain) ---------- */
+function stRecall(stage,step){
+  let h='<div class="q-sub">🗣️ Explain it (out loud!)</div><div class="q-title">'+step.q+'</div>'
+    +'<div class="recall"><textarea id="ra" placeholder="Optional: jot your answer or say it aloud, then reveal."></textarea></div>';
+  stage.innerHTML=h;
+  footBtn('Reveal model answer',()=>{
+    const m=document.createElement('div');m.className='model';
+    m.innerHTML='<h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul>'
+      +'<div class="gradebtns"><button class="btn" data-g="2">Nailed it</button><button class="btn blue" data-g="1">Partly</button><button class="btn grey" data-g="0">Missed</button></div>';
+    document.getElementById('stage').appendChild(m);
+    clearFoot();
+    m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
+      const g=+b.dataset.g;
+      R.graded++;R.correct+= (g===2?1:0);
+      R.xp+= (g===2?15:g===1?8:3);
+      if(g===2){S.recallNailed=(S.recallNailed||0)+1;}
+      // Partly / Missed → log for review; Nailed it → clears it from the review queue
+      finishGraded(step,g===2);
+      nextStep();
+    });
+  });
+}
+
+/* ---------- step: cloze (masked fill-in) ---------- */
+function stCloze(stage,step){
+  const tokens=step.text;
+  const slotPos=[];tokens.forEach((t,i)=>{if(typeof t!=='string')slotPos.push(i);});
+  const answers=slotPos.map(i=>tokens[i].blank);
+  const bank=shuffle(answers.concat(step.distract||[]).map((w,i)=>({w,used:false,id:i})));
+  const filled={};
+  const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9+>]/g,'');
+  function nextEmpty(){for(let p=0;p<slotPos.length;p++)if(filled[p]==null)return p;return -1;}
+  function allFilled(){return slotPos.every((_,p)=>filled[p]!=null);}
+  function draw(){
+    let h='<div class="q-sub">🧩 Masked recall — fill the blanks</div>';
+    if(step.q)h+='<div class="q-title" style="font-size:17px">'+step.q+'</div>';
+    h+='<div class="cloze">';let p=0;
+    tokens.forEach(t=>{
+      if(typeof t==='string'){h+='<span>'+t+'</span>';}
+      else{const pos=p++;const bid=filled[pos];const w=bid!=null?bank.find(x=>x.id===bid).w:'';h+='<button class="slot'+(w?' filled':'')+'" data-p="'+pos+'">'+(w||'_____')+'</button>';}
+    });
+    h+='</div><div class="wordbank" id="wb"></div>';
+    stage.innerHTML=h;
+    const wb=document.getElementById('wb');
+    bank.forEach(b=>{const c=document.createElement('button');c.className='word';c.textContent=b.w;c.disabled=b.used;c.onclick=()=>{const e=nextEmpty();if(e<0)return;filled[e]=b.id;b.used=true;draw();};wb.appendChild(c);});
+    stage.querySelectorAll('.slot').forEach(s=>s.onclick=()=>{const pos=+s.dataset.p;if(filled[pos]!=null){bank.find(x=>x.id===filled[pos]).used=false;delete filled[pos];draw();}});
+    if(allFilled())footBtn('Check',check);else clearFoot();
+  }
+  function check(){
+    let ok=true;
+    slotPos.forEach((ti,p)=>{const ans=tokens[ti];const got=bank.find(x=>x.id===filled[p]).w;const good=norm(got)===norm(ans.blank)||(ans.alt||[]).some(a=>norm(a)===norm(got));if(!good)ok=false;});
+    stage.querySelectorAll('.slot').forEach(s=>{const p=+s.dataset.p;const ans=tokens[slotPos[p]];const got=bank.find(x=>x.id===filled[p]).w;const good=norm(got)===norm(ans.blank)||(ans.alt||[]).some(a=>norm(a)===norm(got));s.classList.add(good?'sgood':'sbad');s.disabled=true;if(!good)s.textContent=ans.blank;});
+    stage.querySelectorAll('#wb .word').forEach(c=>c.disabled=true);
+    grade(ok,14);finishGraded(step,ok);clearFoot();
+    if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
+    feedback(ok,ok?'Every blank correct — that’s the real text, locked in.':'Filled the right words in for you — read the full sentence once more.',nextStep);
+  }
+  draw();
+}
+
+/* ---------- footer button helpers ---------- */
+function footBtn(label,fn,cls){
+  clearFoot();
+  const bar=document.createElement('div');bar.className='footbar';bar.id='footbar';
+  bar.innerHTML='<div class="inner"><button class="btn '+(cls||'')+'" id="fbtn">'+label+'</button></div>';
+  APP().appendChild(bar);document.getElementById('fbtn').onclick=fn;
+}
+function clearFoot(){const f=document.getElementById('footbar');if(f)f.remove();}
+
+/* ============================ RESULTS ============================ */
+function finishRun(timedOut){
+  stopTimer();
+  if(R.mode==='review'){commitRun(true);return resultsScreen(true);}
+  if(R.mode==='boss'){
+    const ok = !timedOut && R.hearts>0 && acc()>=0.6;
+    if(ok){S.done['boss-'+R.unit.id]=true;commitRun(true);}
+    else{commitRun(false);}
+    return resultsScreen(ok);
+  }
+  if(R.hearts>0){S.done[R.lesson.id]=true;commitRun(true);resultsScreen(true);}
+  else{commitRun(false);resultsScreen(false);}
+}
+function acc(){return R.graded?R.correct/R.graded:0;}
+function commitRun(success){
+  if(success){
+    R.xp+=20; // completion bonus
+    if(R.mistakes===0){R.xp+=20;S.flawless=true;}
+  }
+  S.xp+=R.xp;
+  save();checkBadges();
+}
+function resultsScreen(success){
+  stopTimer();
+  let h;
+  if(success){
+    const a=Math.round(acc()*100);
+    h='<div class="center"><div class="big">🎉</div><h2>'+(R.mode==='boss'?'Boss defeated!':'Quest complete!')+'</h2>'
+      +'<p>'+(R.mistakes===0?'Flawless run — perfect!':'Nice work. Keep the streak going!')+'</p>'
+      +'<div class="statrow">'
+      +'<div class="statbox xp"><div class="v">+'+R.xp+'</div><div class="l">XP</div></div>'
+      +'<div class="statbox combo"><div class="v">'+R.maxCombo+'</div><div class="l">Max combo</div></div>'
+      +'<div class="statbox acc"><div class="v">'+a+'%</div><div class="l">Accuracy</div></div>'
+      +'</div>';
+    h+='<button class="btn" id="homeBtn">Continue</button></div>';
+  }else{
+    h='<div class="center"><div class="big">💔</div><h2>Out of hearts</h2>'
+      +'<p>'+(R.mode==='boss'?'The boss got you this time.':'Almost! Review and try again — you’ve got this.')+'</p>'
+      +'<div class="statrow"><div class="statbox xp"><div class="v">+'+R.xp+'</div><div class="l">XP earned</div></div></div>';
+    h+='<button class="btn blue" id="retryBtn">Try again</button><div style="height:12px"></div><button class="btn grey" id="homeBtn">Back to map</button></div>';
+  }
+  clearFoot();APP().innerHTML=h;
+  const hb=document.getElementById('homeBtn');if(hb)hb.onclick=renderHome;
+  const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?startReview():startLesson(R.lesson.id);};
+  if(success){burst();}
+}
+function burst(){
+  const t=document.getElementById('toast');
+  // lightweight celebratory toast already; add confetti emojis
+  toast('🎊 +'+R.xp+' XP'+(levelOf(S.xp)>levelOf(S.xp-R.xp)?'  —  Level up!':''));
+}
+
+/* ============================ boot ============================ */
+renderHome();
+</script>
+</body>
+</html>
