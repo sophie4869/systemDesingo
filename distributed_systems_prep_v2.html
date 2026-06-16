@@ -753,6 +753,68 @@ const UNITS=[
      {k:'callout',c:'warn',t:'A leader commits an entry only once it’s on a majority AND is from its CURRENT term. Counting replicas of a <i>previous-term</i> entry is unsafe — it could still be overwritten.'},
      {k:'note',t:'Older entries commit indirectly: once a current-term entry above them is committed, they are too.'}
    ]},
+   {t:'htmlviz',h:'Figure 8 — why current-term only',
+    html:`<style>
+.f8-legend{font-size:11px;color:var(--color-text-tertiary);margin-bottom:10px;line-height:1.5}
+.f8-row{display:flex;align-items:center;gap:8px;padding:3px 0}
+.f8-name{width:46px;font-weight:800;font-size:12px;color:var(--color-text-primary);display:flex;align-items:center;gap:2px}
+.f8-log{display:flex;gap:4px}
+.f8-cell{width:25px;height:25px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:13px;font-weight:800;border:2px solid transparent}
+.f8-cell.t1{background:var(--color-background-secondary);color:var(--color-text-tertiary)}
+.f8-cell.t2{background:var(--color-background-info);color:var(--color-text-info)}
+.f8-cell.t3{background:var(--color-background-danger);color:var(--color-text-danger)}
+.f8-cell.t4{background:var(--color-background-success);color:var(--color-text-success)}
+.f8-cell.hot{border-color:var(--color-text-primary)}
+.f8-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.f8-ex b{color:var(--color-text-primary);font-weight:800}
+.f8-ex.warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.f8-ex.warn b{color:var(--color-text-warning)}
+.f8-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}
+.f8-ex.ok b{color:var(--color-text-success)}
+</style>
+<div class="f8-legend">Each box = a log entry · the number = the <b>term</b> it was created in · 👑 = leader. Boxes left→right = log index 1, 2, 3.</div>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="f8-panel">
+  <div class="f8-row"><div class="f8-name">S1 👑</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2 hot">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S2</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2 hot">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S3</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S4</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S5</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-ex"><b>Term 2:</b> S1 (leader) appends index-2 (term 2) and replicates it to S2.</div>
+</div>
+<div class="f8-panel">
+  <div class="f8-row"><div class="f8-name">S1</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S2</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S3</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S4</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S5 👑</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3 hot">3</span></div></div>
+  <div class="f8-ex"><b>Term 3:</b> S1 crashes. S5 wins (S3, S4 have short logs and vote yes) and takes its OWN index-2 = term 3, locally.</div>
+</div>
+<div class="f8-panel">
+  <div class="f8-row"><div class="f8-name">S1 👑</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span><span class="f8-cell t4 hot">4</span></div></div>
+  <div class="f8-row"><div class="f8-name">S2</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S3</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2 hot">2</span></div></div>
+  <div class="f8-row"><div class="f8-name">S4</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S5</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3">3</span></div></div>
+  <div class="f8-ex warn"><b>Term 4:</b> S1 returns, wins, and copies the OLD index-2 (term 2) to S3 → now on a <b>majority</b> (S1, S2, S3). ⚠️ Tempting to call it committed — but it’s a <b>previous-term</b> entry.</div>
+</div>
+<div class="f8-panel">
+  <div class="f8-row"><div class="f8-name">S1</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span><span class="f8-cell t4">4</span></div></div>
+  <div class="f8-row"><div class="f8-name">S2</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3 hot">3</span></div></div>
+  <div class="f8-row"><div class="f8-name">S3</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3 hot">3</span></div></div>
+  <div class="f8-row"><div class="f8-name">S4</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3 hot">3</span></div></div>
+  <div class="f8-row"><div class="f8-name">S5 👑</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3">3</span></div></div>
+  <div class="f8-ex warn"><b>Term 5:</b> S1 crashes again. S5 wins (its last term 3 &gt; 2) and <b>OVERWRITES</b> index-2 with term 3 on S2, S3, S4. Had S1 committed index-2 in step ③, a committed entry just vanished — corruption.</div>
+</div>
+<div class="f8-panel">
+  <div class="f8-row"><div class="f8-name">S1 👑</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span><span class="f8-cell t4">4</span></div></div>
+  <div class="f8-row"><div class="f8-name">S2</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span><span class="f8-cell t4 hot">4</span></div></div>
+  <div class="f8-row"><div class="f8-name">S3</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t2">2</span><span class="f8-cell t4 hot">4</span></div></div>
+  <div class="f8-row"><div class="f8-name">S4</div><div class="f8-log"><span class="f8-cell t1">1</span></div></div>
+  <div class="f8-row"><div class="f8-name">S5</div><div class="f8-log"><span class="f8-cell t1">1</span><span class="f8-cell t3">3</span></div></div>
+  <div class="f8-ex ok"><b>The safe rule:</b> in term 4, S1 first replicates its OWN current-term entry (index-3, term 4) to a majority. Once <b>that</b> commits, index-2 commits indirectly + safely — and S5 can no longer win (last term 3 &lt; 4). Nothing gets overwritten.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,5,{panelClass:'f8-panel',labels:['① Term 2 — S1 replicates idx-2','② Term 3 — S5 takes over','③ Term 4 — idx-2 on a majority','④ Term 5 — it gets OVERWRITTEN','⑤ The fix — commit current term']});}},
    {t:'mcq',q:'Why can’t a candidate that’s missing committed entries become leader?',o:['it has a higher id','voters reject a less up-to-date log → it can’t get a majority','the old leader vetoes it','it times out first'],a:1,why:'The up-to-date vote check (Leader Completeness) blocks it — that’s exactly how committed entries survive every future term.'},
    {t:'mcq',q:'A Raft leader may mark an entry committed once it is…',o:['written to its own log','on a majority','on a majority AND from the leader’s current term','acked by any one follower'],a:2,why:'Committing a previous-term entry by replica count is unsafe (Figure 8); it commits via a current-term entry above it.'},
    {t:'sort',q:'A real Raft invariant, or made up?',buckets:['Real invariant','Not a Raft rule'],items:[
