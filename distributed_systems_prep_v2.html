@@ -1557,12 +1557,17 @@ const UNITS=[
      {k:'callout',c:'warn',t:'<b>A queue isn’t free latency-wise.</b> It adds a hop (enqueue + poll) and decouples timing — perfect for spikes, fan-out, and slow work, but it <b>blows a tight synchronous latency budget</b>. Don’t drop one into a &lt;500ms request path just to "decouple" — the caller now waits on a queue it can’t see.'}
    ]},
    {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
-   {t:'teach',h:'Kafka internals',body:[
-     {k:'point',i:'👥',t:'<b>Consumer groups</b>: each partition is read by exactly ONE consumer in a group — so consumer parallelism is capped by partition count. Add partitions to scale out.'},
-     {k:'point',i:'📍',t:'<b>Offsets</b>: each group tracks the offset it has processed. Commit <b>after</b> processing → at-least-once (may reprocess on crash); commit <b>before</b> → at-most-once (may skip on crash). Exactly-once = a Kafka transaction that commits the offset + output write atomically.'},
-     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the set of follower replicas currently <b>caught up</b> to the leader. A follower that lags too far drops out (and rejoins once it catches up). <code>acks=all</code> + <code>min.insync.replicas</code> commits only once that many ISR replicas have the write — your durability-vs-latency knob.'},
-     {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> instead keeps only the latest value per key.'},
-     {k:'callout',c:'warn',t:'<b>Hot partition vs ordering:</b> more partitions = more parallelism, but a hot key still serializes onto its one partition. You can’t have global ordering AND high parallelism — settle for <b>per-key</b> ordering.'}
+   {t:'teach',h:'Kafka: partitions & offsets',body:[
+     {k:'point',i:'👥',t:'<b>Consumer group</b>: each partition → exactly ONE consumer. Parallelism caps at the partition count; extra consumers sit idle. Add partitions to scale out.'},
+     {k:'point',i:'📍',t:'Each group tracks the <b>offset</b> it has processed. <i>When</i> you commit it decides your delivery guarantee:'},
+     {k:'vs',a:{h:'Commit AFTER processing',t:'at-least-once — a crash reprocesses the message'},b:{h:'Commit BEFORE processing',t:'at-most-once — a crash skips it'}},
+     {k:'note',t:'Exactly-once = a Kafka transaction committing the offset + output write atomically.'}
+   ]},
+   {t:'teach',h:'Kafka: durability & retention',body:[
+     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the followers currently <b>caught up</b> to the leader. A laggard drops out, then rejoins once it catches up.'},
+     {k:'point',i:'🎚️',t:'<code>acks=all</code> + <code>min.insync.replicas</code>: commit only once that many ISR replicas hold the write — the durability ↔ latency knob.'},
+     {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> keeps only the latest value per key.'},
+     {k:'callout',c:'warn',t:'<b>Hot partition vs ordering:</b> more partitions = more parallelism, but a hot key serializes onto its one partition. You can’t have global ordering AND high parallelism — pick <b>per-key</b> ordering.'}
    ]},
    {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
      {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
