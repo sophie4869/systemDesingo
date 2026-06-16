@@ -425,18 +425,45 @@ a{color:var(--accent);text-decoration:none}
           <p>The problem CRDTs solve: when two replicas independently accept concurrent writes, how do you merge them without conflicts and without any coordination? CRDTs are data structures specifically designed so that any two replicas that've seen the same set of updates always converge to the same state — regardless of what order they saw them in, with no coordination needed.</p>
           <p><strong>Two flavours:</strong> <em>State-based</em> — replicas exchange their full state and merge it; the merge must be commutative, associative, and idempotent (a semilattice). <em>Operation-based</em> — replicas broadcast the operations themselves, which must be commutative; requires reliable causal delivery.</p>
           <p><strong>Common types to know:</strong> G-Counter / PN-Counter for distributed counters; G-Set / OR-Set for sets where add wins over remove; LWW-Register for last-write-wins; sequence CRDTs like RGA for collaborative text editing.</p>
-          <div class="code">G-Counter example — 3 nodes A, B, C, each tracks its own increments:
-
-Replica 1 (saw A+2, B+1):  [A:2, B:1, C:0]
-Replica 2 (saw B+1, C+3):  [A:0, B:1, C:3]   ← diverged during partition
-
-Merge = element-wise max (no coordinator needed):
-  [max(2,0), max(1,1), max(0,3)] = [A:2, B:1, C:3]
-  Total = 2+1+3 = 6  ✓  (same on both replicas, regardless of order)
-
-PN-Counter = two G-Counters (increments P, decrements N)
-  value = sum(P) − sum(N)
-  &rarr; merge each G-Counter independently → supports inc + dec</div>
+          <style>
+          .gc-wrap { padding: 4px 0 8px; }
+          .gc-cap { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 10px; }
+          .gc-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
+          .gc-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); min-width: 78px; }
+          .gc-sub { font-size: 11px; color: var(--color-text-tertiary); min-width: 96px; }
+          .gc-vec { display: flex; gap: 5px; }
+          .gc-cell { font-family: var(--font-mono); font-size: 12.5px; padding: 3px 9px; border-radius: var(--border-radius-md); background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); }
+          .gc-cell b { color: var(--color-text-tertiary); font-weight: 600; margin-right: 3px; }
+          .gc-cell.win { background: var(--color-background-success); border-color: var(--color-border-success); color: var(--color-text-success); }
+          .gc-cell.win b { color: var(--color-text-success); }
+          .gc-diverge { font-size: 11px; color: var(--color-text-warning); }
+          .gc-btn { margin: 12px 0 4px; font-size: 12.5px; font-weight: 500; padding: 7px 13px; border: 1px solid var(--color-border-info); border-radius: var(--border-radius-md); background: var(--color-background-info); color: var(--color-text-info); cursor: pointer; font-family: inherit; width: auto; height: auto; }
+          .gc-btn:hover { filter: brightness(.97); }
+          .gc-btn:disabled { opacity: .55; cursor: default; }
+          .gc-result { margin-top: 8px; }
+          .gc-result[hidden] { display: none; }
+          .gc-total { font-size: 12.5px; color: var(--color-text-secondary); margin-top: 6px; padding: 8px 12px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); line-height: 1.6; }
+          .gc-total b { color: var(--color-text-primary); font-weight: 600; }
+          .gc-note { font-size: 12px; color: var(--color-text-tertiary); margin-top: 12px; line-height: 1.6; }
+          .gc-note b { color: var(--color-text-secondary); font-weight: 500; }
+          </style>
+          <div class="viz-embed gc-wrap" id="gcWrap" onclick="event.stopPropagation()">
+            <div class="gc-cap">G-Counter — 3 nodes A, B, C, each tracks its own increments. Two replicas diverged during a partition:</div>
+            <div class="gc-row"><span class="gc-name">Replica 1</span><span class="gc-sub">saw A+2, B+1</span><span class="gc-vec"><span class="gc-cell"><b>A</b>2</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>0</span></span></div>
+            <div class="gc-row"><span class="gc-name">Replica 2</span><span class="gc-sub">saw B+1, C+3</span><span class="gc-vec"><span class="gc-cell"><b>A</b>0</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell"><b>C</b>3</span></span><span class="gc-diverge">← diverged</span></div>
+            <button class="gc-btn" id="gcBtn" onclick="gcMerge()">Merge ▸ element-wise max (no coordinator)</button>
+            <div class="gc-result" id="gcResult" hidden>
+              <div class="gc-row"><span class="gc-name">Merged</span><span class="gc-sub">max each slot</span><span class="gc-vec"><span class="gc-cell win"><b>A</b>2</span><span class="gc-cell"><b>B</b>1</span><span class="gc-cell win"><b>C</b>3</span></span></div>
+              <div class="gc-total">[max(2,0), max(1,1), max(0,3)] = [2, 1, 3] &nbsp;·&nbsp; total = 2+1+3 = <b>6</b> ✓ — both replicas converge to the same value, regardless of merge order.</div>
+            </div>
+            <div class="gc-note"><b>PN-Counter</b> = two G-Counters (P counts increments, N counts decrements); value = sum(P) − sum(N). Merge each G-Counter independently → supports increment <em>and</em> decrement.</div>
+          </div>
+          <script>(function(){
+            window.gcMerge = function(){
+              var r = document.getElementById('gcResult'); if(r) r.hidden = false;
+              var b = document.getElementById('gcBtn'); if(b) b.disabled = true;
+            };
+          })();</script>
           <p>Used by Figma, Apple Notes, Automerge, and Yjs for collaborative editing, and in Riak for distributed data types. The trade-off: you're limited to data types that have a mathematically lawful merge operation, and deleted items can leave tombstones that accumulate over time.</p>
           <div class="tag-row"><span class="tag">Shapiro et al. 2011</span><span class="tag">strong eventual consistency</span><span class="tag">no conflict resolution needed</span></div>
         </div>
