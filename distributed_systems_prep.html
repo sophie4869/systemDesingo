@@ -34,6 +34,34 @@
   --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
   --shadow-md:0 4px 12px rgba(0,0,0,.08);
 }
+/* ---- embedded-visualization token shim (maps Claude canvas tokens to this guide's palette) ---- */
+:root{
+  --color-background-primary:#FFFFFF;
+  --color-background-secondary:var(--code-bg);
+  --color-background-info:var(--accent-light);
+  --color-background-success:var(--success-bg);
+  --color-background-warning:var(--warn-bg);
+  --color-background-danger:var(--danger-bg);
+  --color-text-primary:var(--text);
+  --color-text-secondary:var(--text-muted);
+  --color-text-tertiary:var(--text-faint);
+  --color-text-info:var(--accent-dark);
+  --color-text-success:var(--success);
+  --color-text-warning:var(--warn);
+  --color-text-danger:var(--danger);
+  --color-border-primary:var(--border-hover);
+  --color-border-secondary:var(--border-hover);
+  --color-border-tertiary:var(--border);
+  --color-border-info:var(--accent);
+  --color-border-success:var(--success);
+  --color-border-warning:var(--warn);
+  --border-radius-lg:var(--radius);
+  --border-radius-md:var(--radius-sm);
+  --border-radius-sm:var(--radius-sm);
+  --font-mono:'JetBrains Mono',monospace;
+}
+.viz-embed button{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);cursor:pointer;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;line-height:1;font-family:inherit;transition:all .15s}
+.viz-embed button:hover{border-color:var(--accent);color:var(--accent)}
 html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 
@@ -613,11 +641,82 @@ Read  &rarr;                              TAIL</div>
         <div class="card-body">
           <p>Here's the failure mode: a process holds a lock, gets paused — GC, a slow network call, anything — and resumes after the lock expired and was re-granted to someone else. It has no idea its lock is stale and tries to write.</p>
           <p><strong>Fencing tokens:</strong> every time a lock is granted, issue a monotonically increasing token. The storage system tracks the highest token it's seen and rejects writes from anything lower.</p>
-          <div class="code">Client A gets lock, token=33
-Client A pauses (GC)
-Lock expires &rarr; Client B gets lock, token=34
-Client B writes with token=34 &rarr; accepted, max=34
-Client A resumes, writes with token=33 &rarr; rejected (33 &lt; 34)</div>
+          <style>
+          .fence-wrap { padding: 4px 0 8px; }
+          .fence-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+          .fence-dots { display: flex; gap: 6px; }
+          .fence-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-tertiary); transition: background .2s; }
+          .fence-dot.active { background: var(--color-text-info); }
+          .fence-lbl { font-size: 13px; color: var(--color-text-secondary); flex: 1; font-weight: 500; }
+          .fence-sp { display: none; }
+          .fence-sp.active { display: block; }
+          .fence-timeline { position: relative; padding: 0 0 0 12px; }
+          .fence-evt { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; position: relative; }
+          .fence-evt::before { content: ''; position: absolute; left: -8px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-secondary); }
+          .fence-evt.bad::before { background: var(--color-text-danger); }
+          .fence-evt.good::before { background: var(--color-text-success); }
+          .fence-actor { font-size: 12px; font-weight: 500; color: var(--color-text-primary); min-width: 80px; padding-top: 2px; }
+          .fence-desc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
+          .fence-desc strong { font-weight: 600; color: var(--color-text-primary); }
+          .fence-explain { margin-top: 12px; font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; padding: 10px 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); }
+          </style>
+          <div class="viz-embed fence-wrap" id="fenceWrap" onclick="event.stopPropagation()">
+            <div class="fence-nav">
+              <button onclick="fenceGo(-1)" aria-label="Previous">‹</button>
+              <div class="fence-dots" id="fenceDots"></div>
+              <button onclick="fenceGo(1)" aria-label="Next">›</button>
+              <span class="fence-lbl" id="fenceLbl"></span>
+            </div>
+            <div id="fencePanels"></div>
+          </div>
+          <script>(function(){
+            const root = document.getElementById('fenceWrap');
+            const steps = [
+              { title: "The problem: GC pause creates a zombie",
+                events: [
+                  { actor: "Client A", desc: "Acquires lock from ZooKeeper (lease expires in 10s)" },
+                  { actor: "Client A", desc: "<strong>GC pause hits — frozen for 15 seconds</strong>", bad: true },
+                  { actor: "ZooKeeper", desc: "Lease expires. Grants lock to Client B." },
+                  { actor: "Client B", desc: "Acquires lock, starts writing to storage." },
+                  { actor: "Client A", desc: "GC pause ends. <strong>Still thinks it holds the lock.</strong> Writes to storage.", bad: true },
+                ],
+                explain: "Two clients now both believe they hold an exclusive lock. Client A is a <strong>zombie</strong> — it missed its own lease expiry. Any writes it makes can corrupt data that Client B is working on."
+              },
+              { title: "The fix: fencing tokens",
+                events: [
+                  { actor: "Client A", desc: "Acquires lock. ZooKeeper issues <strong>fencing token #33</strong>." },
+                  { actor: "Client A", desc: "GC pause hits — frozen for 15 seconds.", bad: true },
+                  { actor: "ZooKeeper", desc: "Lease expires. Grants lock + <strong>token #34</strong> to Client B." },
+                  { actor: "Client B", desc: "Writes to storage with token #34. Storage records max seen = 34." },
+                  { actor: "Client A", desc: "Wakes up, tries to write with token #33.", bad: true },
+                  { actor: "Storage", desc: "<strong>Rejects token #33</strong> — lower than max seen (34).", good: true },
+                ],
+                explain: "The storage server itself enforces ordering. It doesn't matter that Client A thinks it has the lock — the fencing token proves it's stale. <strong>ZooKeeper's zxid</strong> (monotonic transaction ID) serves exactly this purpose."
+              }
+            ];
+            let cur = 0;
+            const panels = root.querySelector('#fencePanels');
+            const dots = root.querySelector('#fenceDots');
+            steps.forEach((s, i) => {
+              const d = document.createElement('div'); d.className = 'fence-dot'; dots.appendChild(d);
+              const p = document.createElement('div'); p.className = 'fence-sp';
+              let h = '<div class="fence-timeline">';
+              s.events.forEach(e => {
+                h += '<div class="fence-evt' + (e.bad ? ' bad' : '') + (e.good ? ' good' : '') + '">';
+                h += '<div class="fence-actor">' + e.actor + '</div>';
+                h += '<div class="fence-desc">' + e.desc + '</div></div>';
+              });
+              h += '</div><div class="fence-explain">' + s.explain + '</div>';
+              p.innerHTML = h; panels.appendChild(p);
+            });
+            function render() {
+              root.querySelectorAll('.fence-sp').forEach((p,i) => p.classList.toggle('active', i===cur));
+              root.querySelectorAll('.fence-dot').forEach((d,i) => d.classList.toggle('active', i===cur));
+              root.querySelector('#fenceLbl').textContent = steps[cur].title;
+            }
+            window.fenceGo = function(d){ cur = Math.max(0, Math.min(steps.length-1, cur+d)); render(); };
+            render();
+          })();</script>
           <p>TTL alone is insufficient — a paused client's internal clock doesn't advance during the pause. It wakes up thinking barely any time passed. The storage system must enforce fencing, not just the lock service.</p>
           <div class="note warn"><strong>Redlock controversy:</strong> Redis's multi-node Redlock is a classic interview talking point. Martin Kleppmann's critique: it relies on bounded clocks and process pauses, and still needs fencing tokens to be safe — so for correctness-critical locking, prefer a consensus system (ZooKeeper/etcd) that issues fencing tokens natively.</div>
           <div class="tag-row"><span class="tag">ZooKeeper zxid</span><span class="tag">etcd lease</span><span class="tag">split-brain prevention</span></div>
@@ -732,11 +831,33 @@ Each C must be: compensatable (semantic undo — NOT a DB rollback)</div>
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Isolation levels</div><div class="card-sub">Read phenomena and their prevention</div></div><span class="badge badge-amber">ACID</span></div>
         <div class="card-body">
-          <table class="tbl"><tr><th>Level</th><th>Dirty read</th><th>Non-repeatable</th><th>Phantom</th></tr>
-          <tr><td>Read uncommitted</td><td>Possible</td><td>Possible</td><td>Possible</td></tr>
-          <tr><td>Read committed</td><td>Prevented</td><td>Possible</td><td>Possible</td></tr>
-          <tr><td>Repeatable read</td><td>Prevented</td><td>Prevented</td><td>Possible</td></tr>
-          <tr><td>Serializable</td><td>Prevented</td><td>Prevented</td><td>Prevented</td></tr></table>
+          <style>
+          .matrix { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; margin: .25rem 0 .5rem; }
+          .matrix th { text-align: left; padding: 8px 10px; font-weight: 500; color: var(--color-text-primary); border-bottom: 1.5px solid var(--color-border-primary); font-size: 12px; }
+          .matrix td { padding: 7px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); vertical-align: middle; }
+          .matrix tr:last-child td { border-bottom: none; }
+          .matrix .level { font-weight: 500; color: var(--color-text-primary); font-size: 13px; }
+          .matrix .y { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--color-background-success); color: var(--color-text-success); font-size: 13px; }
+          .matrix .n { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--color-background-danger); color: var(--color-text-danger); font-size: 13px; }
+          .matrix .m { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--color-background-warning); color: var(--color-text-warning); font-size: 11px; font-weight: 500; }
+          .matrix-legend { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12px; color: var(--color-text-tertiary); flex-wrap: wrap; }
+          .matrix-legend span { display: flex; align-items: center; gap: 5px; }
+          .matrix tr.hl td { background: var(--color-background-secondary); }
+          </style>
+          <table class="matrix">
+            <thead><tr>
+              <th style="width:28%">Isolation level</th>
+              <th style="width:14.4%">Dirty read</th><th style="width:14.4%">Dirty write</th>
+              <th style="width:14.4%">Read skew</th><th style="width:14.4%">Lost update</th><th style="width:14.4%">Write skew</th>
+            </tr></thead>
+            <tbody>
+              <tr><td class="level">Read uncommitted</td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
+              <tr class="hl"><td class="level">Read committed</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
+              <tr><td class="level">Snapshot isolation</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="m">~</span></td><td><span class="n">✕</span></td></tr>
+              <tr class="hl"><td class="level">Serializable</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+            </tbody>
+          </table>
+          <div class="matrix-legend"><span><span class="y">✓</span> prevented</span><span><span class="n">✕</span> vulnerable</span><span><span class="m">~</span> depends on DB</span></div>
           <p>Snapshot Isolation (MVCC) is what most databases actually implement when they say "Repeatable Read." It cheaply prevents dirty reads and non-repeatable reads, but it allows write skew — two concurrent transactions both read the same snapshot, each makes a decision based on it, and together their commits violate a constraint that either one alone would have caught. Serializable Snapshot Isolation (SSI) detects and aborts these conflicting transactions.</p>
           <div class="note warn"><strong>Naming trap:</strong> isolation level names are not standardized across vendors. PostgreSQL's "Serializable" used to mean Snapshot Isolation; its "Repeatable Read" is also SI. Always reason about which <em>anomalies</em> are prevented — don't trust the label name.</div>
           <div class="tag-row"><span class="tag">MVCC</span><span class="tag">SSI</span><span class="tag">write skew</span></div>
@@ -755,6 +876,96 @@ Each C must be: compensatable (semantic undo — NOT a DB rollback)</div>
           <tr><td>Lost update</td><td>Two read-modify-write cycles; one silently clobbers the other</td><td>Atomic op, SELECT … FOR UPDATE, or compare-and-set</td></tr>
           <tr><td>Write skew</td><td>Two txns read an overlapping set, write disjoint rows, together breaking an invariant</td><td>Serializable / SSI (or materialize the conflict)</td></tr></table>
           <p><strong>Lost update vs write skew:</strong> lost update is two writes to the <em>same</em> object; write skew is two writes to <em>different</em> objects that jointly violate a constraint — e.g. two on-call doctors each clock off because each sees the other still on duty.</p>
+          <style>
+          .ph-wrap { padding: 4px 0 8px; }
+          .ph-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+          .ph-dots { display: flex; gap: 6px; }
+          .ph-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-tertiary); transition: background .2s; }
+          .ph-dot.active { background: var(--color-text-info); }
+          .ph-label { font-size: 13px; color: var(--color-text-secondary); flex: 1; font-weight: 500; }
+          .ph-panel { display: none; }
+          .ph-panel.active { display: block; }
+          .ph-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+          .ph-col { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+          .ph-col-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 8px; }
+          .ph-sql { font-family: var(--font-mono); font-size: 11.5px; color: var(--color-text-secondary); line-height: 1.7; white-space: pre-wrap; }
+          .ph-sql .kw { color: var(--color-text-info); }
+          .ph-sql .hl { color: var(--color-text-success); font-weight: 500; }
+          .ph-sql .bad { color: var(--color-text-danger); font-weight: 500; }
+          .ph-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+          .ph-table th { text-align: left; padding: 5px 8px; font-weight: 500; color: var(--color-text-tertiary); border-bottom: 1px solid var(--color-border-tertiary); font-size: 11px; }
+          .ph-table td { padding: 5px 8px; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); }
+          .ph-table tr.new td { color: var(--color-text-danger); font-weight: 500; }
+          .ph-explain { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; padding: 10px 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); }
+          .ph-explain strong { font-weight: 600; color: var(--color-text-primary); }
+          @media (max-width: 460px) { .ph-cols { grid-template-columns: 1fr; } }
+          </style>
+          <div class="viz-embed ph-wrap" id="phWrap" onclick="event.stopPropagation()">
+            <div class="ph-nav">
+              <button onclick="pgo(-1)" aria-label="Previous">‹</button>
+              <div class="ph-dots" id="pdots"></div>
+              <button onclick="pgo(1)" aria-label="Next">›</button>
+              <span class="ph-label" id="plbl"></span>
+            </div>
+            <div id="ppanels"></div>
+          </div>
+          <script>(function(){
+            const psteps = [
+              { title: "Step 1: Both transactions check for existing bookings",
+                cols: [
+                  { title: "Transaction A (Alice)", sql: '<span class="kw">SELECT COUNT(*) FROM</span> bookings\n<span class="kw">WHERE</span> room = <span class="hl">42</span>\n  <span class="kw">AND</span> time = <span class="hl">\'2pm\'</span>;\n\n<span class="hl">→ result: 0 (no bookings)</span>' },
+                  { title: "Transaction B (Bob)", sql: '<span class="kw">SELECT COUNT(*) FROM</span> bookings\n<span class="kw">WHERE</span> room = <span class="hl">42</span>\n  <span class="kw">AND</span> time = <span class="hl">\'2pm\'</span>;\n\n<span class="hl">→ result: 0 (no bookings)</span>' }
+                ],
+                table: { rows: [], caption: "bookings table: empty for room 42 at 2pm" },
+                explain: "Both Alice and Bob query for existing bookings of Room 42 at 2pm. Both see zero rows. Both conclude: <strong>\"the slot is available.\"</strong>"
+              },
+              { title: "Step 2: Both insert — the phantom appears",
+                cols: [
+                  { title: "Transaction A (Alice)", sql: '<span class="kw">INSERT INTO</span> bookings\n  (room, time, user)\n<span class="kw">VALUES</span> (<span class="hl">42</span>, <span class="hl">\'2pm\'</span>, <span class="hl">\'Alice\'</span>);\n<span class="kw">COMMIT;</span> <span class="hl">✓</span>' },
+                  { title: "Transaction B (Bob)", sql: '<span class="kw">INSERT INTO</span> bookings\n  (room, time, user)\n<span class="kw">VALUES</span> (<span class="bad">42</span>, <span class="bad">\'2pm\'</span>, <span class="bad">\'Bob\'</span>);\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← should have failed</span>' }
+                ],
+                table: { rows: [
+                  { room: "42", time: "2pm", user: "Alice", cls: "" },
+                  { room: "42", time: "2pm", user: "Bob", cls: "new" }
+                ], caption: "bookings table after both commits" },
+                explain: "Both inserts succeed. <strong>Double booking.</strong> When Bob ran his SELECT, Alice's row didn't exist yet — it's a <strong>phantom</strong>. A row that <em>would have changed</em> his query's result appeared after the query ran but before his transaction finished."
+              },
+              { title: "Step 3: The fix — predicate or index-range lock",
+                cols: [
+                  { title: "With predicate lock", sql: '<span class="kw">SELECT COUNT(*) FROM</span> bookings\n<span class="kw">WHERE</span> room = 42 <span class="kw">AND</span> time = \'2pm\'\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">→ locks the predicate</span>\n<span class="hl">  (room=42 AND time=2pm)</span>\n<span class="hl">  even for rows that</span>\n<span class="hl">  don\'t exist yet</span>' },
+                  { title: "Bob's INSERT now blocks", sql: '<span class="kw">INSERT INTO</span> bookings\n  (room, time, user)\n<span class="kw">VALUES</span> (42, \'2pm\', \'Bob\');\n\n<span class="bad">⏳ BLOCKED — matches</span>\n<span class="bad">   Alice\'s predicate lock</span>\n\n<span class="hl">After Alice commits:</span>\n<span class="kw">SELECT</span> sees count = 1\n→ Bob knows slot is taken' }
+                ],
+                table: { rows: [], caption: "" },
+                explain: "A <strong>predicate lock</strong> doesn't lock existing rows — it locks <em>the condition itself</em>. Any insert matching <code>room=42 AND time='2pm'</code> is blocked. Most DBs use <strong>index-range locks</strong> (cheaper). <strong>SSI</strong> instead lets both run and aborts one at commit when it detects the conflict."
+              }
+            ];
+            let pcur = 0;
+            const root = document.getElementById('phWrap');
+            const pp = root.querySelector('#ppanels');
+            const pd = root.querySelector('#pdots');
+            psteps.forEach((s, i) => {
+              const dot = document.createElement('div'); dot.className = 'ph-dot'; pd.appendChild(dot);
+              const p = document.createElement('div'); p.className = 'ph-panel';
+              let h = '<div class="ph-cols">';
+              s.cols.forEach(c => { h += '<div class="ph-col"><div class="ph-col-title">' + c.title + '</div><div class="ph-sql">' + c.sql + '</div></div>'; });
+              h += '</div>';
+              if (s.table.rows.length > 0) {
+                h += '<table class="ph-table"><thead><tr><th>room</th><th>time</th><th>user</th></tr></thead><tbody>';
+                s.table.rows.forEach(r => { h += '<tr class="' + r.cls + '"><td>' + r.room + '</td><td>' + r.time + '</td><td>' + r.user + '</td></tr>'; });
+                h += '</tbody></table>';
+              }
+              if (s.table.caption) h += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px;">' + s.table.caption + '</div>';
+              h += '<div class="ph-explain">' + s.explain + '</div>';
+              p.innerHTML = h; pp.appendChild(p);
+            });
+            function prender() {
+              root.querySelectorAll('.ph-panel').forEach((p,i) => p.classList.toggle('active', i===pcur));
+              root.querySelectorAll('.ph-dot').forEach((d,i) => d.classList.toggle('active', i===pcur));
+              root.querySelector('#plbl').textContent = psteps[pcur].title;
+            }
+            window.pgo = function(d){ pcur = Math.max(0, Math.min(psteps.length-1, pcur+d)); prender(); };
+            prender();
+          })();</script>
           <div class="tag-row"><span class="tag">read skew = non-repeatable</span><span class="tag">write skew ≠ lost update</span><span class="tag">phantoms need predicate locks</span></div>
         </div>
       </div>
@@ -1416,6 +1627,46 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
         <div class="card-body">
           <p><strong>B-tree (PostgreSQL, MySQL/InnoDB):</strong> updates happen in-place on a balanced tree on disk. Great for reads and range scans. Writes do random I/O — you have to find the right page and modify it in place — plus WAL overhead. Fundamentally read-optimized.</p>
           <p><strong>LSM-tree (Cassandra, RocksDB, HBase, LevelDB):</strong> writes go into an in-memory buffer (memtable), get flushed sequentially to immutable SSTables on disk, and periodically merged via background compaction. Sequential writes means much better write throughput. Reads are slower because you may have to check multiple SSTables — mitigated by Bloom filters that skip SSTables which definitely don't contain the key.</p>
+          <style>
+          .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 0 8px; }
+          .cmp-card { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 16px 18px; }
+          .cmp-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 10px; }
+          .cmp-name { font-size: 16px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 14px; }
+          .cmp-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 13px; }
+          .cmp-row:last-child { border-bottom: none; }
+          .cmp-key { color: var(--color-text-secondary); }
+          .cmp-val { color: var(--color-text-primary); font-weight: 500; }
+          .cmp-val.good { color: var(--color-text-success); }
+          .cmp-val.warn { color: var(--color-text-warning); }
+          .cmp-tag  { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+          .cmp-tag-b { background: var(--color-background-info); color: var(--color-text-info); }
+          .cmp-tag-l { background: var(--color-background-success); color: var(--color-text-success); }
+          @media (max-width: 460px) { .cmp-grid { grid-template-columns: 1fr; } }
+          </style>
+          <div class="cmp-grid">
+            <div class="cmp-card">
+              <div class="cmp-label">classic <span class="cmp-tag cmp-tag-b">B-Tree</span></div>
+              <div class="cmp-name">B-Tree</div>
+              <div class="cmp-row"><span class="cmp-key">writes</span><span class="cmp-val warn">random I/O</span></div>
+              <div class="cmp-row"><span class="cmp-key">reads</span><span class="cmp-val good">O(log n), fast</span></div>
+              <div class="cmp-row"><span class="cmp-key">range scans</span><span class="cmp-val good">excellent</span></div>
+              <div class="cmp-row"><span class="cmp-key">write amplification</span><span class="cmp-val warn">moderate</span></div>
+              <div class="cmp-row"><span class="cmp-key">space overhead</span><span class="cmp-val good">low</span></div>
+              <div class="cmp-row"><span class="cmp-key">update model</span><span class="cmp-val">in-place</span></div>
+              <div class="cmp-row"><span class="cmp-key">used by</span><span class="cmp-val">Postgres, MySQL</span></div>
+            </div>
+            <div class="cmp-card">
+              <div class="cmp-label">write-optimized <span class="cmp-tag cmp-tag-l">LSM</span></div>
+              <div class="cmp-name">LSM-Tree + SSTables</div>
+              <div class="cmp-row"><span class="cmp-key">writes</span><span class="cmp-val good">sequential, fast</span></div>
+              <div class="cmp-row"><span class="cmp-key">reads</span><span class="cmp-val warn">check multiple levels</span></div>
+              <div class="cmp-row"><span class="cmp-key">range scans</span><span class="cmp-val good">good (sorted files)</span></div>
+              <div class="cmp-row"><span class="cmp-key">write amplification</span><span class="cmp-val warn">high (compaction)</span></div>
+              <div class="cmp-row"><span class="cmp-key">space overhead</span><span class="cmp-val warn">higher (pre-compact)</span></div>
+              <div class="cmp-row"><span class="cmp-key">update model</span><span class="cmp-val">append-only</span></div>
+              <div class="cmp-row"><span class="cmp-key">used by</span><span class="cmp-val">Cassandra, RocksDB, LevelDB</span></div>
+            </div>
+          </div>
           <div class="code">Amplification vocabulary:
 write amp = bytes written to disk / bytes written by app
 read amp  = disk reads per logical read
@@ -1424,6 +1675,69 @@ LSM: low write amp on ingest, but compaction creates write amp later
 B-tree: steady moderate write amp, lower read amp</div>
           <p>The practical rule: write-heavy workloads (time-series, logs, high-throughput ingest) → LSM. Read-heavy with complex queries and range scans → B-tree. This is the actual reason to pick Cassandra over Postgres — not "NoSQL is more scalable."</p>
           <div class="tag-row"><span class="tag">LSM = write-optimized</span><span class="tag">B-tree = read-optimized</span><span class="tag">compaction</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Choosing a database</div><div class="card-sub">Pick by access pattern, not hype</div></div><span class="badge badge-blue">Decision</span></div>
+        <div class="card-body">
+          <style>
+          .db-wrap { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+          .db-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+          .db-opt { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 14px 16px; }
+          .db-opt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+          .db-opt-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+          .db-opt-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 8px; }
+          .db-examples { display: flex; gap: 5px; flex-wrap: wrap; }
+          .db-ex { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); }
+          .db-use { font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px; font-style: italic; }
+          .db-section-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--color-text-tertiary); text-transform: uppercase; margin: 8px 0 4px; }
+          @media (max-width: 460px) { .db-opts { grid-template-columns: 1fr; } }
+          </style>
+          <div class="db-wrap">
+            <div class="db-section-label">What's your access pattern?</div>
+            <div class="db-opts">
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🗃️</span><span class="db-opt-title">Relational (SQL)</span></div>
+                <div class="db-opt-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default when you don't have a reason not to use it.</div>
+                <div class="db-examples"><span class="db-ex">PostgreSQL</span><span class="db-ex">MySQL</span></div>
+                <div class="db-use">users, orders, payments, anything with foreign keys</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">📄</span><span class="db-opt-title">Document</span></div>
+                <div class="db-opt-desc">Self-contained objects, flexible schema. Great when you fetch the whole thing by ID and relationships don't matter.</div>
+                <div class="db-examples"><span class="db-ex">MongoDB</span><span class="db-ex">DynamoDB</span></div>
+                <div class="db-use">user profiles, product catalogs, CMS content</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🔑</span><span class="db-opt-title">Key-value</span></div>
+                <div class="db-opt-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — just get/set.</div>
+                <div class="db-examples"><span class="db-ex">Redis</span><span class="db-ex">Memcached</span><span class="db-ex">DynamoDB</span></div>
+                <div class="db-use">sessions, cache, rate limiting, leaderboards</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">📊</span><span class="db-opt-title">Column (OLAP)</span></div>
+                <div class="db-opt-desc">Scan billions of rows but only a few columns. Compression-friendly. Built for aggregates, not point lookups.</div>
+                <div class="db-examples"><span class="db-ex">ClickHouse</span><span class="db-ex">BigQuery</span><span class="db-ex">Redshift</span></div>
+                <div class="db-use">analytics, dashboards, data warehouse</div>
+              </div>
+            </div>
+            <div class="db-opts">
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">⏱️</span><span class="db-opt-title">Time-series</span></div>
+                <div class="db-opt-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply and recent data stays hot in cache.</div>
+                <div class="db-examples"><span class="db-ex">InfluxDB</span><span class="db-ex">TimescaleDB</span><span class="db-ex">Prometheus</span></div>
+                <div class="db-use">metrics, IoT sensors, monitoring, logs</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🕸️</span><span class="db-opt-title">Graph</span></div>
+                <div class="db-opt-desc">Many-to-many relationships. Index-free adjacency = O(1) hop vs O(log N) join. Great when traversals are the query.</div>
+                <div class="db-examples"><span class="db-ex">Neo4j</span><span class="db-ex">Amazon Neptune</span></div>
+                <div class="db-use">social graphs, recommendations, fraud detection</div>
+              </div>
+            </div>
+          </div>
+          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">SQL is the default</span><span class="tag">polyglot persistence</span></div>
         </div>
       </div>
 
