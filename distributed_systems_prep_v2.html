@@ -749,6 +749,58 @@ const UNITS=[
      {k:'point',i:'🏆',t:'<b>Leader Completeness</b>: a committed entry is present in every future leader’s log. Guaranteed by the up-to-date vote restriction — a candidate missing committed entries can’t win a majority.'},
      {k:'point',i:'🎯',t:'<b>State Machine Safety</b>: no two nodes ever apply a different command at the same log index. That’s the payoff of all the above.'}
    ]},
+   {t:'htmlviz',h:'See the two tricky invariants',
+    html:`<style>
+.iv-cap{font-size:11px;font-weight:800;color:var(--color-text-info);margin-bottom:7px;text-transform:uppercase;letter-spacing:.04em}
+.iv-row{display:flex;align-items:center;gap:9px;padding:4px 0}
+.iv-name{width:60px;font-weight:800;font-size:12px;color:var(--color-text-primary)}
+.iv-log{display:flex;gap:4px;align-items:center}
+.iv-c{width:25px;height:25px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:13px;font-weight:800;border:2px solid transparent}
+.iv-c.t1{background:var(--color-background-secondary);color:var(--color-text-tertiary)}
+.iv-c.t2{background:var(--color-background-info);color:var(--color-text-info)}
+.iv-c.t3{background:var(--color-background-danger);color:var(--color-text-danger)}
+.iv-c.t4{background:var(--color-background-success);color:var(--color-text-success)}
+.iv-c.hot{border-color:var(--color-text-primary)}
+.iv-c.bad{border-color:var(--color-text-danger);border-style:dashed}
+.iv-tag{font-size:11px;font-weight:800;margin-left:4px}
+.iv-tag.bad{color:var(--color-text-danger)}
+.iv-tag.ok{color:var(--color-text-success)}
+.iv-srv{display:flex;gap:6px;margin:4px 0}
+.iv-box{flex:1;min-width:54px;border:2px solid var(--color-border-tertiary);border-radius:9px;padding:8px 3px;text-align:center;background:var(--color-background-secondary)}
+.iv-box.has{border-color:var(--color-border-success);background:var(--color-background-success)}
+.iv-box.deny{border-color:var(--color-text-danger);background:var(--color-background-danger)}
+.iv-sn{font-weight:900;font-size:14px;color:var(--color-text-primary)}
+.iv-sb{font-size:10px;margin-top:2px;color:var(--color-text-tertiary);line-height:1.2}
+.iv-box.has .iv-sb{color:var(--color-text-success);font-weight:800}
+.iv-box.deny .iv-sb{color:var(--color-text-danger);font-weight:800}
+.iv-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.iv-ex b{color:var(--color-text-primary);font-weight:800}
+.iv-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.iv-ex.ok b{color:var(--color-text-success)}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="iv-panel">
+  <div class="iv-cap">Log Matching — the guarantee</div>
+  <div class="iv-row"><span class="iv-name">Leader</span><span class="iv-log"><span class="iv-c t1">1</span><span class="iv-c t1">1</span><span class="iv-c t2">2</span><span class="iv-c t3 hot">3</span></span></div>
+  <div class="iv-row"><span class="iv-name">Follower</span><span class="iv-log"><span class="iv-c t1">1</span><span class="iv-c t1">1</span><span class="iv-c t2">2</span><span class="iv-c t3 hot">3</span></span></div>
+  <div class="iv-ex">Both hold the SAME entry at index 4 (term 3). Raft guarantees every entry <b>before</b> it is identical too — so two logs can only differ in a <b>suffix</b>, never in the middle.</div>
+</div>
+<div class="iv-panel">
+  <div class="iv-cap">Log Matching — how it’s enforced</div>
+  <div class="iv-row"><span class="iv-name">Leader</span><span class="iv-log"><span class="iv-c t1">1</span><span class="iv-c t1">1</span><span class="iv-c t2">2</span><span class="iv-c t3">3</span><span class="iv-c t3 hot">3</span></span></div>
+  <div class="iv-row"><span class="iv-name">Follower</span><span class="iv-log"><span class="iv-c t1">1</span><span class="iv-c t1">1</span><span class="iv-c t2">2</span><span class="iv-c t2 bad">2</span></span><span class="iv-tag bad">✗ reject</span></div>
+  <div class="iv-ex">To append index-5, the leader sends prevLogIndex=4, prevLogTerm=3. The follower’s index-4 is term <b>2</b>, not 3 → it <b>rejects</b>. The leader backs up and retries until prefixes agree, then overwrites the bad tail. That check is what makes Log Matching hold.</div>
+</div>
+<div class="iv-panel">
+  <div class="iv-cap">Leader Completeness — setup</div>
+  <div class="iv-srv"><div class="iv-box has"><div class="iv-sn">S1</div><div class="iv-sb">has X ✓</div></div><div class="iv-box has"><div class="iv-sn">S2</div><div class="iv-sb">has X ✓</div></div><div class="iv-box has"><div class="iv-sn">S3</div><div class="iv-sb">has X ✓</div></div><div class="iv-box"><div class="iv-sn">S4</div><div class="iv-sb">missing</div></div><div class="iv-box"><div class="iv-sn">S5</div><div class="iv-sb">missing</div></div></div>
+  <div class="iv-ex">Entry <b>X</b> is committed — replicated to a majority (S1, S2, S3). Could a server that’s <b>missing X</b> (say S5) become leader and erase it?</div>
+</div>
+<div class="iv-panel">
+  <div class="iv-cap">Leader Completeness — the guarantee</div>
+  <div class="iv-srv"><div class="iv-box deny"><div class="iv-sn">S1</div><div class="iv-sb">✗ deny</div></div><div class="iv-box deny"><div class="iv-sn">S2</div><div class="iv-sb">✗ deny</div></div><div class="iv-box deny"><div class="iv-sn">S3</div><div class="iv-sb">✗ deny</div></div><div class="iv-box"><div class="iv-sn">S4</div><div class="iv-sb">grant</div></div><div class="iv-box"><div class="iv-sn">S5</div><div class="iv-sb">candidate</div></div></div>
+  <div class="iv-ex ok"><b>No.</b> A voter refuses any candidate whose log is <b>less up-to-date</b> than its own. The three servers holding X vote it down → S5 gets ≤2 votes, no majority. So every future leader must already contain X. <b>Committed = permanent.</b></div>
+</div>`,
+    setup:function(root,stepper){stepper(root,4,{panelClass:'iv-panel',labels:['Log Matching: same index+term','Log Matching: the prevLog check','Leader Completeness: setup','Leader Completeness: stale loses']});}},
    {t:'teach',h:'The commit subtlety (Figure 8)',body:[
      {k:'callout',c:'warn',t:'A leader commits an entry only once it’s on a majority AND is from its CURRENT term. Counting replicas of a <i>previous-term</i> entry is unsafe — it could still be overwritten.'},
      {k:'note',t:'Older entries commit indirectly: once a current-term entry above them is committed, they are too.'}
