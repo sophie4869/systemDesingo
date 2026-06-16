@@ -1559,7 +1559,7 @@ const UNITS=[
    {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
    {t:'teach',h:'Kafka internals',body:[
      {k:'point',i:'👥',t:'<b>Consumer groups</b>: each partition is read by exactly ONE consumer in a group — so consumer parallelism is capped by partition count. Add partitions to scale out.'},
-     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): a partition has a leader + follower replicas; <code>acks=all</code> commits only once the ISR set has it — that’s the durability knob.'},
+     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the set of follower replicas currently <b>caught up</b> to the leader. A follower that lags too far drops out of the ISR (and rejoins once it catches up). <code>acks=all</code> commits only once every replica in the ISR has the write — that’s the durability knob.'},
      {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> instead keeps only the latest value per key.'}
    ]},
    {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
