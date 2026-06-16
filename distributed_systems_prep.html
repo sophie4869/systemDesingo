@@ -1300,24 +1300,56 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
         <div class="card-header"><div class="card-meta"><div class="card-title">Hybrid Logical Clocks (HLC)</div><div class="card-sub">Physical time meets causality</div></div><span class="badge badge-teal">Modern</span></div>
         <div class="card-body">
           <p>Here's the problem: Lamport clocks give you causal ordering but the numbers are meaningless as wall-clock times. Physical clocks give you real time but they drift and can't capture causality. HLC gives you both — timestamps that stay close to physical time and still respect happened-before.</p>
-          <div class="code wrap">HLC = (l, c)   l ≈ physical time,  c breaks ties within same millisecond
-
-Node A, physical=100ms, no prior events:
-  l = max(0, 100) = 100   → l changed → c = 0
-  HLC_A = (100, 0)
-
-Node B receives HLC=(100,0) from A, physical=101ms:
-  l = max(l_B=0, received_l=100, physical=101) = 101
-  l changed → c = 0
-  HLC_B = (101, 0)
-
-Two events fire on B in the same millisecond (physical=101ms):
-  event 1: HLC = (101, 0)
-  event 2: l = max(101, 101) = 101  → l unchanged → c++
-           HLC = (101, 1)   ← still ordered!
-
-HLC_A=(100,0) vs HLC_B=(101,0): l_A &lt; l_B → A before B  ✓
-Timestamps 100ms, 101ms still useful as real times          ✓</div>
+          <div class="hlc-root" id="hlcViz" onclick="event.stopPropagation()">
+<style>
+.hlc-root{margin:.6rem 0}
+.hlc-root .hlc-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.hlc-root .hlc-nav button{font:inherit;font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer;width:auto}
+.hlc-root .hlc-nav button:disabled{opacity:.4;cursor:default}
+.hlc-root .hlc-prog{font-size:12px;color:var(--color-text-tertiary)}
+.hlc-root .hlc-state{display:flex;gap:12px;margin-bottom:11px}
+.hlc-root .hlc-node{flex:1;border:2px solid var(--color-border-primary);border-radius:12px;padding:9px;text-align:center;background:var(--color-background-secondary)}
+.hlc-root .hlc-node.bump{border-color:var(--color-border-success);background:var(--color-background-success)}
+.hlc-root .hnm{font-size:11px;font-weight:600;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.03em}
+.hlc-root .hval{font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--color-text-primary);margin-top:3px}
+.hlc-root .hlc-node.bump .hval{color:var(--color-text-success)}
+.hlc-root .hlc-node.idle .hval{color:var(--color-text-tertiary)}
+.hlc-root .hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);background:var(--code-bg);border:1px solid var(--border);border-radius:9px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hlc-root .hlc-cap{margin-top:10px;font-size:13px;color:var(--color-text-secondary);line-height:1.55}
+.hlc-root .hlc-cap b{color:var(--color-text-primary);font-weight:600}
+</style>
+<div class="hlc-nav"><button class="hlc-back" type="button">◀ Back</button><button class="hlc-next" type="button">Step ▶</button><span class="hlc-prog"></span></div>
+<div class="hlc-state">
+  <div class="hlc-node" data-n="A"><div class="hnm">Node A</div><div class="hval" data-v="A">—</div></div>
+  <div class="hlc-node" data-n="B"><div class="hnm">Node B</div><div class="hval" data-v="B">—</div></div>
+</div>
+<div class="hlc-step"></div>
+<div class="hlc-cap"></div>
+</div>
+<script>(function(){
+  var root=document.getElementById('hlcViz'); if(!root) return;
+  var STEPS=[
+        {a:'—',b:'—',act:'',step:'HLC = (l, c)\n  l ≈ physical time\n  c breaks ties within the same millisecond',cap:'Physical clocks repeat or stall within a millisecond. HLC adds a small counter <b>c</b> so timestamps stay strictly ordered while staying close to real time.'},
+        {a:'(100, 0)',b:'—',act:'A',step:'Node A — local event, physical = 100ms\n  l = max(0, 100) = 100   → l advanced → c = 0\n  HLC_A = (100, 0)',cap:'A local/send event sets l = max(old l, physical clock). Physical jumped ahead of l, so the counter c resets to 0.'},
+        {a:'(100, 0)',b:'(101, 0)',act:'B',step:'Node B receives HLC=(100,0) from A, physical = 101ms\n  l = max(l_B=0, recv_l=100, physical=101) = 101  → l advanced → c = 0\n  HLC_B = (101, 0)',cap:'On receive, l = max(local, message l, physical). 101 is the max and beats both, so c = 0.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'B',step:'Two events fire on B in the same millisecond (physical = 101ms)\n  event 1: HLC = (101, 0)\n  event 2: l = max(101, 101) = 101 → l unchanged → c++\n  HLC_B = (101, 1)   ← still strictly ordered',cap:'Physical time did not advance, so l stays 101 and c increments — same-millisecond events still get distinct, ordered stamps.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'',step:'Compare HLC_A=(100,0) vs HLC_B=(101,0)\n  l_A < l_B  →  A happened-before B  ✓\n  100ms and 101ms are still meaningful real timestamps  ✓',cap:'Compare l first, then c on a tie. HLC gives a total causal order AND stays close to wall-clock time — unlike Lamport, whose numbers are not real times.'}
+      ];
+  var i=0;
+  var stepEl=root.querySelector('.hlc-step'),capEl=root.querySelector('.hlc-cap'),progEl=root.querySelector('.hlc-prog');
+  var backBtn=root.querySelector('.hlc-back'),nextBtn=root.querySelector('.hlc-next');
+  var aV=root.querySelector('[data-v="A"]'),bV=root.querySelector('[data-v="B"]'),aN=root.querySelector('[data-n="A"]'),bN=root.querySelector('[data-n="B"]');
+  function render(){var s=STEPS[i];
+    aV.textContent=s.a;bV.textContent=s.b;
+    aN.className='hlc-node'+(s.act==='A'?' bump':(s.a==='—'?' idle':''));
+    bN.className='hlc-node'+(s.act==='B'?' bump':(s.b==='—'?' idle':''));
+    stepEl.textContent=s.step;capEl.innerHTML=s.cap;
+    progEl.textContent='Step '+(i+1)+' / '+STEPS.length;
+    backBtn.disabled=i===0;nextBtn.disabled=i===STEPS.length-1;}
+  backBtn.onclick=function(){if(i>0){i--;render();}};
+  nextBtn.onclick=function(){if(i<STEPS.length-1){i++;render();}};
+  render();
+})();</script>
           <p>Causally related events have ordered HLCs. And because the timestamp stays close to physical time, it's still meaningful for debugging, TTLs, and range scans by time. No special hardware needed.</p>
           <p>This is what CockroachDB and YugabyteDB use for MVCC timestamps and distributed transaction ordering — the software answer to what Spanner solves with GPS receivers and atomic clocks.</p>
           <div class="tag-row"><span class="tag">CockroachDB</span><span class="tag">YugabyteDB</span><span class="tag">bounded clock skew</span></div>

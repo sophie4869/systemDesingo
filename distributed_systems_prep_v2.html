@@ -1511,6 +1511,36 @@ const UNITS=[
      {k:'keyt',term:'TrueTime (Spanner)',def:'returns an interval [earliest,latest]; wait out the uncertainty (commit wait) for global order.'},
      {k:'keyt',term:'HLC',def:'hybrid logical clock — physical time + a logical counter; respects causality, no special hardware.'}
    ]},
+   {t:'htmlviz',h:'HLC — step through the math',
+    html:`<style>
+.hlc-state{display:flex;gap:12px;margin-bottom:11px}
+.hlc-node{flex:1;border:2px solid var(--color-border-primary);border-radius:12px;padding:9px;text-align:center;background:var(--color-background-secondary);transition:all .2s}
+.hlc-node.bump{border-color:var(--color-border-success);background:var(--color-background-success)}
+.hlc-node .hnm{font-size:11px;font-weight:800;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.03em}
+.hlc-node .hval{font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--color-text-primary);margin-top:3px}
+.hlc-node.bump .hval{color:var(--color-text-success)}
+.hlc-node.idle .hval{color:var(--color-text-tertiary)}
+.hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:9px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hlc-cap{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.hlc-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="hlc-host"></div>`,
+    setup:function(root,stepper){
+      var STEPS=[
+        {a:'—',b:'—',act:'',step:'HLC = (l, c)\n  l ≈ physical time\n  c breaks ties within the same millisecond',cap:'Physical clocks repeat or stall within a millisecond. HLC adds a small counter <b>c</b> so timestamps stay strictly ordered while staying close to real time.'},
+        {a:'(100, 0)',b:'—',act:'A',step:'Node A — local event, physical = 100ms\n  l = max(0, 100) = 100   → l advanced → c = 0\n  HLC_A = (100, 0)',cap:'A local/send event sets l = max(old l, physical clock). Physical jumped ahead of l, so the counter c resets to 0.'},
+        {a:'(100, 0)',b:'(101, 0)',act:'B',step:'Node B receives HLC=(100,0) from A, physical = 101ms\n  l = max(l_B=0, recv_l=100, physical=101) = 101  → l advanced → c = 0\n  HLC_B = (101, 0)',cap:'On receive, l = max(local, message l, physical). 101 is the max and beats both, so c = 0.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'B',step:'Two events fire on B in the same millisecond (physical = 101ms)\n  event 1: HLC = (101, 0)\n  event 2: l = max(101, 101) = 101 → l unchanged → c++\n  HLC_B = (101, 1)   ← still strictly ordered',cap:'Physical time did not advance, so l stays 101 and c increments — same-millisecond events still get distinct, ordered stamps.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'',step:'Compare HLC_A=(100,0) vs HLC_B=(101,0)\n  l_A < l_B  →  A happened-before B  ✓\n  100ms and 101ms are still meaningful real timestamps  ✓',cap:'Compare l first, then c on a tie. HLC gives a total causal order AND stays close to wall-clock time — unlike Lamport, whose numbers are not real times.'}
+      ];
+      function panel(s){return '<div class="hlc-panel"><div class="hlc-state">'
+        +'<div class="hlc-node'+(s.act==='A'?' bump':(s.a==='—'?' idle':''))+'"><div class="hnm">Node A</div><div class="hval">'+s.a+'</div></div>'
+        +'<div class="hlc-node'+(s.act==='B'?' bump':(s.b==='—'?' idle':''))+'"><div class="hnm">Node B</div><div class="hval">'+s.b+'</div></div>'
+        +'</div><div class="hlc-step">'+s.step+'</div><div class="hlc-cap">'+s.cap+'</div></div>';}
+      root.querySelector('.hlc-host').innerHTML=STEPS.map(panel).join('');
+      stepper(root,STEPS.length,{panelClass:'hlc-panel',labels:['HLC = (l, c)','A: local event','B: receives','B: same-ms tie','Compare']});
+    }},
    {t:'mcq',q:'Spanner’s commit wait exists to…',o:['save power','ensure no later txn gets a smaller timestamp','reduce storage','batch writes'],a:1,why:'Waiting out the clock uncertainty preserves external consistency globally.'},
    {t:'teach',h:'Failure detection',body:[
      {k:'point',i:'❓',t:'You can’t tell crashed from slow (FLP). All detectors are imperfect.'},
