@@ -71,9 +71,16 @@ a{color:var(--accent);text-decoration:none}
 .main{flex:1;min-width:0;padding:2.5rem clamp(1rem,4vw,3rem);max-width:1200px;overflow-wrap:break-word}
 
 /* Sidebar */
-.brand{padding:1.5rem 1.25rem 1rem;border-bottom:1px solid #1E293B}
+.brand{padding:1.5rem 1.25rem 1rem;border-bottom:1px solid #1E293B;position:relative}
 .brand-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#475569;margin-bottom:4px}
-.brand-title{font-size:15px;font-weight:600;color:#F1F5F9;line-height:1.3}
+.brand-title{font-size:15px;font-weight:600;color:#F1F5F9;line-height:1.3;padding-right:28px}
+.navtoggle{position:absolute;top:16px;right:8px;background:none;border:none;color:#94A3B8;cursor:pointer;font-size:17px;font-weight:900;padding:3px 8px;border-radius:6px;line-height:1}
+.navtoggle:hover{color:#F1F5F9;background:#1E293B}
+.navreopen{display:none;position:fixed;top:14px;left:14px;z-index:60;background:#0F172A;color:#F1F5F9;border:1px solid #334155;border-radius:8px;width:38px;height:38px;font-size:18px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.18)}
+.navreopen:hover{background:#1E293B}
+.layout.nav-collapsed .sidebar{display:none}
+.layout.nav-collapsed .navreopen{display:flex}
+.layout.nav-collapsed .main{padding-left:64px}
 .nav-section{padding:.75rem 0}
 .nav-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#334155;padding:.25rem 1.25rem .5rem}
 .nav-item{display:flex;align-items:center;gap:10px;padding:.5rem 1.25rem;font-size:13px;color:var(--nav-text);cursor:pointer;border-left:2px solid transparent;transition:all .15s;user-select:none}
@@ -299,11 +306,13 @@ a{color:var(--accent);text-decoration:none}
 <body>
 <div class="layout">
 
+<button class="navreopen" onclick="toggleNav()" title="Show menu" aria-label="Show menu">☰</button>
 <!-- Sidebar -->
 <nav class="sidebar">
   <div class="brand">
     <div class="brand-label">Interview prep</div>
     <div class="brand-title">Distributed Systems</div>
+    <button class="navtoggle" onclick="toggleNav()" title="Collapse sidebar" aria-label="Collapse sidebar">«</button>
   </div>
   <div class="nav-section">
     <div class="nav-label">Theory &amp; data</div>
@@ -2957,6 +2966,11 @@ function showSection(id,el){
 }
 // restore the last open tab across refresh
 (function(){function restore(){try{var s=localStorage.getItem('ds_v1_section');if(s&&document.getElementById('section-'+s))showSection(s);}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore);else restore();})();
+
+// foldable sidebar
+function toggleNav(){var l=document.querySelector('.layout');var c=l.classList.toggle('nav-collapsed');try{localStorage.setItem('ds_v1_nav',c?'1':'0');}catch(e){}}
+(function(){function restore(){try{if(localStorage.getItem('ds_v1_nav')==='1')document.querySelector('.layout').classList.add('nav-collapsed');}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore);else restore();})();
 
 function sendQ(q){
