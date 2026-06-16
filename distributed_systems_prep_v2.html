@@ -1169,19 +1169,92 @@ const UNITS=[
    {t:'sort',q:'Range or hash partitioning?',buckets:['Range','Hash'],items:[
      {text:'fast time-range scans',b:0},{text:'even write spread',b:1},{text:'sorted keys per node',b:0},{text:'no natural range queries',b:1}
    ]},
-   {t:'teach',h:'Consistent hashing',body:[
-     {k:'tldr',t:'Place nodes + keys on a ring; a key goes to the next node clockwise.'},
-     {k:'point',i:'➕',t:'Add/remove a node → only ~1/N of keys move (not everything).'},
-     {k:'point',i:'⚖️',t:'<b>Virtual nodes</b> spread each machine around the ring for even load.'}
-   ]},
-   {t:'match',q:'Access pattern → partitioning scheme.',pairs:[['Time-range scans (logs, metrics)','Range'],['Even spread + point lookups','Hash'],['Nodes join/leave often, minimise key movement','Consistent hashing']]},
+	   {t:'teach',h:'Consistent hashing',body:[
+	     {k:'tldr',t:'Place nodes + keys on a ring; a key goes to the next node clockwise.'},
+	     {k:'point',i:'➕',t:'Add/remove a node → only ~1/N of keys move (not everything).'},
+	     {k:'point',i:'⚖️',t:'<b>Virtual nodes</b> spread each machine around the ring for even load.'}
+	   ]},
+	   {t:'htmlviz',h:'Consistent hashing — play with the ring',
+    html:`<style>
+.chr-wrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.chr-svg{width:220px;height:220px;flex:0 0 auto}
+.chr-side{flex:1;min-width:158px}
+.chr-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chr-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+.chr-controls button:hover{filter:brightness(.97)}
+.chr-controls button.on{background:var(--color-text-info);color:#fff;border-color:var(--color-text-info)}
+.chr-stat{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:9px}
+.chr-stat b{color:var(--color-text-primary)}
+.chr-load{display:flex;flex-direction:column;gap:5px}
+.chr-lrow{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--color-text-secondary)}
+.chr-cdot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.chr-bar{height:9px;border-radius:5px;flex:0 0 auto;transition:width .3s}
+.chr-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.chr-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="chr-wrap">
+  <svg class="chr-svg" viewBox="0 0 230 230"></svg>
+  <div class="chr-side">
+    <div class="chr-controls">
+      <button class="chr-add" type="button">+ node</button>
+      <button class="chr-del" type="button">- node</button>
+      <button class="chr-vn" type="button">virtual nodes</button>
+    </div>
+    <div class="chr-stat"></div>
+    <div class="chr-load"></div>
+  </div>
+</div>
+<div class="chr-ex">Each key (outer dot) is owned by the <b>first node clockwise</b>. <b>Add / remove a node</b> and watch how few keys change colour — only the arc beside the change moves (~1/N), where <code>hash%N</code> would recolour nearly all of them. Toggle <b>virtual nodes</b> to give each machine several ring positions and smooth the load bars.</div>`,
+    setup:function(root){
+      var cx=115,cy=115,R=80;
+      var PAL=['#14B8A6','#6366F1','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
+      var BASE={A:50,B:170,C:290,D:110,E:230,F:350},LBL=['A','B','C','D','E','F'];
+      var KEYS=[8,22,38,55,78,95,118,142,168,188,205,228,255,278,300,318,338,352];
+      var n=3,vnodes=false,prev=null;
+      var svg=root.querySelector('.chr-svg'),statEl=root.querySelector('.chr-stat'),loadEl=root.querySelector('.chr-load'),vnBtn=root.querySelector('.chr-vn');
+      function nodes(){var a=[];for(var i=0;i<n;i++)a.push({label:LBL[i],color:PAL[i]});return a;}
+      function posOf(nd){return vnodes?[0,1,2].map(function(j){return (BASE[nd.label]+j*137)%360;}):[BASE[nd.label]];}
+      function xy(a,rad){var t=(a-90)*Math.PI/180;return [cx+rad*Math.cos(t),cy+rad*Math.sin(t)];}
+      function render(){
+        var nd=nodes(),positions=[];
+        nd.forEach(function(node,ni){posOf(node).forEach(function(a){positions.push({a:a,ni:ni});});});
+        var owners=KEYS.map(function(k){var best=0,bd=1e9;positions.forEach(function(p){var d=((p.a-k)%360+360)%360;if(d<bd){bd=d;best=p.ni;}});return best;});
+        var sorted=positions.slice().sort(function(a,b){return a.a-b.a;});
+        function arc(a1,a2,rad){var p1=xy(a1,rad),p2=xy(a2,rad),delta=((a2-a1)%360+360)%360,lg=delta>180?1:0;return 'M'+p1[0]+' '+p1[1]+' A '+rad+' '+rad+' 0 '+lg+' 1 '+p2[0]+' '+p2[1];}
+        var s='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--color-border-tertiary)" stroke-width="1"/>';
+        sorted.forEach(function(p,i){var prev=sorted[(i-1+sorted.length)%sorted.length];s+='<path d="'+arc(prev.a,p.a,R)+'" fill="none" stroke="'+nd[p.ni].color+'" stroke-width="6" opacity="0.85"/>';});
+        positions.forEach(function(p){var d=xy(p.a,R);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="3.5" fill="'+nd[p.ni].color+'" stroke="#fff" stroke-width="1"/>';});
+        nd.forEach(function(node){var b=xy(BASE[node.label],R);s+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="11" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+b[0]+'" y="'+(b[1]+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">'+node.label+'</text>';});
+        KEYS.forEach(function(k,i){var d=xy(k,R+14);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="4.5" fill="'+nd[owners[i]].color+'"/>';});
+        svg.innerHTML=s;
+        var moveTxt='';
+        if(prev){var moved=0;for(var i=0;i<owners.length;i++)if(nd[owners[i]].label!==prev[i])moved++;var pct=Math.round(moved/owners.length*100);moveTxt=' &middot; <b style="color:'+(moved?'var(--color-text-info)':'var(--color-text-success)')+'">'+moved+'/'+owners.length+' keys moved ('+pct+'%)</b>';}
+        prev=owners.map(function(o){return nd[o].label;});
+        statEl.innerHTML='<b>'+n+'</b> nodes &middot; <b>'+KEYS.length+'</b> keys'+(vnodes?' &middot; 3 vnodes each':'')+moveTxt;
+        var counts=nd.map(function(){return 0;});owners.forEach(function(o){counts[o]++;});
+        var mx=Math.max.apply(null,counts)||1;
+        loadEl.innerHTML=nd.map(function(node,ni){var w=Math.round(counts[ni]/mx*80)+12;return '<div class="chr-lrow"><span class="chr-cdot" style="background:'+node.color+'"></span>Node '+node.label+'<span class="chr-bar" style="width:'+w+'px;background:'+node.color+'"></span>'+counts[ni]+'</div>';}).join('');
+      }
+      root.querySelector('.chr-add').onclick=function(){if(n<6){n++;render();}};
+      root.querySelector('.chr-del').onclick=function(){if(n>2){n--;render();}};
+      vnBtn.onclick=function(){vnodes=!vnodes;vnBtn.classList.toggle('on',vnodes);prev=null;render();};
+      render();
+    }},
+	   {t:'match',q:'Access pattern → partitioning scheme.',pairs:[['Time-range scans (logs, metrics)','Range'],['Even spread + point lookups','Hash'],['Nodes join/leave often, minimise key movement','Consistent hashing']]},
    {t:'mcq',q:'You add/remove cache nodes frequently and want minimal key remapping. Use…',o:['hash(key) % N','range partitioning','consistent hashing','one big node'],a:2,why:'mod-N remaps almost everything when N changes; consistent hashing moves only ~1/N keys — ideal for churny membership.'},
    {t:'cloze',q:'Fill the partitioning blanks.',distract:['range','replication'],text:[
      'Naive hash(key) % N is bad because changing ',{blank:'N'},' remaps ',{blank:'almost every',alt:['almost all']},' key. ',
      {blank:'Consistent hashing',alt:['consistent hashing']},' fixes this — only ~1/N keys move — and ',
      {blank:'virtual nodes',alt:['vnodes']},' even out the load.'
    ]},
-   {t:'recall',q:'Why is consistent hashing better than hash mod N?',model:['With mod N, changing the node count remaps nearly all keys → massive churn / cache wipeout.','Consistent hashing only moves ~1/N keys when a node joins or leaves.','Virtual nodes keep load balanced across heterogeneous machines.']}
+   {t:'recall',q:'Why is consistent hashing better than hash mod N?',model:['With mod N, changing the node count remaps nearly all keys → massive churn / cache wipeout.','Consistent hashing only moves ~1/N keys when a node joins or leaves.','Virtual nodes keep load balanced across heterogeneous machines.']},
+   {t:'teach',h:'Rebalancing strategies',body:[
+     {k:'point',i:'🧱',t:'<b>Fixed partitions</b>: make many more partitions than nodes (e.g. 1000 for 10). Adding a node just moves whole partitions — no splitting. (Elasticsearch, Riak)'},
+     {k:'point',i:'✂️',t:'<b>Dynamic partitioning</b>: split a partition when it grows past a threshold, merge when it shrinks — partition count tracks data volume. (HBase, MongoDB)'},
+     {k:'point',i:'⚖️',t:'<b>Proportional (vnodes)</b>: a fixed number of vnodes per machine; a new machine steals a proportional slice from existing ones. (Cassandra)'},
+     {k:'callout',c:'warn',t:'Never tie partition count to node count (hash mod N) — adding a node would reshuffle the whole dataset. Decouple them via fixed partitions or consistent hashing.'}
+   ]},
+   {t:'mcq',q:'Why create many more partitions than nodes (e.g. 1000 partitions for 10 nodes)?',o:['faster reads','adding a node just reassigns whole partitions — no data splitting','less storage','stronger consistency'],a:1,why:'Fixed-partition rebalancing moves whole partitions to the new node — simple and predictable, decoupled from node count.'},
   ]},
   {id:'part-2',title:'Indexes & routing',steps:[
    {t:'teach',h:'Secondary indexes',body:[
@@ -1191,7 +1264,7 @@ const UNITS=[
    {t:'teach',h:'Request routing',body:[
      {k:'point',i:'🧭',t:'Client must find "which node owns this key" as membership changes.'},
      {k:'point',i:'🗺️',t:'Options: a routing proxy, a partition-aware client, or any-node redirect.'},
-     {k:'note',t:'The partition map itself often lives in ZooKeeper/etcd or spreads via gossip.'}
+     {k:'note',t:'The partition map itself often lives in ZooKeeper/etcd or spreads via gossip. Its sibling problem is <b>service discovery</b> — finding healthy <i>instances</i> rather than data — via DNS, Consul, Eureka, or Kubernetes Services.'}
    ]},
    {t:'recall',q:'How does a client find the right shard for a key?',model:['Via a routing tier/proxy, a partition-aware client, or any-node redirect (forward/MOVED).','The partition map is kept in a coordination service (ZooKeeper/etcd) or gossiped between nodes.']}
   ]}
@@ -1590,18 +1663,83 @@ const UNITS=[
      'Write-heavy ingest (logs, time-series) suits an ',{blank:'LSM',alt:['LSM-tree']},'-tree: ',
      {blank:'sequential'},' writes plus background ',{blank:'compaction'},'. Read/range-heavy work suits a ',{blank:'B-tree',alt:['btree','B tree']},'.'
    ]},
-   {t:'mcq',q:'For a write-heavy time-series workload, pick…',o:['B-tree','LSM-tree','in-memory hash','none'],a:1,why:'LSM buffers in memory and flushes sequentially — high write throughput.'},
-   {t:'recall',q:'Why does making app servers stateless matter for scaling?',model:['Any instance can serve any request, so you just add instances behind a load balancer.','State moves to DB/cache/token, and the database becomes the scaling bottleneck to address with replicas/sharding.']}
-  ]}
- ],
- boss:{title:'Scalability Boss',time:70,q:[
-   {q:'Peak QPS is usually…',o:['= average','2–10× average','100× average','< average'],a:1},
-   {q:'1 day ≈ … seconds',o:['3.6k','86.4k','1M','600k'],a:1},
-   {q:'Horizontal scaling adds…',o:['a ceiling','coordination complexity','nothing','a SPOF'],a:1},
-   {q:'LSM-trees are…',o:['read-optimized','write-optimized','in-memory only','encrypted'],a:1},
-   {q:'B-trees excel at…',o:['write bursts','reads + range scans','compaction','hashing'],a:1},
-   {q:'Stateless servers make … the bottleneck',o:['the LB','the database','DNS','the cache'],a:1}
- ]}
+	   {t:'mcq',q:'For a write-heavy time-series workload, pick…',o:['B-tree','LSM-tree','in-memory hash','none'],a:1,why:'LSM buffers in memory and flushes sequentially — high write throughput.'},
+	   {t:'recall',q:'Why does making app servers stateless matter for scaling?',model:['Any instance can serve any request, so you just add instances behind a load balancer.','State moves to DB/cache/token, and the database becomes the scaling bottleneck to address with replicas/sharding.']}
+		  ]},
+	  {id:'scale-3',title:'Unique IDs',steps:[
+	   {t:'teach',h:'Choosing an ID scheme',body:[
+	     {k:'tldr',t:'IDs are not just uniqueness. They affect sort order, coordination, shard routing, and index write performance.'},
+	     {k:'point',i:'📌',t:'Random IDs like UUID v4 distribute uniqueness well but insert all over a B-tree index.'},
+	     {k:'point',i:'⏱️',t:'Time-ordered IDs like Snowflake or UUID v7 preserve index locality and are usually better for high-write databases.'}
+	   ]},
+	   {t:'htmlviz',h:'Unique ID trade-offs',
+	    html:`<style>
+	      .idv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+	      .idv-card{border:2px solid #e2e8f0;border-bottom-width:4px;border-radius:14px;background:#fff;padding:12px;display:grid;gap:8px;min-width:0}
+	      .idv-card h4{margin:0;color:#0f172a;font-size:15px}
+	      .idv-card p{margin:0;color:#64748b;line-height:1.55;font-weight:800;font-size:13px}
+	      .idv-pillrow{display:flex;flex-wrap:wrap;gap:6px}
+	      .idv-pill{border-radius:999px;background:#eef4ff;color:#1d4ed8;padding:4px 8px;font-size:12px;font-weight:950}
+	      .idv-pill.bad{background:#fff7ed;color:#c2410c}
+	      .idv-layout{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid #dbe4f0;border-radius:12px;background:#f8fafc;padding:10px;color:#0f172a;overflow-x:auto;white-space:nowrap;font-size:13px}
+	      @media(max-width:720px){.idv-grid{grid-template-columns:1fr}}
+	    </style>
+	    <div class="idv-grid">
+	      <div class="idv-card">
+	        <h4>Auto-increment DB</h4>
+	        <div class="idv-pillrow"><span class="idv-pill">sortable</span><span class="idv-pill bad">DB round-trip</span></div>
+	        <p>Sequential and great for index locality, but a single counter becomes awkward across shards.</p>
+	      </div>
+	      <div class="idv-card">
+	        <h4>UUID v4</h4>
+	        <div class="idv-pillrow"><span class="idv-pill bad">not sortable</span><span class="idv-pill">no coordination</span></div>
+	        <p>Random 128-bit universal IDs. Fine for many apps, but poor B-tree locality at high write volume.</p>
+	      </div>
+	      <div class="idv-card">
+	        <h4>UUID v7 / ULID</h4>
+	        <div class="idv-pillrow"><span class="idv-pill">time-ordered</span><span class="idv-pill">no coordination</span></div>
+	        <p>Client-generated, roughly chronological IDs. UUID v7 is the modern default when DB index locality matters.</p>
+	      </div>
+	      <div class="idv-card">
+	        <h4>Snowflake</h4>
+	        <div class="idv-pillrow"><span class="idv-pill">sortable</span><span class="idv-pill bad">worker ID config</span></div>
+	        <p>Great at scale after assigning machine IDs once. Common for distributed records, events, and timelines.</p>
+	      </div>
+	      <div class="idv-card">
+	        <h4>Hash of content</h4>
+	        <div class="idv-pillrow"><span class="idv-pill bad">not time-sortable</span><span class="idv-pill">deterministic</span></div>
+	        <p>Use for deduplication and content-addressable storage, not for chronological database rows.</p>
+	      </div>
+	      <div class="idv-card">
+	        <h4>Snowflake 64-bit layout</h4>
+	        <div class="idv-layout">[0] [41-bit ms timestamp] [10-bit machine ID] [12-bit sequence]</div>
+	        <p>4096 IDs/ms/machine, about 4M IDs/sec/machine, with no request-time coordination.</p>
+	      </div>
+	    </div>`},
+	   {t:'sort',q:'Which ID property is the main trade-off?',buckets:['Good index locality','Poor index locality'],items:[
+	     {text:'UUID v4 random inserts',b:1},{text:'Snowflake time prefix',b:0},{text:'UUID v7 time-ordered prefix',b:0},{text:'auto-increment sequence',b:0}
+	   ]},
+	   {t:'mcq',q:'For a high-write DB table where insertion order matters, the safest modern default is…',o:['UUID v4','UUID v7','hash of content','random int'],a:1,why:'UUID v7 keeps client-side generation while making IDs time-ordered, which improves B-tree index locality.'},
+	   {t:'mcq',q:'Snowflake IDs require coordination for…',o:['every ID generation request','assigning machine/worker IDs','every read','B-tree page splits'],a:1,why:'Once worker IDs are assigned, each machine can generate IDs locally from timestamp + worker ID + sequence.'},
+	   {t:'cloze',q:'Fill the ID-generation blanks.',distract:['range','quorum'],text:[
+	     'UUID v4 is random and hurts ',{blank:'B-tree',alt:['btree','B tree']},' locality. ',
+	     {blank:'UUID v7',alt:['uuid v7']},' is time-ordered without coordination. ',
+	     {blank:'Snowflake',alt:['snowflake']},' uses timestamp + worker ID + sequence, so worker ID assignment is the coordination point.'
+	   ]},
+	   {t:'recall',q:'When an interviewer asks “how do you generate IDs?”, what should you say?',model:['Name the scheme and the reason: UUID v7 for client-generated, time-ordered IDs with good DB index locality; Snowflake when you control worker IDs and need compact sortable 64-bit IDs.','Avoid defaulting to UUID v4 for write-heavy indexed tables unless random insert overhead is acceptable.','Use content hashes only when identity is derived from bytes, such as dedup or content-addressable storage.']}
+	  ]}
+	 ],
+	 boss:{title:'Scalability Boss',time:85,q:[
+	   {q:'Peak QPS is usually…',o:['= average','2–10× average','100× average','< average'],a:1},
+	   {q:'1 day ≈ … seconds',o:['3.6k','86.4k','1M','600k'],a:1},
+	   {q:'Horizontal scaling adds…',o:['a ceiling','coordination complexity','nothing','a SPOF'],a:1},
+	   {q:'LSM-trees are…',o:['read-optimized','write-optimized','in-memory only','encrypted'],a:1},
+	   {q:'B-trees excel at…',o:['write bursts','reads + range scans','compaction','hashing'],a:1},
+	   {q:'Stateless servers make … the bottleneck',o:['the LB','the database','DNS','the cache'],a:1},
+	   {q:'UUID v4 hurts DB indexes because…',o:['it is too short','random insert positions cause B-tree churn','it needs a central server','it is encrypted'],a:1},
+	   {q:'Snowflake coordinates…',o:['every request','worker ID assignment','every read','all shards per insert'],a:1},
+	   {q:'Modern time-ordered UUID choice:',o:['UUID v4','UUID v7','content hash','auto-increment only'],a:1}
+	 ]}
 },
 {
  id:'rel',title:'Reliability',icon:'🛡️',color:'#0EA5A0',colorD:'#0E8C7F',

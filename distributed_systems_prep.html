@@ -138,8 +138,15 @@ a{color:var(--accent);text-decoration:none}
 .tbl{width:100%;border-collapse:collapse;font-size:13px;margin:.75rem 0}
 .tbl th{background:var(--code-bg);padding:7px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
 .tbl td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;line-height:1.5}
+.tbl th,.tbl td{overflow-wrap:anywhere}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr:hover td{background:var(--bg)}
+.id-table{table-layout:fixed}
+.id-table th:nth-child(1){width:22%}
+.id-table th:nth-child(2){width:16%}
+.id-table th:nth-child(3){width:20%}
+.id-table th:nth-child(4){width:42%}
+.id-table td{font-size:12.5px}
 
 /* Section footer */
 .section-footer{padding-top:.5rem}
@@ -1145,24 +1152,72 @@ Cancel  &rarr; release seat, unfreeze $50</div>
         <div class="card-body">
           <p>Hash the partition key, node = hash(key) % N. Distributes load evenly but destroys sort order — range queries require scatter-gather across all nodes.</p>
           <p><strong>Consistent hashing:</strong> place nodes and keys on a virtual ring. A key goes to the first node clockwise from its hash position. Adding or removing a node only rebalances ~1/N of keys rather than everything.</p>
-          <div class="code">Ring (0–359°):  NodeA@60   NodeB@180   NodeC@300
-
-key@30  → NodeA  (first node clockwise from 30°)
-key@100 → NodeB  (first node clockwise from 100°)
-key@220 → NodeC  (first node clockwise from 220°)
-key@330 → NodeA  (wraps around: 330° → NodeA@60°)
-
-naive hash%N problem:
-  3 nodes: key → node%3    add 4th node: key → node%4
-  → almost EVERY key remaps to a different node  ✗
-
-consistent hashing: add NodeD@120:
-  only keys in (60°, 120°] move from NodeA to NodeD
-  ≈ 1/N of keys move, everything else unchanged  ✓
-
-Virtual nodes (vnodes): NodeA owns positions @60, @200, @340
-  → load spreads more evenly even with few physical nodes
-  → bigger machine = more vnodes = proportionally more load</div>
+          <div class="chr-root" id="chrV1" onclick="event.stopPropagation()">
+<style>
+.chr-root .chr-wrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin:.6rem 0}
+.chr-root .chr-svg{width:220px;height:220px;flex:0 0 auto}
+.chr-root .chr-side{flex:1;min-width:160px}
+.chr-root .chr-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chr-root .chr-controls button{font:inherit;font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer;width:auto}
+.chr-root .chr-controls button.on{background:var(--color-text-info);color:#fff;border-color:var(--color-text-info)}
+.chr-root .chr-stat{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:9px}
+.chr-root .chr-stat b{color:var(--color-text-primary)}
+.chr-root .chr-load{display:flex;flex-direction:column;gap:5px}
+.chr-root .chr-lrow{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--color-text-secondary)}
+.chr-root .chr-cdot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.chr-root .chr-bar{height:9px;border-radius:5px;flex:0 0 auto;transition:width .3s}
+</style>
+<div class="chr-wrap">
+  <svg class="chr-svg" viewBox="0 0 230 230"></svg>
+  <div class="chr-side">
+    <div class="chr-controls">
+      <button class="chr-add" type="button">+ node</button>
+      <button class="chr-del" type="button">- node</button>
+      <button class="chr-vn" type="button">virtual nodes</button>
+    </div>
+    <div class="chr-stat"></div>
+    <div class="chr-load"></div>
+  </div>
+</div>
+</div>
+<script>
+(function(){
+  var root=document.getElementById('chrV1'); if(!root) return;
+  var cx=115,cy=115,R=80;
+  var PAL=['#14B8A6','#6366F1','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
+  var BASE={A:50,B:170,C:290,D:110,E:230,F:350},LBL=['A','B','C','D','E','F'];
+  var KEYS=[8,22,38,55,78,95,118,142,168,188,205,228,255,278,300,318,338,352];
+  var n=3,vnodes=false,prev=null;
+  var svg=root.querySelector('.chr-svg'),statEl=root.querySelector('.chr-stat'),loadEl=root.querySelector('.chr-load'),vnBtn=root.querySelector('.chr-vn');
+  function nodes(){var a=[];for(var i=0;i<n;i++)a.push({label:LBL[i],color:PAL[i]});return a;}
+  function posOf(nd){return vnodes?[0,1,2].map(function(j){return (BASE[nd.label]+j*137)%360;}):[BASE[nd.label]];}
+  function xy(a,rad){var t=(a-90)*Math.PI/180;return [cx+rad*Math.cos(t),cy+rad*Math.sin(t)];}
+  function render(){
+    var nd=nodes(),positions=[];
+    nd.forEach(function(node,ni){posOf(node).forEach(function(a){positions.push({a:a,ni:ni});});});
+    var owners=KEYS.map(function(k){var best=0,bd=1e9;positions.forEach(function(p){var d=((p.a-k)%360+360)%360;if(d<bd){bd=d;best=p.ni;}});return best;});
+    var sorted=positions.slice().sort(function(a,b){return a.a-b.a;});
+    function arc(a1,a2,rad){var p1=xy(a1,rad),p2=xy(a2,rad),delta=((a2-a1)%360+360)%360,lg=delta>180?1:0;return 'M'+p1[0]+' '+p1[1]+' A '+rad+' '+rad+' 0 '+lg+' 1 '+p2[0]+' '+p2[1];}
+    var s='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--color-border-tertiary)" stroke-width="1"/>';
+    sorted.forEach(function(p,i){var prev=sorted[(i-1+sorted.length)%sorted.length];s+='<path d="'+arc(prev.a,p.a,R)+'" fill="none" stroke="'+nd[p.ni].color+'" stroke-width="6" opacity="0.85"/>';});
+    positions.forEach(function(p){var d=xy(p.a,R);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="3.5" fill="'+nd[p.ni].color+'" stroke="#fff" stroke-width="1"/>';});
+    nd.forEach(function(node){var b=xy(BASE[node.label],R);s+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="11" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+b[0]+'" y="'+(b[1]+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">'+node.label+'</text>';});
+    KEYS.forEach(function(k,i){var d=xy(k,R+14);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="4.5" fill="'+nd[owners[i]].color+'"/>';});
+    svg.innerHTML=s;
+    var moveTxt='';
+    if(prev){var moved=0;for(var i=0;i<owners.length;i++)if(nd[owners[i]].label!==prev[i])moved++;var pct=Math.round(moved/owners.length*100);moveTxt=' &middot; <b style="color:'+(moved?'var(--color-text-info)':'var(--color-text-success)')+'">'+moved+'/'+owners.length+' keys moved ('+pct+'%)</b>';}
+    prev=owners.map(function(o){return nd[o].label;});
+    statEl.innerHTML='<b>'+n+'</b> nodes &middot; <b>'+KEYS.length+'</b> keys'+(vnodes?' &middot; 3 vnodes each':'')+moveTxt;
+    var counts=nd.map(function(){return 0;});owners.forEach(function(o){counts[o]++;});
+    var mx=Math.max.apply(null,counts)||1;
+    loadEl.innerHTML=nd.map(function(node,ni){var w=Math.round(counts[ni]/mx*80)+12;return '<div class="chr-lrow"><span class="chr-cdot" style="background:'+node.color+'"></span>Node '+node.label+'<span class="chr-bar" style="width:'+w+'px;background:'+node.color+'"></span>'+counts[ni]+'</div>';}).join('');
+  }
+  root.querySelector('.chr-add').onclick=function(){if(n<6){n++;render();}};
+  root.querySelector('.chr-del').onclick=function(){if(n>2){n--;render();}};
+  vnBtn.onclick=function(){vnodes=!vnodes;vnBtn.classList.toggle('on',vnodes);prev=null;render();};
+  render();
+})();
+</script>
           <div class="note"><strong>Why naive modulo fails:</strong> with hash(key) % N, changing N remaps almost <em>every</em> key — catastrophic for a cache or a sharded store. Consistent hashing is the standard fix; mention it whenever you propose hash sharding.</div>
           <div class="tag-row"><span class="tag">Dynamo</span><span class="tag">Cassandra</span><span class="tag">Chord</span></div>
         </div>
@@ -1199,28 +1254,7 @@ Virtual nodes (vnodes): NodeA owns positions @60, @200, @340
         </div>
       </div>
 
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Unique ID generation</div><div class="card-sub">Snowflake IDs, UUIDs, and trade-offs</div></div><span class="badge badge-teal">Building block</span></div>
-        <div class="card-body">
-          <p>Almost every system needs unique IDs for records, events, or requests. The right choice depends on sortability, coordination needs, and storage size — and it interacts directly with your partition/index design.</p>
-          <table class="tbl"><tr><th>Scheme</th><th>Sortable?</th><th>Coordination?</th><th>Notes</th></tr>
-          <tr><td>Auto-increment (DB)</td><td>Yes</td><td>DB round-trip</td><td>Sequential, great index locality; single-writer bottleneck across shards</td></tr>
-          <tr><td>UUID v4</td><td>No</td><td>None</td><td>Random 128-bit; universal but terrible for DB B-tree index locality</td></tr>
-          <tr><td>UUID v7</td><td>Yes (time-ordered)</td><td>None</td><td>48-bit ms timestamp + ~74 random/counter bits (6 bits are version+variant); modern default for DB indexes</td></tr>
-          <tr><td>Snowflake (Twitter)</td><td>Yes</td><td>Machine ID config</td><td>64-bit: 41b timestamp + 10b machine ID + 12b sequence</td></tr>
-          <tr><td>ULID</td><td>Yes</td><td>None</td><td>128-bit, URL-safe, lexicographically sortable</td></tr>
-          <tr><td>Hash of content</td><td>No</td><td>None</td><td>Deterministic; good for dedup and content-addressable storage</td></tr></table>
-          <div class="code">Snowflake 64-bit layout:
-[0] [41-bit ms timestamp since custom epoch, ~69 yrs]
-    [10-bit machine ID — up to 1024 workers]
-    [12-bit sequence — 4096 IDs/ms/machine]
-&rarr; ~4M IDs/sec/machine, globally unique, time-sortable,
-   no *request-time* coordination (machine IDs assigned once, up front)</div>
-          <p><strong>Why sortability matters:</strong> UUID v4's random distribution causes B-tree page splits on every insert — hot pages, cache thrashing at scale. Snowflake and UUID v7 insert at the end of the index like auto-increment, giving excellent write performance. Use UUID v4 only when you're okay with insert overhead or the scale doesn't demand it.</p>
-          <div class="note"><strong>Interview tip:</strong> when you say "we'll generate a unique ID," follow immediately with which scheme and why. "Snowflake IDs for sort order and DB insert performance at scale" signals depth; "just use UUID" signals you haven't thought about index performance.</div>
-          <div class="tag-row"><span class="tag">Snowflake = Twitter, Discord</span><span class="tag">sorted &rarr; better index perf</span><span class="tag">UUID v7 = modern default</span></div>
-        </div>
-      </div>
+      
 
     </div>
     <div class="section-footer">
@@ -1683,6 +1717,43 @@ then sustained 5/sec thereafter</div>
       <p>Interviewers want to see you estimate before you architect. Know the canonical latency numbers, do quick capacity math, and understand the storage-engine tradeoffs underneath your datastore choice.</p>
     </div>
     <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Unique ID generation</div><div class="card-sub">Snowflake IDs, UUIDs, and trade-offs</div></div><span class="badge badge-teal">Building block</span></div>
+        <div class="card-body">
+          <p>Almost every system needs unique IDs for records, events, or requests. The right choice depends on sortability, coordination needs, and storage size — and it interacts directly with your partition/index design.</p>
+          <table class="tbl id-table"><tr><th>Scheme</th><th>Sortable?</th><th>Coordination?</th><th>Notes</th></tr>
+          <tr><td>Auto-increment (DB)</td><td>Yes</td><td>DB round-trip</td><td>Sequential, great index locality; single-writer bottleneck across shards</td></tr>
+          <tr><td>UUID v4</td><td>No</td><td>None</td><td>Random 128-bit; universal but terrible for DB B-tree index locality</td></tr>
+          <tr><td>UUID v7</td><td>Yes (time-ordered)</td><td>None</td><td>48-bit ms timestamp + ~74 random/counter bits (6 bits are version+variant); modern default for DB indexes</td></tr>
+          <tr><td>Snowflake (Twitter)</td><td>Yes</td><td>Machine ID config</td><td>64-bit: 41b timestamp + 10b machine ID + 12b sequence</td></tr>
+          <tr><td>ULID</td><td>Yes</td><td>None</td><td>128-bit, URL-safe, lexicographically sortable</td></tr>
+          <tr><td>Hash of content</td><td>No</td><td>None</td><td>Deterministic; good for dedup and content-addressable storage</td></tr></table>
+          <div class="sfl-root" onclick="event.stopPropagation()">
+<style>
+.sfl-root{margin:.6rem 0}
+.sfl-root .sfl-bar{display:flex;width:100%;border-radius:10px;overflow:hidden;border:1.5px solid var(--color-border-primary)}
+.sfl-root .sfl-seg{padding:11px 6px;text-align:center;color:#fff;display:flex;flex-direction:column;gap:2px;min-width:0;font-size:11px;font-weight:700}
+.sfl-root .sfl-seg small{font-weight:500;font-size:9.5px;opacity:.92;line-height:1.2}
+.sfl-root .sfl-ts{background:#6366F1}
+.sfl-root .sfl-mc{background:#14B8A6}
+.sfl-root .sfl-sq{background:#F59E0B}
+.sfl-root .sfl-note{margin-top:11px;font-size:13px;color:var(--color-text-secondary);line-height:1.55}
+.sfl-root .sfl-note b{color:var(--color-text-primary);font-weight:600}
+</style>
+<div class="sfl-bar">
+  <div class="sfl-seg sfl-ts" style="flex:41 1 0">41-bit timestamp<small>ms since custom epoch &middot; ~69 yrs</small></div>
+  <div class="sfl-seg sfl-mc" style="flex:10 1 0">10-bit machine<small>1024 workers</small></div>
+  <div class="sfl-seg sfl-sq" style="flex:12 1 0">12-bit seq<small>4096 / ms</small></div>
+</div>
+<div class="sfl-note">63 bits laid out left&rarr;right (the top sign bit stays 0). &rarr; <b>~4M IDs/sec/machine</b>, globally unique and time-sortable, with <b>no request-time coordination</b> — machine IDs are assigned once, up front.</div>
+</div>
+          <p><strong>Why sortability matters:</strong> UUID v4's random distribution causes B-tree page splits on every insert — hot pages, cache thrashing at scale. Snowflake and UUID v7 insert at the end of the index like auto-increment, giving excellent write performance. Use UUID v4 only when you're okay with insert overhead or the scale doesn't demand it.</p>
+          <div class="note"><strong>Interview tip:</strong> when you say "we'll generate a unique ID," follow immediately with which scheme and why. "Snowflake IDs for sort order and DB insert performance at scale" signals depth; "just use UUID" signals you haven't thought about index performance.</div>
+          <div class="tag-row"><span class="tag">Snowflake = Twitter, Discord</span><span class="tag">sorted &rarr; better index perf</span><span class="tag">UUID v7 = modern default</span></div>
+        </div>
+      </div>
+
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Latency numbers everyone should know</div><div class="card-sub">Jeff Dean's table, rounded</div></div><span class="badge badge-blue">Reference</span></div>
