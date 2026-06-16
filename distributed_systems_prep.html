@@ -40,7 +40,7 @@ a{color:var(--accent);text-decoration:none}
 /* Layout */
 .layout{display:flex;min-height:100vh}
 .sidebar{width:240px;min-width:240px;background:var(--nav);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
-.main{flex:1;min-width:0;padding:2.5rem 3rem;max-width:960px}
+.main{flex:1;min-width:0;padding:2.5rem clamp(1rem,4vw,3rem);max-width:1200px;overflow-wrap:break-word}
 
 /* Sidebar */
 .brand{padding:1.5rem 1.25rem 1rem;border-bottom:1px solid #1E293B}
@@ -70,7 +70,7 @@ a{color:var(--accent);text-decoration:none}
 .section-intro p{font-size:14px;color:var(--text-muted);line-height:1.7;max-width:580px}
 
 /* Cards grid */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:1.5rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-bottom:1.5rem}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:var(--border-hover);box-shadow:var(--shadow)}
 .card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
