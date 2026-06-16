@@ -1945,7 +1945,8 @@ function renderHome(){
   h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master distributed systems for your interview — one quick quest at a time.</p></div>';
   h+='<div class="levelcard"><div class="ring" style="--p:'+prog+'"><span>'+lvl+'</span></div>'
     +'<div class="lc-meta"><div class="lc-title">Level '+lvl+'</div><div class="lc-sub">'+prog+'/100 XP to level '+(lvl+1)+'</div></div></div>';
-  const nMist=Object.keys(S.mistakes).length;
+  const allMist=Object.values(S.mistakes);
+  const nMist=(S.reviewSkipRecall?allMist.filter(s=>s.t!=='recall'):allMist).length;
   const nRecall=UNITS.reduce((a,u)=>a+u.lessons.reduce((b,l)=>b+l.steps.filter(s=>s.t==='recall').length,0),0);
   h+='<div class="actions">'
     +'<button class="act'+(nMist?' hot':'')+'" id="reviewBtn">🩹 Review mistakes'+(nMist?' ('+nMist+')':'')+'</button>'
@@ -2004,7 +2005,7 @@ function renderHome(){
   document.getElementById('reviewBtn').onclick=startReview;
   document.getElementById('recallBtn').onclick=startRecallReview;
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
-  const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();};
+  const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();renderHome();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
   APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
   try{window.scrollTo(0,0);}catch(e){}
