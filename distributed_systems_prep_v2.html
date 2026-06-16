@@ -670,7 +670,7 @@ const UNITS=[
   ]},
   {id:'txn-2',title:'Isolation & retries',steps:[
    {t:'teach',h:'Isolation levels',body:[
-     {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads (only committed data).'},
+     {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads OR dirty writes (only committed data; you can’t overwrite an uncommitted write).'},
      {k:'point',i:'🔁',t:'<b>Repeatable read</b>: re-reading a row gives the same value.'},
      {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time.'},
      {k:'note',t:'Snapshot Isolation (MVCC) is cheap but allows write skew; SSI detects and aborts it.'}
@@ -1187,14 +1187,15 @@ const UNITS=[
  lessons:[
   {id:'conc-1',title:'Anomaly zoo',steps:[
    {t:'teach',h:'Read phenomena',body:[
-     {k:'point',i:'🩸',t:'<b>Dirty read</b>: you read another txn’s uncommitted write.'},
-     {k:'point',i:'🔁',t:'<b>Non-repeatable read</b> (read skew): a row changes value mid-txn.'},
-     {k:'point',i:'👻',t:'<b>Phantom</b>: a query’s result set gains/loses rows mid-txn.'}
+     {k:'point',i:'🩸',t:'<b>Dirty read</b>: you read another txn’s uncommitted write — if it rolls back, you acted on data that never existed. <i>You see a $0 balance mid-transfer: the debit committed, the credit hasn’t yet.</i> (fix: read committed)'},
+     {k:'point',i:'🔁',t:'<b>Non-repeatable read</b> (read skew): a row changes value between two reads in one txn. <i>A backup reads A=$500, a transfer moves $100 to B, then it reads B=$600 → totals $1100.</i> (fix: snapshot isolation)'},
+     {k:'point',i:'👻',t:'<b>Phantom</b>: a query’s result set gains/loses rows mid-txn — often the root of write skew. <i>Two users both ask “any booking for room 42 @2pm?” (none), both insert → double-booked.</i> (fix: predicate/index-range locks)'}
    ]},
    {t:'teach',h:'The sneaky write anomalies',body:[
-     {k:'keyt',term:'Lost update',def:'two read-modify-write cycles; one silently clobbers the other. Same object.'},
-     {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant.'},
-     {k:'mnemonic',t:'Same object → lost update. Different objects, shared assumption → write skew.'}
+     {k:'keyt',term:'Dirty write',def:'overwrite another txn’s UNCOMMITTED write — two txns interleave writes to one row. e.g. Alice buys a car: listing → Alice, but the invoice goes to Bob. (fix: read committed)'},
+     {k:'keyt',term:'Lost update',def:'two read-modify-write cycles on the SAME object; one silently clobbers the other. e.g. counter=42, two requests both read 42 and write 43 → 43, not 44. (fix: CAS / SELECT FOR UPDATE)'},
+     {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant. e.g. two on-call doctors each see the other on call, both clock off → zero on call. (fix: serializable / SSI)'},
+     {k:'mnemonic',t:'Dirty = uncommitted. Same object → lost update. Different objects, shared assumption → write skew.'}
    ]},
    {t:'sort',q:'Same object or different objects?',buckets:['Same object','Different objects'],items:[
      {text:'Lost update',b:0},{text:'Write skew',b:1}
@@ -1229,6 +1230,7 @@ const UNITS=[
  ],
  boss:{title:'Concurrency Boss',time:70,q:[
    {q:'Dirty read =',o:['stale snapshot','reading uncommitted data','a phantom','a deadlock'],a:1},
+   {q:'Dirty write (overwriting uncommitted data) is prevented by…',o:['read uncommitted','read committed','a cache','more replicas'],a:1},
    {q:'Write skew is stopped by…',o:['read committed','serializable / SSI','no locks','TTL'],a:1},
    {q:'Lost update is two writes to…',o:['different objects','the same object','an index','a queue'],a:1},
    {q:'2PL is…',o:['optimistic','pessimistic','lock-free','async'],a:1},
