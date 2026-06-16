@@ -2537,8 +2537,9 @@ function lessonUnlocked(u,li){if(S.unlockAll||li===0)return true;return !!S.done
 function bossUnlocked(u){if(S.unlockAll)return true;return u.lessons.every(l=>S.done[l.id]);}
 
 /* ============================ HOME ============================ */
-function renderHome(){
+function renderHome(scrollToNext){
   const lvl=levelOf(S.xp), prog=xpInLevel(S.xp);
+  let frontierSet=false; // tag the first playable (unlocked, not-done) node so we can scroll to it
   let h='';
   h+='<div class="stickyhead">';
   h+='<div class="topbar">'
@@ -2584,8 +2585,9 @@ function renderHome(){
       const cls=done?('done '+tier):(open?'':'locked');
       const off=li%2===1?'off1':(li%2===0&&li>0?'off2':'');
       const title=(done&&!perfect)?(' title="Best '+(S.best[l.id]||0)+(tier==='good'?'% — passed; revisit to perfect it':'% — revisit to perfect it')+'"'):'';
+      const frontier=open&&!done&&!frontierSet;if(frontier)frontierSet=true;
       h+='<div class="node-wrap '+off+'">'
-        +'<button class="node '+cls+'" '+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
+        +'<button class="node '+cls+'" '+(frontier?'id="next-stage" ':'')+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
         +'<div class="node-label">'+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
     // boss node
@@ -2593,8 +2595,9 @@ function renderHome(){
     const bdone=S.done['boss-'+u.id];
     const btier=tierOf('boss-'+u.id);
     const bperfect=btier==='perfect';
+    const bfrontier=bopen&&!bdone&&!frontierSet;if(bfrontier)frontierSet=true;
     h+='<div class="node-wrap">'
-      +'<button class="node boss '+(bdone?('done '+btier):(bopen?'':'locked'))+'" '+(bopen?('data-boss="'+u.id+'"'):'')+((bdone&&!bperfect)?(' title="Best '+(S.best['boss-'+u.id]||0)+'% — revisit"'):'')+' style="'+(bopen||bdone?'background:'+u.colorD:'')+'">'+(bopen||bdone?'👑':'🔒')+'</button>'
+      +'<button class="node boss '+(bdone?('done '+btier):(bopen?'':'locked'))+'" '+(bfrontier?'id="next-stage" ':'')+(bopen?('data-boss="'+u.id+'"'):'')+((bdone&&!bperfect)?(' title="Best '+(S.best['boss-'+u.id]||0)+'% — revisit"'):'')+' style="'+(bopen||bdone?'background:'+u.colorD:'')+'">'+(bopen||bdone?'👑':'🔒')+'</button>'
       +'<div class="node-label">'+u.boss.title+(bdone&&!bperfect?' <span class="pct">'+(S.best['boss-'+u.id]||0)+'%</span>':'')+'</div></div>';
     h+='</div></div>';
   });
@@ -2617,6 +2620,7 @@ function renderHome(){
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
   const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();renderHome();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
+  if(scrollToNext){const ns=document.getElementById('next-stage');if(ns)requestAnimationFrame(()=>ns.scrollIntoView({behavior:'smooth',block:'center'}));}
   APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
   try{window.scrollTo(0,0);}catch(e){}
 }
@@ -2704,7 +2708,7 @@ function renderStep(){
   let h=topbarHTML()+'<div class="stage" id="stage"></div>';
   h+='<div class="combo" id="combo"></div>';
   APP().innerHTML=h;
-  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome();return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome();else startTimer();};
+  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome(true);return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome(true);else startTimer();};
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
@@ -2771,7 +2775,7 @@ function feedback(ok,msg,onNext){
   const go=()=>{if(done)return;done=true;clearTimeout(tm);bar.remove();onNext();};
   document.getElementById('contBtn').onclick=go;
   // auto-advance on a correct answer; wrong answers wait so you can read the explanation
-  const tm=ok?setTimeout(go,2200):null;
+  const tm=ok?setTimeout(go,3500):null;
 }
 
 /* heart / xp / combo bookkeeping for graded steps */
@@ -3091,7 +3095,7 @@ function resultsScreen(success){
     h+='<button class="btn blue" id="retryBtn">Try again</button><div style="height:12px"></div><button class="btn grey" id="homeBtn">Back to map</button></div>';
   }
   clearFoot();APP().innerHTML=h;
-  const hb=document.getElementById('homeBtn');if(hb)hb.onclick=renderHome;
+  const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(true);
   const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?(R.source==='recall'?startRecallReview():R.source==='unitrecall'?startUnitRecall(R.unit.id):startReview()):startLesson(R.lesson.id);};
   if(success){burst();}
 }
@@ -3141,7 +3145,7 @@ function keyAction(e){
 document.addEventListener('keydown',keyAction);
 
 /* ============================ boot ============================ */
-renderHome();
+renderHome(true);
 </script>
 </body>
 </html>

@@ -2793,12 +2793,19 @@ value(s) = gauge / counter readings</div>
 function toggle(el){el.classList.toggle('expanded')}
 
 function showSection(id,el){
+  const sec=document.getElementById('section-'+id);
+  if(!sec)return;
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('section-'+id).classList.add('active');
-  el.classList.add('active');
+  sec.classList.add('active');
+  if(!el)el=document.querySelector('.nav-item[onclick*="showSection(\''+id+'\'"]');
+  if(el)el.classList.add('active');
   window.scrollTo(0,0);
+  try{localStorage.setItem('ds_v1_section',id);}catch(e){}
 }
+// restore the last open tab across refresh
+(function(){function restore(){try{var s=localStorage.getItem('ds_v1_section');if(s&&document.getElementById('section-'+s))showSection(s);}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore);else restore();})();
 
 function sendQ(q){
   const url='https://claude.ai/new?q='+encodeURIComponent(q);
