@@ -135,6 +135,38 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .callout.note{background:var(--green-bg);color:#3a6b13}
 .callout.mem{background:#FFE9F4;color:#A8327D}
 
+/* vecviz — version-vector walkthrough */
+.vv-legend{font-size:13px;font-weight:800;color:var(--muted);margin-bottom:10px}
+.vv-tag{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border-radius:6px;color:#fff;font-weight:900;font-size:12px;vertical-align:middle}
+.vv-tag.na,.vv-node.na{background:var(--green)}
+.vv-tag.nb,.vv-node.nb{background:var(--blue)}
+.vv-tag.nc,.vv-node.nc{background:var(--purple-d)}
+.vv-cap{font-size:15px;font-weight:700;color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:12px;min-height:44px;display:flex;align-items:center}
+.vv-grid{display:flex;flex-direction:column;gap:9px;margin-bottom:11px}
+.vv-row{display:flex;align-items:center;gap:11px}
+.vv-node{width:36px;height:36px;flex-shrink:0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:17px}
+.vv-vec{font-family:ui-monospace,Menlo,monospace;font-size:24px;font-weight:800;color:var(--faint);display:flex;align-items:center}
+.vv-cell{display:inline-flex;min-width:26px;justify-content:center;color:var(--ink);border-radius:7px;padding:1px 3px}
+.vv-cell.hot{background:var(--yellow);color:#7a5c00;animation:vvpulse .45s ease}
+@keyframes vvpulse{0%{transform:scale(1.5)}60%{transform:scale(1.05)}100%{transform:scale(1)}}
+.vv-comma{color:var(--faint)}
+.vv-tagmsg{margin-left:auto;font-size:12px;font-weight:900;padding:4px 9px;border-radius:8px;text-transform:uppercase;letter-spacing:.3px}
+.vv-tagmsg.out{background:var(--blue-bg);color:var(--blue-d)}
+.vv-tagmsg.in{background:var(--purple-bg);color:var(--purple-d)}
+.vv-msg{background:var(--blue-bg);border:2px solid #B3E3FF;border-radius:12px;padding:9px 13px;font-size:14px;font-weight:700;color:var(--blue-d);margin-bottom:10px}
+.vv-verdict{border-radius:12px;padding:10px 13px;font-size:14px;font-weight:700;margin-bottom:10px}
+.vv-verdict.conc{background:#FFF3D6;color:#8A6100}
+.vv-verdict.hb{background:var(--green-bg);color:#3a6b13}
+.vv-rule{font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);border:2px dashed var(--line-d);border-radius:10px;padding:8px 11px;margin-bottom:6px}
+.vv-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+.vv-btn{flex:0 0 auto;padding:10px 15px;font-size:14px;font-weight:900;border-radius:11px;background:#fff;color:var(--blue-d);border:2px solid var(--line);border-bottom-width:4px;cursor:pointer}
+.vv-btn:active{transform:translateY(2px);border-bottom-width:2px}
+.vv-btn:disabled{opacity:.4;cursor:default;transform:none}
+.vv-dots{display:flex;gap:7px;align-items:center}
+.vv-dot{width:9px;height:9px;border-radius:50%;background:var(--line-d);transition:all .15s}
+.vv-dot.seen{background:var(--blue)}
+.vv-dot.on{background:var(--blue);transform:scale(1.45);box-shadow:0 0 0 3px var(--blue-bg)}
+
 /* Options (mcq) */
 .opts{display:flex;flex-direction:column;gap:10px;counter-reset:kopt}
 .opt{width:100%;text-align:left;padding:14px 16px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;font-size:16px;font-weight:800;color:var(--ink);transition:all .1s}
@@ -702,6 +734,20 @@ const UNITS=[
      {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
      {k:'point',i:'∥',t:'Neither dominates → concurrent. Now you CAN tell.'}
    ]},
+   {t:'vecviz',h:'Vector clocks — step through it',nodes:['A','B','C'],
+    rule:'Local event or send: bump your own slot. Receive: bump your slot, then take element-wise max with the message.',
+    frames:[
+     {cap:'Start — every node’s clock is [0,0,0].',v:[[0,0,0],[0,0,0],[0,0,0]]},
+     {cap:'A does a local event → A bumps its own slot.',v:[[1,0,0],[0,0,0],[0,0,0]],hi:[[0,0]]},
+     {cap:'B does a local event, with no knowledge of A.',v:[[1,0,0],[0,1,0],[0,0,0]],hi:[[1,1]],
+      verdict:{cls:'conc',t:'∥ Compare A=[1,0,0] vs B=[0,1,0]: neither is ≤ the other → these events are <b>concurrent</b>.'}},
+     {cap:'A sends message m1 to C (A bumps its slot first; m1 carries A’s clock).',v:[[2,0,0],[0,1,0],[0,0,0]],hi:[[0,0]],msg:{from:0,to:2,label:'[2,0,0]'}},
+     {cap:'C receives m1: bump own slot, then max with [2,0,0].',v:[[2,0,0],[0,1,0],[2,0,1]],hi:[[2,0],[2,2]],
+      verdict:{cls:'hb',t:'→ V(A’s send)=[2,0,0] ≤ V(C)=[2,0,1] → A’s send <b>happened-before</b> C’s receive.'}},
+     {cap:'B sends message m2 to C (B bumps its slot; m2 carries B’s clock).',v:[[2,0,0],[0,2,0],[2,0,1]],hi:[[1,1]],msg:{from:1,to:2,label:'[0,2,0]'}},
+     {cap:'C receives m2: bump own slot, then max with [0,2,0].',v:[[2,0,0],[0,2,0],[2,2,2]],hi:[[2,1],[2,2]],
+      verdict:{cls:'hb',t:'C’s clock [2,2,2] now dominates both A and B — C has causally seen everything so far.'}}
+    ]},
    {t:'cloze',q:'Fill the clock blanks.',distract:['physical','atomic'],text:[
      'Lamport clocks give a ',{blank:'partial'},' order but can’t spot ',{blank:'concurrent'},
      ' events. ',{blank:'Vector',alt:['vector']},' clocks compare ',{blank:'element-wise',alt:['elementwise']},
@@ -1601,11 +1647,12 @@ function renderStep(){
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
-  else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze}[step.t])(stage,step);}
+  else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz}[step.t])(stage,step);}
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
 function renderReview(stage,step){
+  if(step.t==='vecviz'){stVecViz(stage,step);return;}
   let h='<div class="q-sub">↩ Review (already answered)</div>';
   if(step.t==='teach'){h+='<div class="q-title">'+step.h+'</div>';step.body.forEach(b=>h+=blockHTML(b));}
   else if(step.t==='mcq'){h+='<div class="q-title">'+step.q+'</div><div class="opts">';step.o.forEach((o,i)=>{h+='<div class="opt '+(i===step.a?'correct':'dim')+'">'+o+'</div>';});h+='</div>';if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
@@ -1671,6 +1718,49 @@ function stTeach(stage,step){
   let h='<div class="q-sub">📘 Learn</div><div class="q-title">'+step.h+'</div>';
   step.body.forEach(b=>h+=blockHTML(b));
   stage.innerHTML=h;
+  footBtn('Got it',()=>nextStep());
+}
+
+/* ---------- step: vecviz (interactive version-vector walkthrough) ---------- */
+function stVecViz(stage,step){
+  const nodes=step.nodes,frames=step.frames,nc=['na','nb','nc'];
+  let f=0;
+  const legend='each clock = [ '+nodes.map((n,i)=>'<span class="vv-tag '+nc[i]+'">'+n+'</span>').join(' , ')+' ]';
+  function draw(){
+    const fr=frames[f];
+    let h='<div class="q-sub">🎬 Watch it run · use ← → to step</div><div class="q-title">'+step.h+'</div>';
+    h+='<div class="vv-legend">'+legend+'</div>';
+    h+='<div class="vv-cap">'+fr.cap+'</div>';
+    h+='<div class="vv-grid">';
+    nodes.forEach((nm,r)=>{
+      const sending=fr.msg&&fr.msg.from===r,receiving=fr.msg&&fr.msg.to===r;
+      h+='<div class="vv-row">';
+      h+='<div class="vv-node '+nc[r]+'">'+nm+'</div>';
+      h+='<div class="vv-vec">[ ';
+      fr.v[r].forEach((val,c)=>{
+        const hot=(fr.hi||[]).some(p=>p[0]===r&&p[1]===c);
+        h+='<span class="vv-cell'+(hot?' hot':'')+'">'+val+'</span>';
+        h+=c<fr.v[r].length-1?'<span class="vv-comma">, </span>':'';
+      });
+      h+=' ]</div>';
+      if(sending)h+='<div class="vv-tagmsg out">sends ✉️</div>';
+      else if(receiving)h+='<div class="vv-tagmsg in">📥 incoming…</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+    if(fr.msg)h+='<div class="vv-msg">✉️ <b>'+nodes[fr.msg.from]+' → '+nodes[fr.msg.to]+'</b> &nbsp;carries clock '+fr.msg.label+'</div>';
+    if(fr.verdict)h+='<div class="vv-verdict '+fr.verdict.cls+'">'+fr.verdict.t+'</div>';
+    if(step.rule)h+='<div class="vv-rule">📏 '+step.rule+'</div>';
+    h+='<div class="vv-nav"><button class="vv-btn" id="vzPrev"'+(f===0?' disabled':'')+'>← Prev</button>';
+    h+='<div class="vv-dots">';
+    frames.forEach((_,i)=>h+='<span class="vv-dot'+(i===f?' on':i<f?' seen':'')+'"></span>');
+    h+='</div><button class="vv-btn" id="vzNext"'+(f===frames.length-1?' disabled':'')+'>Next →</button></div>';
+    stage.innerHTML=h;
+    const p=document.getElementById('vzPrev'),n=document.getElementById('vzNext');
+    if(p)p.onclick=()=>{if(f>0){f--;draw();}};
+    if(n)n.onclick=()=>{if(f<frames.length-1){f++;draw();}};
+  }
+  draw();
   footBtn('Got it',()=>nextStep());
 }
 
@@ -1944,6 +2034,9 @@ function keyAction(e){
     if(n>=1&&n<=bopts.length){if(!bopts[n-1].disabled){bopts[n-1].click();e.preventDefault();}return;}
     if(k==='Enter'||k===' '){const fb=document.getElementById('fbtn');if(fb){fb.click();e.preventDefault();}return;}
   }
+  // vecviz frame stepping with ← →
+  const vzP=document.getElementById('vzPrev'),vzN=document.getElementById('vzNext');
+  if(vzP&&vzN){if(k==='ArrowLeft'){if(!vzP.disabled)vzP.click();e.preventDefault();return;}if(k==='ArrowRight'){if(!vzN.disabled)vzN.click();e.preventDefault();return;}}
   // generic footer (Got it / Reveal / Check / Next) — but never auto-Undo
   const fb=document.getElementById('fbtn');
   if(fb&&(k==='Enter'||k===' ')&&!/undo/i.test(fb.textContent)){fb.click();e.preventDefault();}
