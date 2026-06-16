@@ -2560,7 +2560,7 @@ function feedback(ok,msg,onNext){
   const go=()=>{if(done)return;done=true;clearTimeout(tm);bar.remove();onNext();};
   document.getElementById('contBtn').onclick=go;
   // auto-advance on a correct answer; wrong answers wait so you can read the explanation
-  const tm=ok?setTimeout(go,1300):null;
+  const tm=ok?setTimeout(go,2200):null;
 }
 
 /* heart / xp / combo bookkeeping for graded steps */
