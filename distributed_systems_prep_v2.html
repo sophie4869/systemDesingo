@@ -790,7 +790,16 @@ const UNITS=[
      {k:'callout',c:'warn',t:'No atomic rollback — compensation is a semantic undo that can itself fail. Every step must be idempotent.'}
    ]},
    {t:'mcq',q:'In a Saga, step 3 of 5 fails. What happens?',o:['atomic rollback of all','compensating txns undo steps 1–2','wait for step 3','retry forever'],a:1,why:'Sagas undo completed steps in reverse with compensations — there’s no atomic rollback.'},
-   {t:'recall',q:'Explain the 2PC blocking problem in 2 sentences.',model:['After voting "ready", a participant must wait for the coordinator’s decision and can’t abort on its own.','If the coordinator crashes then, participants block (holding locks) until it recovers. That’s the coordinator SPOF.']}
+   {t:'recall',q:'Explain the 2PC blocking problem in 2 sentences.',model:['After voting "ready", a participant must wait for the coordinator’s decision and can’t abort on its own.','If the coordinator crashes then, participants block (holding locks) until it recovers. That’s the coordinator SPOF.']},
+   {t:'teach',h:'TCC (Try-Confirm-Cancel)',body:[
+     {k:'tldr',t:'A reservation-based distributed txn — a more structured saga.'},
+     {k:'point',i:'1️⃣',t:'<b>Try</b>: reserve resources without committing (hold inventory, freeze funds).'},
+     {k:'point',i:'2️⃣',t:'<b>Confirm</b>: commit using the reservation — must be idempotent and must not fail.'},
+     {k:'point',i:'3️⃣',t:'<b>Cancel</b>: release the reservation (or let its TTL auto-expire).'},
+     {k:'note',t:'Reservations are app-level holds, not blocking DB locks — so resources aren’t pinned by a stuck protocol like 2PC. Cost: every service must implement all three phases.'}
+   ]},
+   {t:'mcq',q:'TCC’s "Try" phase does what?',o:['commits immediately','reserves resources without committing','rolls everything back','locks the whole DB'],a:1,why:'Try reserves (hold inventory / freeze funds); Confirm later commits the reservation, Cancel releases it.'},
+   {t:'recall',q:'How does TCC differ from a raw saga and from 2PC?',model:['TCC = Try (reserve) → Confirm (commit reservation, idempotent, must not fail) → Cancel (release).','vs Saga: the Try phase verifies feasibility up front, reducing the chance of needing compensation.','vs 2PC: holds are application-level reservations with a TTL, not blocking DB locks, so a dead coordinator doesn’t pin resources.']}
   ]},
   {id:'txn-2',title:'Isolation & retries',steps:[
    {t:'teach',h:'Isolation levels',body:[
@@ -811,6 +820,7 @@ const UNITS=[
  boss:{title:'Transactions Boss',time:70,q:[
    {q:'2PC’s main weakness is…',o:['speed','coordinator crash blocks participants','storage','no locks'],a:1},
    {q:'A Saga handles failure with…',o:['atomic rollback','compensating transactions','2PC','retries only'],a:1},
+   {q:'TCC’s Try phase…',o:['commits','reserves without committing','aborts','locks the DB'],a:1},
    {q:'Serializable isolation means…',o:['some interleavings','as-if one-at-a-time','dirty reads ok','no locks'],a:1},
    {q:'Snapshot Isolation can still suffer…',o:['dirty reads','write skew','torn writes','nothing'],a:1},
    {q:'Idempotency keys prevent…',o:['slow writes','duplicate effects on retry','deadlock','stale reads'],a:1},
@@ -1056,15 +1066,35 @@ const UNITS=[
      {k:'point',i:'☠️',t:'Poison messages → a dead-letter queue after N retries, so the pipeline isn’t blocked.'}
    ]},
    {t:'recall',q:'What is the dual-write problem and how does the outbox fix it?',model:['Writing to the DB and a broker separately has no atomicity — a crash leaves them inconsistent.','The outbox writes the row + an event in ONE DB txn; a relay (or CDC) then publishes, at-least-once.']}
+  ]},
+  {id:'msg-3',title:'Event sourcing & CQRS',steps:[
+   {t:'teach',h:'Store events, not state',body:[
+     {k:'keyt',term:'Event sourcing',def:'persist the append-only log of events as the source of truth; current state is a fold (replay) of those events.'},
+     {k:'point',i:'🕰️',t:'You get a full audit trail and time-travel (rebuild state as of any point) for free.'},
+     {k:'callout',c:'warn',t:'Cost: replaying long logs is slow → snapshots; and you must version/evolve event schemas forever.'}
+   ]},
+   {t:'teach',h:'CQRS',body:[
+     {k:'keyt',term:'CQRS',def:'Command Query Responsibility Segregation — separate the write model from one or more read models (projections).'},
+     {k:'point',i:'🔭',t:'Writes append events; async projections build query-optimised read views. Reads scale independently — but are eventually consistent.'},
+     {k:'note',t:'Often paired with event sourcing, but not required. Don’t reach for either unless audit/temporal needs or read/write asymmetry justify the complexity.'}
+   ]},
+   {t:'mcq',q:'In event sourcing, the source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1,why:'State is derived by replaying the event log; snapshots are just an optimization.'},
+   {t:'cloze',q:'Fill the event-sourcing blanks.',distract:['sharding','quorum'],text:[
+     {blank:'Event sourcing',alt:['event-sourcing']},' stores the ',{blank:'log',alt:['event log']},' of changes as truth; current state is a ',{blank:'replay',alt:['fold','projection']},
+     '. ',{blank:'CQRS',alt:['cqrs']},' splits the write model from read-optimised ',{blank:'projections',alt:['read models','views']},'.'
+   ]},
+   {t:'recall',q:'What are event sourcing and CQRS, and the main trade-off?',model:['Event sourcing: the append-only event log is the source of truth; state = replay of events → audit trail + time travel.','CQRS: separate write model from read models (projections), so reads scale independently — at the cost of eventual consistency.','Trade-off: more moving parts (snapshots, schema evolution, projection lag) — use only when audit/temporal or read/write asymmetry needs justify it.']}
   ]}
  ],
- boss:{title:'Messaging Boss',time:70,q:[
+ boss:{title:'Messaging Boss',time:80,q:[
    {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
    {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
    {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
    {q:'The outbox pattern fixes…',o:['hot keys','dual-write inconsistency','stale reads','GC pauses'],a:1},
    {q:'Poison messages go to a…',o:['cache','dead-letter queue','replica','leader'],a:1},
-   {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0}
+   {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0},
+   {q:'Event sourcing’s source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1},
+   {q:'CQRS separates…',o:['regions','the write model from read models','producers from brokers','disks'],a:1}
  ]}
 },
 {
@@ -1223,15 +1253,41 @@ const UNITS=[
      {k:'point',i:'⏱️',t:'RPO ≈ data you can lose (replication lag); RTO ≈ time to recover.'}
    ]},
    {t:'recall',q:'Explain RPO vs RTO in one line each.',model:['RPO = how much data you can afford to lose — set by replication lag (sync≈0, async≈lag).','RTO = how fast you must be back — set by failover automation + DNS/anycast propagation.']}
+  ]},
+  {id:'rel-3',title:'Isolation & observability',steps:[
+   {t:'teach',h:'Contain the blast radius',body:[
+     {k:'keyt',term:'Bulkhead',def:'isolate resources (separate thread/connection pools per dependency) so one slow dependency can’t exhaust everything and sink the whole service.'},
+     {k:'keyt',term:'Load shedding',def:'under overload, drop or reject low-priority work early (429) to protect the core — better to serve some than topple over.'},
+     {k:'note',t:'Pair with backpressure: shed at the edge before expensive work, and prioritise (e.g. paying users / health checks) when shedding.'}
+   ]},
+   {t:'teach',h:'Observability: know what’s happening',body:[
+     {k:'point',i:'📊',t:'Three pillars: <b>metrics</b> (aggregate trends), <b>logs</b> (discrete events), <b>traces</b> (one request across services).'},
+     {k:'point',i:'🚦',t:'<b>RED</b> (Rate, Errors, Duration) for services; <b>USE</b> (Utilization, Saturation, Errors) for resources. Alert on SLO burn, not raw CPU.'},
+     {k:'point',i:'🧵',t:'Propagate a <b>trace/correlation ID</b> through every hop so you can follow a single request end-to-end.'}
+   ]},
+   {t:'mcq',q:'A bulkhead protects you by…',o:['retrying faster','isolating resource pools so one dependency can’t starve the rest','adding caches','sharding data'],a:1,why:'Separate pools per dependency contain failures — a hung dependency exhausts only its own pool.'},
+   {t:'mcq',q:'Under overload, load shedding means…',o:['retry everything','drop/reject low-priority work to protect the core','scale to zero','ignore errors'],a:1,why:'Serving a subset cleanly beats collapsing under everything; shed early and by priority.'},
+   {t:'teach',h:'Changing schema without downtime',body:[
+     {k:'keyt',term:'Expand–contract',def:'roll schema changes in phases: EXPAND (add the new column/table, write both), MIGRATE (backfill + read new), CONTRACT (drop the old) — each step is backward-compatible.'},
+     {k:'callout',c:'warn',t:'Never rename/drop in one shot during a rolling deploy — old and new code run at once. Backfill in batches to avoid long locks.'}
+   ]},
+   {t:'cloze',q:'Fill the resilience blanks.',distract:['sharding','quorum'],text:[
+     'A ',{blank:'bulkhead'},' isolates pools so one dependency can’t starve the rest; ',{blank:'load shedding',alt:['shedding','load-shedding']},
+     ' drops low-priority work under overload. Schema changes roll out ',{blank:'expand',alt:['expand-contract','expand–contract']},'-then-contract, backward-compatible at each step.'
+   ]},
+   {t:'recall',q:'How do you change a column safely under a rolling deploy?',model:['Expand–contract: add the new column (don’t touch the old), deploy code that writes BOTH.','Backfill the new column in batches, then switch reads to it.','Once nothing uses the old column, contract: drop it. Every step is backward-compatible so old + new code coexist.']}
   ]}
  ],
- boss:{title:'Reliability Boss',time:70,q:[
+ boss:{title:'Reliability Boss',time:85,q:[
    {q:'Error budget =',o:['SLO','100% − SLO','SLA','uptime'],a:1},
    {q:'An OPEN breaker…',o:['passes calls','fails fast','queues','retries'],a:1},
    {q:'Jitter on retries prevents…',o:['data loss','retry storms','stale reads','GC'],a:1},
    {q:'Retry amplification is fixed by…',o:['more retries','retrying at one layer','no timeouts','sticky sessions'],a:1},
    {q:'RPO is bounded by…',o:['DNS TTL','replication lag','RTO','CPU'],a:1},
-   {q:'Active-active needs…',o:['no replication','conflict resolution','one region','a lock'],a:1}
+   {q:'Active-active needs…',o:['no replication','conflict resolution','one region','a lock'],a:1},
+   {q:'A bulkhead…',o:['retries faster','isolates resource pools','adds caching','shards data'],a:1},
+   {q:'Load shedding under overload…',o:['retries all','drops low-priority work','scales to zero','disables logs'],a:1},
+   {q:'Safe online schema change uses…',o:['rename in place','expand–contract + backfill','a global lock','downtime'],a:1}
  ]}
 },
 {
@@ -1338,15 +1394,30 @@ const UNITS=[
    ]},
    {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
    {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
+  ]},
+  {id:'data-3',title:'Training & experiments',steps:[
+   {t:'teach',h:'The training pipeline',body:[
+     {k:'point',i:'🛠️',t:'Stages: ingest → feature engineering → train → evaluate → register → deploy. Orchestrated (Airflow/Kubeflow) and re-runnable.'},
+     {k:'point',i:'♻️',t:'<b>Reproducibility</b> needs versioning of three things: <b>data</b>, <b>code</b>, and <b>model artifacts</b>.'},
+     {k:'note',t:'A model registry stores versioned artifacts + metadata and gates promotion (staging → prod), enabling rollback.'}
+   ]},
+   {t:'teach',h:'Experiment tracking',body:[
+     {k:'keyt',term:'Experiment tracking',def:'log each run’s params, dataset version, code commit, and metrics (MLflow/W&B) so results are comparable and reproducible.'},
+     {k:'point',i:'🧪',t:'Validate online with A/B tests or shadow/canary deploys before full rollout; watch for data/concept drift and retrain.'}
+   ]},
+   {t:'mcq',q:'Reproducible training requires versioning…',o:['only the code','data, code, AND model artifacts','only the model','only hyperparameters'],a:1,why:'A run is reproducible only if the exact data, code, and resulting artifact are all pinned and recorded.'},
+   {t:'recall',q:'What does experiment tracking give you, and why version data + code + model?',model:['Experiment tracking logs each run’s params, dataset version, code commit, and metrics so runs are comparable and reproducible.','Versioning data + code + model artifacts lets you reproduce a result, compare candidates fairly, and roll back a bad model.','Promote via a registry (staging → prod) and validate online with shadow/canary or A/B before full rollout.']}
   ]}
  ],
- boss:{title:'Data & ML Boss',time:65,q:[
+ boss:{title:'Data & ML Boss',time:75,q:[
    {q:'Streaming beats batch when you need…',o:['throughput','low latency','cheap storage','simplicity'],a:1},
    {q:'ELT loads raw data into…',o:['the app','a warehouse, transform later','a queue','a cache'],a:1},
    {q:'Object storage (S3) is best for…',o:['DB volumes','blobs/datasets/checkpoints','low-latency random I/O','locks'],a:1},
    {q:'A feature store prevents…',o:['hot keys','train/serve skew','partitions','GC'],a:1},
    {q:'Online feature serving uses…',o:['a warehouse','low-latency KV store','tape','a CSV'],a:1},
-   {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1}
+   {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1},
+   {q:'Reproducible training versions…',o:['only code','data + code + model','only data','nothing'],a:1},
+   {q:'Experiment tracking logs…',o:['only the winner','params, data version, metrics per run','just errors','CPU usage'],a:1}
  ]}
 },
 {
@@ -1607,15 +1678,37 @@ const UNITS=[
 </div>`},
    {t:'mcq',q:'A write-heavy ingest workload (logs, metrics) fits…',o:['B-tree','LSM-tree','a graph DB','a cache only'],a:1,why:'LSM buffers in memory and flushes sequentially → high write throughput; a B-tree does random-I/O in-place updates.'},
    {t:'recall',q:'B-tree vs LSM — the tradeoff?',model:['B-tree updates in place: random-I/O writes, excellent reads and range scans → read-optimized (Postgres, MySQL).','LSM buffers writes and flushes sequential SSTables with background compaction: high write throughput, reads check multiple levels (Bloom filters mitigate) → write-optimized (Cassandra, RocksDB).','Pick by workload: write-heavy → LSM; read/range-heavy → B-tree.']}
+  ]},
+  {id:'model-4',title:'API design',steps:[
+   {t:'teach',h:'REST vs gRPC vs GraphQL',body:[
+     {k:'point',i:'🌐',t:'<b>REST/JSON</b>: simple, cacheable, universal. Default for public/external APIs. Can over/under-fetch.'},
+     {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
+     {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
+   ]},
+   {t:'teach',h:'Pagination & auth',body:[
+     {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
+     {k:'point',i:'🔑',t:'Derive the user from the <b>auth token</b> (OAuth/JWT), never from the request body. Validate + scope every request; keep servers stateless (state in the token / Redis).'}
+   ]},
+   {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
+     {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
+   ]},
+   {t:'mcq',q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random sampling','no pagination'],a:1,why:'Cursor/keyset pagination is stable when data shifts and stays fast deep in the list, unlike OFFSET.'},
+   {t:'cloze',q:'Fill the API blanks.',distract:['SOAP','UDP'],text:[
+     {blank:'REST',alt:['rest']},' is the universal default; ',{blank:'gRPC',alt:['grpc']},' (protobuf/HTTP2) suits fast internal RPC; ',{blank:'GraphQL',alt:['graphql']},
+     ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
+   ]},
+   {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
   ]}
  ],
- boss:{title:'Data Models Boss',time:75,q:[
+ boss:{title:'Data Models Boss',time:90,q:[
    {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
    {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
    {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
    {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
    {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
-   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1}
+   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
+   {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
+   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1}
  ]}
 },
 {
@@ -1651,15 +1744,34 @@ const UNITS=[
    {t:'match',q:'Match the window to its shape.',pairs:[['Tumbling','Fixed, non-overlapping'],['Hopping','Fixed, overlapping'],['Session','Bounded by an activity gap']]},
    {t:'mcq',q:'Which window groups events by gaps of inactivity?',o:['tumbling','hopping','session','global'],a:2,why:'A session window closes after a period of no events for that key.'},
    {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
+  ]},
+  {id:'batch-3',title:'Architectures & tiering',steps:[
+   {t:'teach',h:'Lambda vs Kappa',body:[
+     {k:'vs',a:{h:'Lambda',t:'two paths — a batch layer for accurate, reprocessable results + a speed layer for fresh approximate ones; serving merges them. Powerful, but you maintain TWO codebases.'},b:{h:'Kappa',t:'one streaming path; reprocess by replaying the log. Simpler — one codebase — if streaming alone meets accuracy needs.'}},
+     {k:'note',t:'Kappa is the modern default when your stream processor can replay; Lambda lingers where batch tools are much cheaper/more accurate for the bulk path.'}
+   ]},
+   {t:'teach',h:'Data lifecycle tiering',body:[
+     {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD/in-memory/standard object).'},
+     {k:'point',i:'🌤️',t:'<b>Warm</b>: occasional access — cheaper, slower (infrequent-access tiers).'},
+     {k:'point',i:'🧊',t:'<b>Cold</b>: rarely read, keep for compliance — cheapest, slow retrieval (Glacier/archive).'},
+     {k:'note',t:'Lifecycle policies age data hot → warm → cold automatically; time-series/logs are the classic case.'}
+   ]},
+   {t:'mcq',q:'Kappa architecture differs from Lambda by…',o:['using two code paths','using one streaming path and replaying to reprocess','dropping streaming','requiring a warehouse'],a:1,why:'Kappa keeps a single streaming codebase and reprocesses by replaying the log; Lambda maintains separate batch + speed layers.'},
+   {t:'cloze',q:'Fill the tiering blanks.',distract:['shard','quorum'],text:[
+     {blank:'Lambda',alt:['lambda']},' runs batch + speed layers; ',{blank:'Kappa',alt:['kappa']},' uses one stream and ',{blank:'replays',alt:['replay']},' to reprocess. Aging data flows ',{blank:'hot',alt:['hot-warm-cold']},' → warm → cold to cut cost.'
+   ]},
+   {t:'recall',q:'Lambda vs Kappa, and how does data tiering save cost?',model:['Lambda: a batch layer (accurate, reprocessable) plus a speed layer (fresh, approximate), merged at serving — but two codebases.','Kappa: one streaming pipeline; reprocess by replaying the log — simpler when streaming meets accuracy needs.','Tiering ages data hot → warm → cold (e.g. SSD → infrequent-access → Glacier) via lifecycle policies, paying less for rarely-read data.']}
   ]}
  ],
- boss:{title:'Batch & Stream Boss',time:70,q:[
+ boss:{title:'Batch & Stream Boss',time:80,q:[
    {q:'Reduce runs after…',o:['the map + shuffle','the output','nothing','a window'],a:0},
    {q:'Dataflow engines beat MapReduce by…',o:['using SQL','not materializing every step','skipping reduce','avoiding joins'],a:1},
    {q:'Prefer which clock for stream windows?',o:['processing time','event time','wall clock','NTP'],a:1},
    {q:'A tumbling window is…',o:['overlapping','fixed + non-overlapping','gap-based','infinite'],a:1},
    {q:'Watermarks handle…',o:['hot keys','late events','encryption','sharding'],a:1},
-   {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1}
+   {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1},
+   {q:'Kappa architecture uses…',o:['batch + speed layers','one streaming path, replay to reprocess','no streaming','a warehouse only'],a:1},
+   {q:'Rarely-read compliance data belongs in a…',o:['hot tier','cold/archive tier','cache','queue'],a:1}
  ]}
 },
 {
