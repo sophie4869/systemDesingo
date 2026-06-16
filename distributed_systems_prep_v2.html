@@ -1980,7 +1980,7 @@ function renderHome(){
 var R=null; // active run state
 function startLesson(id){
   const {u,l}=lessonById(id);
-  const t=Math.max(90,l.steps.length*20); // ~20s/step, min 90s — adds time pressure
+  const t=Math.max(150,l.steps.length*35); // ~35s/step, min 150s — mild pressure, still time to read
   R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
   startTimer();
   renderStep();
