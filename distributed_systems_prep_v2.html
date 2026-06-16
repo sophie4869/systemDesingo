@@ -94,6 +94,14 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .lesson{padding:0}
 .lhead{display:flex;align-items:center;gap:12px;padding:14px 18px}
 .lhead .close{font-size:26px;color:var(--faint);font-weight:900;width:30px}
+.lback{font-size:22px;color:var(--muted);font-weight:900;width:24px;background:none;border:none;cursor:pointer;padding:0}
+.lback:hover{color:var(--blue)}
+.rev-list{font-size:15px;font-weight:700;color:var(--ink);line-height:1.7;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:11px 14px}
+.rev-list>div{padding:3px 0}
+.rev-list b{color:var(--blue-d)}
+.rev-note{margin-top:10px;font-size:13px;color:var(--muted);font-weight:700;background:var(--green-bg);border-radius:10px;padding:9px 12px}
+.rev-fill{font-size:16px;font-weight:700;line-height:1.9;color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:12px 14px}
+.rev-fill b{color:var(--green-d)}
 .pbar{flex:1;height:16px;background:var(--line);border-radius:10px;overflow:hidden}
 .pbar > i{display:block;height:100%;background:var(--green);border-radius:10px;transition:width .35s}
 .lhearts{color:var(--red);font-weight:900;display:flex;align-items:center;gap:3px}
@@ -384,10 +392,11 @@ const UNITS=[
    {t:'teach',h:'Fixing drift',body:[
      {k:'keyt',term:'Read repair',def:'fix stale replicas when a read notices a mismatch.'},
      {k:'keyt',term:'Anti-entropy',def:'a background job that reconciles replicas constantly.'},
+     {k:'point',i:'🔑',t:'Each leaf hashes the <b>key + value/version</b> in its range — not just the key (all replicas share the same keys, so that would never reveal a diff).'},
      {k:'point',i:'🌳',t:'<b>Merkle trees</b>: equal root hash → identical (O(1)); otherwise descend only mismatching branches — finding one divergent range is ~log-depth, and the work grows with the number of differing ranges (no full O(N) scan when few keys differ).'}
    ]},
    {t:'build',q:'Pick the tools an AP store uses to converge replicas.',options:['Read repair','Two-phase commit','Anti-entropy','Merkle trees','A single global lock'],correct:[0,2,3]},
-   {t:'recall',q:'How does a Merkle tree make anti-entropy cheap?',model:['Each leaf hashes a key range; parents hash their children.','It cheaply narrows the changed ranges: equal roots are O(1), descending to one divergent range is roughly logarithmic.','Many differences cost proportional work — but you never full-scan when only a few keys differ.']}
+   {t:'recall',q:'How does a Merkle tree make anti-entropy cheap?',model:['Each leaf hashes the DATA in a key range — the keys AND their values/versions (hashing just the key is useless: all replicas hold the same keys). Parents hash their children up to a root.','It cheaply narrows the changed ranges: equal roots are O(1), descending to one divergent range is roughly logarithmic.','Many differences cost proportional work — but you never full-scan when only a few keys differ.']}
   ]},
   {id:'repl-4',title:'Replication-lag bugs',steps:[
    {t:'teach',h:'Async lag breaks reads',body:[
@@ -1540,20 +1549,20 @@ function renderHome(){
 var R=null; // active run state
 function startLesson(id){
   const {u,l}=lessonById(id);
-  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
   renderStep();
 }
 function startBoss(uid){
   const u=UNITS.find(x=>x.id===uid);
   const steps=shuffle(u.boss.q).map(q=>({t:'mcq',q:q.q,o:q.o,a:q.a,boss:true}));
-  R={mode:'boss',unit:u,bossTitle:u.boss.title,steps,idx:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:u.boss.time,timeLeft:u.boss.time};
+  R={mode:'boss',unit:u,bossTitle:u.boss.title,steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:u.boss.time,timeLeft:u.boss.time};
   startTimer();
   renderStep();
 }
 function startReview(){
   const steps=shuffle(Object.values(S.mistakes)).slice(0,15);
   if(!steps.length){toast('No mistakes to review — nice! 🎉');return;}
-  R={mode:'review',unit:{id:'review'},steps,idx:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  R={mode:'review',unit:{id:'review'},steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
   renderStep();
 }
 
@@ -1573,8 +1582,10 @@ function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
   let right='';
   if(R.mode==='boss'){right='<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>';}
+  const back=(R.idx>0&&R.mode!=='boss')?'<button class="lback" id="backBtn" title="Previous">←</button>':'';
   return '<div class="lhead">'
     +'<button class="close" id="quitBtn">×</button>'
+    +back
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
     +'<div class="lhearts">❤️ '+R.hearts+'</div>'
     +right+'</div>';
@@ -1587,16 +1598,32 @@ function renderStep(){
   h+='<div class="combo" id="combo"></div>';
   APP().innerHTML=h;
   document.getElementById('quitBtn').onclick=()=>{stopTimer();if(confirm('Quit this quest? Progress in it will be lost.'))renderHome();else if(R.mode==='boss')startTimer();};
+  const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const stage=document.getElementById('stage');
-  ({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze}[step.t])(stage,step);
+  if(R.idx<R.frontier){renderReview(stage,step);}
+  else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze}[step.t])(stage,step);}
   try{window.scrollTo(0,0);}catch(e){}
+}
+function backStep(){if(R.idx>0){R.idx--;renderStep();}}
+function renderReview(stage,step){
+  let h='<div class="q-sub">↩ Review (already answered)</div>';
+  if(step.t==='teach'){h+='<div class="q-title">'+step.h+'</div>';step.body.forEach(b=>h+=blockHTML(b));}
+  else if(step.t==='mcq'){h+='<div class="q-title">'+step.q+'</div><div class="opts">';step.o.forEach((o,i)=>{h+='<div class="opt '+(i===step.a?'correct':'dim')+'">'+o+'</div>';});h+='</div>';if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
+  else if(step.t==='sort'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map(it=>'<div>'+it.text+' → <b>'+step.buckets[it.b]+'</b></div>').join('')+'</div>';}
+  else if(step.t==='match'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.pairs.map(p=>'<div>'+p[0]+' &nbsp;↔&nbsp; <b>'+p[1]+'</b></div>').join('')+'</div>';}
+  else if(step.t==='order'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map((t,n)=>'<div><b>'+(n+1)+'.</b> '+t+'</div>').join('')+'</div>';}
+  else if(step.t==='build'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.correct.map(i=>'<div>✓ '+step.options[i]+'</div>').join('')+'</div>';}
+  else if(step.t==='cloze'){h+='<div class="q-title">'+(step.q||'')+'</div><div class="rev-fill">'+step.text.map(t=>typeof t==='string'?t:'<b>'+t.blank+'</b>').join('')+'</div>';}
+  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div><div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
+  stage.innerHTML=h;
+  footBtn('Next →',nextStep);
 }
 
 function showCombo(){
   if(R.combo>=2){const c=document.getElementById('combo');if(c){c.textContent='🔥 '+R.combo+' combo!';c.classList.add('show');setTimeout(()=>c.classList.remove('show'),900);}}
 }
 
-function nextStep(){R.idx++;renderStep();}
+function nextStep(){R.idx++;if(R.idx>R.frontier)R.frontier=R.idx;renderStep();}
 
 /* feedback bar + advance */
 function feedback(ok,msg,onNext){
@@ -1894,6 +1921,7 @@ function keyAction(e){
   if(tag==='INPUT'||tag==='TEXTAREA')return; // let typing work (recall textarea)
   const k=e.key;
   if(k==='Escape'){const q=document.getElementById('quitBtn');if(q){q.click();e.preventDefault();}return;}
+  if(k==='Backspace'){const b=document.getElementById('backBtn');if(b){b.click();e.preventDefault();}return;}
   // recall self-grade after reveal: 1=Nailed, 2=Partly, 3=Missed
   const grades=document.querySelectorAll('.gradebtns [data-g]');
   if(grades.length){const map={'1':'2','2':'1','3':'0'};if(map[k]){const b=document.querySelector('.gradebtns [data-g="'+map[k]+'"]');if(b){b.click();e.preventDefault();}}return;}
