@@ -955,6 +955,23 @@ const UNITS=[
    {t:'teach',h:'Write strategies',body:[
      {k:'vs',a:{h:'Write-through',t:'write cache + DB together. Always warm, but slower + write pollution.'},b:{h:'Write-behind',t:'write cache now, flush DB later. Fast, but a crash loses data.'}}
    ]},
+   {t:'htmlviz',h:'Caching strategy trade-offs',
+    html:`<style>
+.cmx{width:100%;border-collapse:collapse;table-layout:fixed}
+.cmx th{text-align:left;padding:6px 4px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:10px}
+.cmx td{padding:7px 4px;border-bottom:1px solid var(--color-border-tertiary);font-size:11px}
+.cmx .rh{font-weight:800;color:var(--color-text-primary);font-size:11.5px}
+.cmx .g{color:var(--color-text-success);font-weight:700}
+.cmx .w{color:var(--color-text-warning);font-weight:700}
+.cmx .b{color:var(--color-text-danger);font-weight:700}
+</style>
+<table class="cmx"><thead><tr><th style="width:23%">Strategy</th><th>Write lat</th><th>Read lat</th><th>Consist.</th><th>Complex.</th><th>Data loss</th></tr></thead><tbody>
+<tr><td class="rh">Cache-aside</td><td class="g">low</td><td class="w">miss→slow</td><td class="w">TTL/stale</td><td class="g">low</td><td class="g">none</td></tr>
+<tr><td class="rh">Write-through</td><td class="b">high</td><td class="g">warm</td><td class="g">strong</td><td class="w">medium</td><td class="g">none</td></tr>
+<tr><td class="rh">Write-back</td><td class="g">lowest</td><td class="g">warm</td><td class="w">lags DB</td><td class="b">high</td><td class="b">risk</td></tr>
+</tbody></table>`},
+   {t:'match',q:'Constraint → best cache strategy.',pairs:[['Read-heavy, staleness OK, keep it simple','Cache-aside'],['Reads must be fresh + zero data loss','Write-through'],['Write-heavy, latency-critical, can lose recent writes','Write-back']]},
+   {t:'mcq',q:'A like-counter takes massive writes; instant writes matter and losing a few on a crash is fine. Best cache strategy?',o:['cache-aside','write-through','write-back','no cache'],a:2,why:'Write-back acks from cache immediately (lowest write latency); the small crash-loss risk is acceptable for like counts.'},
    {t:'sort',q:'Consistent or fast-but-risky?',buckets:['Consistent','Fast/risky'],items:[
      {text:'write-through',b:0},{text:'write-behind',b:1}
    ]},
@@ -1010,7 +1027,9 @@ const UNITS=[
    {q:'Jittered TTLs help by…',o:['saving memory','spreading expirations','encrypting','evicting LRU'],a:1},
    {q:'Bloom filters have no…',o:['false positives','false negatives','memory use','hashing'],a:1},
    {q:'Evicting the coldest-by-recency entry is…',o:['LFU','LRU','FIFO','random'],a:1},
-   {q:'A pull CDN fetches from origin…',o:['never','on first miss, then caches','every request','only at night'],a:1}
+   {q:'A pull CDN fetches from origin…',o:['never','on first miss, then caches','every request','only at night'],a:1},
+   {q:'Write-heavy, instant writes, OK to lose a few on crash →',o:['cache-aside','write-through','write-back','no cache'],a:2},
+   {q:'Reads must be fresh with no data loss →',o:['cache-aside','write-through','write-back','TTL only'],a:1}
  ]}
 },
 {
@@ -1961,16 +1980,37 @@ const UNITS=[
    ]},
    {t:'mcq',q:'Feed delivery for a celebrity with 50M followers — fanout on write or read?',o:['pure fanout-on-write','fanout-on-read / hybrid for celebrities','neither','sharding'],a:1,why:'Pushing one post to 50M timelines is too expensive; pull/merge celebrity posts at read time (hybrid).'},
    {t:'recall',q:'How do you choose a database in an interview?',model:['State the access pattern and consistency need first ("read-heavy key lookups, eventual is fine").','Then name the store and justify: "so a wide-column KV like Cassandra fits." The justification is what’s graded.']}
+  ]},
+  {id:'decide-3',title:'Signal → strategy',steps:[
+   {t:'teach',h:'Train the reflex',body:[
+     {k:'tldr',t:'Interviews reward a fast, justified jump from a constraint to a strategy. Learn the trigger → tool reflexes.'},
+     {k:'point',i:'🌍',t:'Users worldwide + static/media → <b>CDN / edge cache</b>. Read-heavy → <b>replicas + cache</b>. Hot key → <b>dedicated cache / fanout-on-read</b>.'},
+     {k:'point',i:'🌊',t:'Spiky or slow work → <b>queue (async buffer)</b>. Wrong/stale answer unacceptable → <b>CP / strong consistency</b>.'}
+   ]},
+   {t:'match',q:'Signal → first-reach strategy.',pairs:[['Users across continents, static assets','CDN / edge cache'],['Read:write ≈ 100:1, staleness OK','Cache + read replicas'],['10× launch-day traffic spike','Queue + autoscale (async)'],['Must never double-charge on retry','Idempotency key'],['Celebrity key — 90% of reads','Fanout-on-read / dedicated cache']]},
+   {t:'sort',q:'Strong consistency (CP) or availability-first (AP)?',buckets:['CP (strong)','AP (available)'],items:[
+     {text:'payment / account balance',b:0},{text:'social feed',b:1},{text:'inventory decrement',b:0},{text:'view counts',b:1}
+   ]},
+   {t:'mcq',q:'Global users, media-heavy, reads dominate. First reach for…',o:['a bigger DB','a CDN / edge cache','more shards','a message queue'],a:1,why:'Geographically distributed, read-heavy static/media → cache at the edge near users (CDN).'},
+   {t:'mcq',q:'A burst of writes you can process within minutes, not seconds. Best fit?',o:['synchronous write path','a queue to buffer + async workers','a bigger cache','a distributed lock'],a:1,why:'Decouple the spike: enqueue and process asynchronously so the front-end stays responsive.'},
+   {t:'mcq',q:'Reads dominate 100:1 and brief staleness is fine. Cheapest scale move?',o:['shard the writes','cache + read replicas','switch to NoSQL','add a queue'],a:1,why:'Read-heavy + staleness-tolerant → serve from cache and read replicas before anything more invasive.'},
+   {t:'cloze',q:'Fill the reflexes.',distract:['shard','lock'],text:[
+     'Worldwide static content → ',{blank:'CDN',alt:['edge','edge cache']},'. Read-heavy with tolerable staleness → ',{blank:'cache',alt:['caching']},
+     ' + replicas. Spiky/slow work → a ',{blank:'queue',alt:['message queue']},'. Money/inventory → ',{blank:'CP',alt:['strong']},' (strong consistency).'
+   ]},
+   {t:'recall',q:'Fire 4 signal→strategy reflexes you can use in an interview.',model:['Global users + static/media → CDN/edge cache near users.','Read-heavy, staleness OK → cache + read replicas; hot key → dedicated cache / fanout-on-read.','Spiky or slow work → queue + async workers to smooth the load.','Wrong/stale answer unacceptable (money, inventory) → CP/strong consistency; otherwise AP for availability + latency.']}
   ]}
  ],
- boss:{title:'Decisions Boss',time:75,q:[
+ boss:{title:'Decisions Boss',time:85,q:[
    {q:'Orders + payments need…',o:['NoSQL for scale','SQL (transactions/joins)','a cache','a queue'],a:1},
    {q:'You need replay + multiple subscribers →',o:['a queue (SQS)','a log (Kafka)','a cache','a cron'],a:1},
    {q:'Hot-key sub-ms reads →',o:['read replica','cache','bigger DB','sharding'],a:1},
    {q:'Slow heavy work with spikes →',o:['sync call','async + queue','a lock','a join'],a:1},
    {q:'Account balance needs…',o:['eventual','strong consistency','a cache TTL','LWW'],a:1},
    {q:'Full-text search →',o:['Postgres LIKE','Elasticsearch','a graph DB','Redis'],a:1},
-   {q:'Celebrity feed fanout →',o:['write to all 50M','read-time / hybrid','no fanout','a cron'],a:1}
+   {q:'Celebrity feed fanout →',o:['write to all 50M','read-time / hybrid','no fanout','a cron'],a:1},
+   {q:'Global users + static media → first reach for…',o:['a CDN / edge cache','more shards','a queue','a lock'],a:0},
+   {q:'A 10× write spike you can process later → use…',o:['a sync path','a queue + async workers','a bigger cache','2PC'],a:1}
  ]}
 },
 {
