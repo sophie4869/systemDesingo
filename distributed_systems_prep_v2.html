@@ -148,6 +148,8 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .pbar{flex:1;height:16px;background:var(--line);border-radius:10px;overflow:hidden}
 .pbar > i{display:block;height:100%;background:var(--green);border-radius:10px;transition:width .35s}
 .lhearts{color:var(--red);font-weight:900;display:flex;align-items:center;gap:3px}
+.lskip{font:inherit;font-weight:800;font-size:12px;color:var(--color-text-tertiary);background:none;border:none;cursor:pointer;padding:4px 4px;white-space:nowrap}
+.lskip:hover{color:var(--color-text-secondary)}
 .timer{font-weight:900;color:var(--ink);display:flex;align-items:center;gap:4px}
 .timer.low{color:var(--red)}
 .timer.paused{color:var(--faint);font-weight:700}
@@ -2904,6 +2906,8 @@ function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
 
 function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
+  const curStep=R.steps[R.idx];
+  const canSkip=(R.idx>=R.frontier)&&curStep&&isQuizStep(curStep.t);
   let right='';
   if(R.timeLeft!=null){
     const step=R.steps[R.idx];
@@ -2918,7 +2922,9 @@ function topbarHTML(){
     +back
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
     +'<div class="lhearts">❤️ '+R.hearts+'</div>'
-    +right+'</div>';
+    +right
+    +(canSkip?'<button class="lskip" id="skipBtn" title="Skip this question — it won’t count toward your score">Skip →</button>':'')
+    +'</div>';
 }
 
 function renderStep(){
@@ -2929,6 +2935,7 @@ function renderStep(){
   APP().innerHTML=h;
   document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome(true);return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome(true);else startTimer();};
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
+  const sk=document.getElementById('skipBtn');if(sk)sk.onclick=skipStep;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
   else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz,htmlviz:stHtmlViz}[step.t])(stage,step);}
@@ -2936,6 +2943,7 @@ function renderStep(){
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
+function skipStep(){toast('⏭ Skipped — not scored');nextStep();}
 function renderReview(stage,step){
   if(step.t==='vecviz'){stVecViz(stage,step);return;}
   if(step.t==='htmlviz'){stHtmlViz(stage,step);return;}
