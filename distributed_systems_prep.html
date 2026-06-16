@@ -956,18 +956,18 @@ Read  &rarr;                              TAIL</div>
           <table class="matrix">
             <thead><tr>
               <th style="width:28%">Isolation level</th>
-              <th style="width:14.4%">Dirty read</th><th style="width:14.4%">Dirty write</th>
-              <th style="width:14.4%">Read skew</th><th style="width:14.4%">Lost update</th><th style="width:14.4%">Write skew</th>
+              <th style="width:12%">Dirty read</th><th style="width:12%">Dirty write</th>
+              <th style="width:12%">Read skew</th><th style="width:12%">Phantom</th><th style="width:12%">Lost update</th><th style="width:12%">Write skew</th>
             </tr></thead>
             <tbody>
-              <tr><td class="level">Read uncommitted</td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
-              <tr class="hl"><td class="level">Read committed</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
-              <tr><td class="level">Snapshot isolation</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="m">~</span></td><td><span class="n">✕</span></td></tr>
-              <tr class="hl"><td class="level">Serializable</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
+              <tr><td class="level">Read uncommitted</td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
+              <tr class="hl"><td class="level">Read committed</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td><td><span class="n">✕</span></td></tr>
+              <tr><td class="level">Snapshot isolation</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="m">~</span></td><td><span class="n">✕</span></td></tr>
+              <tr class="hl"><td class="level">Serializable</td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td></tr>
             </tbody>
           </table>
           <div class="matrix-legend"><span><span class="y">✓</span> prevented</span><span><span class="n">✕</span> vulnerable</span><span><span class="m">~</span> depends on DB</span></div>
-          <p>Snapshot Isolation (MVCC) is what most databases actually implement when they say "Repeatable Read." It cheaply prevents dirty reads and non-repeatable reads, but it allows write skew — two concurrent transactions both read the same snapshot, each makes a decision based on it, and together their commits violate a constraint that either one alone would have caught. Serializable Snapshot Isolation (SSI) detects and aborts these conflicting transactions.</p>
+          <p>Snapshot Isolation (MVCC) is what most databases actually implement when they say "Repeatable Read." It cheaply prevents dirty reads, non-repeatable reads, and phantom <em>reads</em> (a re-run query sees the same snapshot), but it allows write skew — two concurrent transactions both read the same snapshot, each makes a decision based on it, and together their commits violate a constraint that either one alone would have caught. Serializable Snapshot Isolation (SSI) detects and aborts these conflicting transactions.</p>
           <div class="note warn"><strong>Naming trap:</strong> isolation level names are not standardized across vendors. PostgreSQL's "Serializable" used to mean Snapshot Isolation; its "Repeatable Read" is also SI. Always reason about which <em>anomalies</em> are prevented — don't trust the label name.</div>
           <div class="tag-row"><span class="tag">MVCC</span><span class="tag">SSI</span><span class="tag">write skew</span></div>
         </div>
@@ -981,7 +981,7 @@ Read  &rarr;                              TAIL</div>
           <tr><td>Dirty read</td><td>You read another txn's uncommitted write</td><td>Read Committed</td></tr>
           <tr><td>Dirty write</td><td>You overwrite another txn's uncommitted write</td><td>Read Committed (row locks)</td></tr>
           <tr><td>Non-repeatable read (read skew)</td><td>Re-reading a row gives a different value mid-txn</td><td>Snapshot Isolation / Repeatable Read</td></tr>
-          <tr><td>Phantom</td><td>A query's result set gains or loses rows mid-txn</td><td>Serializable (predicate / index-range locks)</td></tr>
+          <tr><td>Phantom</td><td>A query's result set gains or loses rows mid-txn</td><td>Snapshot Isolation (snapshot read); predicate / index-range locks under 2PL</td></tr>
           <tr><td>Lost update</td><td>Two read-modify-write cycles; one silently clobbers the other</td><td>Atomic op, SELECT … FOR UPDATE, or compare-and-set</td></tr>
           <tr><td>Write skew</td><td>Two txns read an overlapping set, write disjoint rows, together breaking an invariant</td><td>Serializable / SSI (or materialize the conflict)</td></tr></table>
           <p><strong>Lost update vs write skew:</strong> lost update is two writes to the <em>same</em> object; write skew is two writes to <em>different</em> objects that jointly violate a constraint — e.g. two on-call doctors each clock off because each sees the other still on duty.</p>

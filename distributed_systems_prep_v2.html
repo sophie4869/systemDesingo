@@ -1121,7 +1121,7 @@ const UNITS=[
    {t:'teach',h:'Isolation levels',body:[
      {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads OR dirty writes (only committed data; you can’t overwrite an uncommitted write).'},
      {k:'point',i:'🔁',t:'<b>Repeatable read</b>: re-reading a row gives the same value.'},
-     {k:'point',i:'📸',t:'<b>Snapshot Isolation</b> (MVCC): each txn reads a consistent snapshot as of its start — kills dirty + non-repeatable reads, and readers never block writers. Its one gap: <b>write skew</b>.'},
+     {k:'point',i:'📸',t:'<b>Snapshot Isolation</b> (MVCC): each txn reads a consistent snapshot as of its start — no dirty/non-repeatable reads, readers never block writers, and a query won’t see <b>phantom rows</b> appear mid-txn. Its gap: <b>write skew</b> — including the phantom-driven kind (double-booking), which only Serializable/SSI stops.'},
      {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time — the only level that also stops write skew & phantoms.'},
      {k:'note',t:'<b>SSI</b> = optimistic serializable: it lets txns run, then aborts one when it detects a write-skew conflict (that’s what PostgreSQL’s Serializable does).'}
    ]},
@@ -1831,7 +1831,7 @@ const UNITS=[
 <tr><td class="anx-nm">Dirty read</td><td>Read another txn’s uncommitted write</td><td class="anx-fix">Read Committed</td></tr>
 <tr><td class="anx-nm">Dirty write</td><td>Overwrite another txn’s uncommitted write</td><td class="anx-fix">Read Committed (row locks)</td></tr>
 <tr><td class="anx-nm">Non-repeatable read <span style="font-weight:600">(read skew)</span></td><td>Re-reading a row gives a different value mid-txn</td><td class="anx-fix">Snapshot Isolation / Repeatable Read</td></tr>
-<tr><td class="anx-nm">Phantom</td><td>A query’s result set gains/loses rows mid-txn</td><td class="anx-fix">Serializable (predicate / index-range locks)</td></tr>
+<tr><td class="anx-nm">Phantom</td><td>A query’s result set gains/loses rows mid-txn</td><td class="anx-fix">Snapshot Isolation (snapshot read); predicate/index-range locks under 2PL</td></tr>
 <tr><td class="anx-nm">Lost update</td><td>Two read-modify-write cycles; one clobbers the other</td><td class="anx-fix">Atomic op, SELECT … FOR UPDATE, or CAS</td></tr>
 <tr><td class="anx-nm">Write skew</td><td>Two txns read an overlapping set, write disjoint rows, jointly breaking an invariant</td><td class="anx-fix">Serializable / SSI (or materialize the conflict)</td></tr>
 </tbody></table>`},
@@ -1858,11 +1858,11 @@ const UNITS=[
 .iso-leg{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--color-text-tertiary);flex-wrap:wrap}
 .iso-leg span{display:flex;align-items:center;gap:5px}
 </style>
-<table class="iso-tbl"><thead><tr><th style="width:30%">Isolation level</th><th>Dirty read</th><th>Dirty write</th><th>Read skew</th><th>Lost update</th><th>Write skew</th></tr></thead><tbody>
-<tr><td class="iso-lvl">Read uncommitted</td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr class="hl"><td class="iso-lvl">Read committed</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr><td class="iso-lvl">Snapshot isolation</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-m">~</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr class="hl"><td class="iso-lvl">Serializable</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td></tr>
+<table class="iso-tbl"><thead><tr><th style="width:26%">Isolation level</th><th>Dirty read</th><th>Dirty write</th><th>Read skew</th><th>Phantom</th><th>Lost update</th><th>Write skew</th></tr></thead><tbody>
+<tr><td class="iso-lvl">Read uncommitted</td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Read committed</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr><td class="iso-lvl">Snapshot isolation</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-m">~</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Serializable</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td></tr>
 </tbody></table>
 <div class="iso-leg"><span><span class="iso-y">✓</span> prevented</span><span><span class="iso-n">✕</span> vulnerable</span><span><span class="iso-m">~</span> depends on DB</span></div>`},
    {t:'htmlviz',h:'Phantom read → double booking',
