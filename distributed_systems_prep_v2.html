@@ -512,9 +512,29 @@ const UNITS=[
    ]},
    {t:'mcq',q:'A partitioned old leader keeps serving writes while a new one is elected. What stops the damage?',o:['a longer timeout','fencing tokens + majority election','more replicas','a bigger cache'],a:1,why:'Only a majority can elect (so the minority old leader can’t commit), and fencing/epoch numbers make storage reject its stale writes.'},
    {t:'recall',q:'What is split brain and how do you prevent it?',model:['Split brain = two nodes both believe they’re leader and accept writes (returning old leader, or a healed partition) → conflicts/corruption.','Prevent it: require a MAJORITY quorum to elect (a minority can’t form a second leader), and use fencing tokens / epoch numbers so storage rejects an old leader’s writes.','A leader lease helps too (the old leader self-demotes when it lapses) but only under bounded clock skew — fencing is the real safety net.']}
+  ]},
+  {id:'repl-chain',title:'Chain replication',steps:[
+   {t:'teach',h:'An ordered chain',body:[
+     {k:'tldr',t:'Replicas form an ordered chain. Writes enter at the HEAD and flow one way; reads come from the TAIL.'},
+     {k:'cause',a:'Write → HEAD → node → … → TAIL → ack',b:'Read ← TAIL only'},
+     {k:'point',i:'🔗',t:'A write is acked only once the <b>TAIL</b> has it. The tail therefore only ever sees fully-propagated writes → reads from it are <b>linearizable</b>.'}
+   ]},
+   {t:'teach',h:'Why bother',body:[
+     {k:'point',i:'⚖️',t:'Load splits: the <b>head</b> absorbs write ingestion, the <b>tail</b> serves reads — more throughput than routing everything through one leader.'},
+     {k:'point',i:'🛠️',t:'Clean recovery: head, middle, and tail each have a well-defined rule when a node dies.'},
+     {k:'callout',c:'warn',t:'Downside: a node failure <b>stalls the whole chain</b> until a separate control plane reconfigures it.'}
+   ]},
+   {t:'teach',h:'CRAQ — scaling reads',body:[
+     {k:'keyt',term:'CRAQ',def:'Chain Replication with Apportioned Queries — ANY node can serve reads. A clean node answers directly; a dirty node (holds an uncommitted version) asks the tail for the committed one.'},
+     {k:'point',i:'📈',t:'Read throughput now spreads across all nodes — without giving up linearizability.'},
+     {k:'note',t:'van Renesse & Schneider, 2004. Shows up in object stores / strongly-consistent KV layers.'}
+   ]},
+   {t:'mcq',q:'In plain chain replication, where do reads go to stay linearizable?',o:['the head','any replica','the tail','a random node'],a:2,why:'The tail only sees fully-propagated (committed) writes, so reading it is linearizable.'},
+   {t:'mcq',q:'How does CRAQ scale reads beyond just the tail?',o:['it caches at the head','any node serves reads; a dirty node checks the tail for the committed version','it drops linearizability','it adds more tails'],a:1,why:'Clean nodes answer directly; only dirty nodes consult the tail — so all nodes share read load without losing linearizability.'},
+   {t:'recall',q:'Explain chain replication and what CRAQ adds.',model:['Replicas form an ordered chain: writes enter at the head, propagate node-by-node, and ack only once the tail has them; reads come from the tail → linearizable.','It splits load (head ingests writes, tail serves reads) with clean per-node recovery — but a node failure stalls the chain until a control plane reconfigures it.','CRAQ lets any node serve reads (clean node answers directly, dirty node asks the tail for the committed version), so reads scale without losing linearizability.']}
   ]}
  ],
- boss:{title:'Replication Boss',time:120,q:[
+ boss:{title:'Replication Boss',time:130,q:[
    {q:'Most common replication topology?',o:['Multi-leader','Single-leader','Leaderless','No replication'],a:1},
    {q:'Async replication mainly risks…',o:['latency','data loss on crash','storage','deadlock'],a:1},
    {q:'W+R>N guarantees…',o:['lower latency','read/write set overlap','no conflicts','strong order'],a:1},
@@ -526,7 +546,9 @@ const UNITS=[
    {q:'Statement-based replication breaks on…',o:['inserts','NOW()/RAND() non-determinism','reads','indexes'],a:1},
    {q:'Gossip spreads membership in…',o:['O(N)','O(log N)','O(1)','never'],a:1},
    {q:'Concurrent writes are detected with…',o:['LWW','version vectors','TTL','a cache'],a:1},
-   {q:'Split brain is prevented by…',o:['longer timeouts','majority election + fencing','more replicas','a bigger cache'],a:1}
+   {q:'Split brain is prevented by…',o:['longer timeouts','majority election + fencing','more replicas','a bigger cache'],a:1},
+   {q:'Chain replication serves linearizable reads from…',o:['the head','the tail','any node','a cache'],a:1},
+   {q:'CRAQ’s trick is…',o:['more tails','any node serves reads; dirty nodes ask the tail','dropping consistency','sharding the head'],a:1}
  ]}
 },
 {
