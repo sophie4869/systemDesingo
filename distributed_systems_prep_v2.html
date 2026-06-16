@@ -755,9 +755,36 @@ const UNITS=[
      ' so liars get ',{blank:'outvoted',alt:['out-voted','outvote']},'. ',{blank:'PBFT',alt:['pbft']},' made BFT practical with a three-phase protocol.'
    ]},
    {t:'recall',q:'Crash vs Byzantine faults — and when do you need BFT?',model:['Crash fault: a node simply stops responding — Raft/Paxos handle this with a 2f+1 majority.','Byzantine fault: a node behaves arbitrarily (lies, sends conflicting messages, is compromised), needing 3f+1 so honest nodes outvote the liars; PBFT and blockchain protocols (Tendermint, HotStuff, PoW) make it workable.','In practice you rarely need BFT inside a trusted datacenter — reach for it only across trust boundaries (blockchains, multi-org systems).']}
+  ]},
+  {id:'raft-zk',title:'Paxos & ZooKeeper internals',steps:[
+   {t:'teach',h:'Paxos: two phases',body:[
+     {k:'point',i:'1️⃣',t:'<b>Phase 1 — Prepare(n)</b>: proposer picks ballot number n, asks a majority to PROMISE not to accept anything lower — and to report the highest-ballot value they’ve already accepted.'},
+     {k:'point',i:'2️⃣',t:'<b>Phase 2 — Accept(n,v)</b>: proposer sends value v — its own, OR the highest accepted value it heard in Phase 1 (it MUST reuse that if one exists). Acceptors accept unless they’ve since promised a higher ballot.'},
+     {k:'note',t:'That’s single-decree Paxos — agreement on ONE value. The "reuse the highest already-accepted value" rule is exactly what keeps it safe.'}
+   ]},
+   {t:'teach',h:'Multi-Paxos & why Raft won',body:[
+     {k:'point',i:'📚',t:'<b>Multi-Paxos</b>: elect a stable leader, then SKIP Phase 1 for later entries — amortising election cost across many writes (a replicated log).'},
+     {k:'callout',c:'warn',t:'Most new systems pick Raft instead: Paxos has tricky edge cases around leader crashes between phases, and the original paper famously leaves out implementation detail.'}
+   ]},
+   {t:'mcq',q:'In Paxos Phase 2, which value does the proposer send?',o:['always its own','the highest-ballot value any acceptor already accepted, if one exists','a random value','the lowest ballot'],a:1,why:'If Phase 1 surfaced an already-accepted value, the proposer must reuse it — that’s what preserves agreement across rounds.'},
+   {t:'teach',h:'ZAB & zxid',body:[
+     {k:'point',i:'📡',t:'<b>ZAB</b> (ZooKeeper Atomic Broadcast): leader-based total-order broadcast, designed to recover a consistent log <b>prefix</b> after a leader change.'},
+     {k:'keyt',term:'zxid',def:'a 64-bit transaction id = epoch:counter. Epoch bumps on each new leader; counter bumps per write. Gives a global total order and doubles as a fencing token.'}
+   ]},
+   {t:'teach',h:'Building with ZooKeeper',body:[
+     {k:'point',i:'🌳',t:'Exposes a hierarchical KV of <b>znodes</b> with <b>watches</b> (notify on change), <b>ephemeral</b> nodes (auto-deleted when the session dies), and <b>sequential</b> nodes.'},
+     {k:'point',i:'🧰',t:'From just those primitives you build leader election, distributed locks, config, and service discovery.'},
+     {k:'callout',c:'warn',t:'Reads aren’t linearizable by default — a follower can serve stale data. Call <b>sync()</b> before a read (or read from the leader) when you need a fresh value; writes always go through the leader.'}
+   ]},
+   {t:'mcq',q:'Which ZooKeeper primitive best fits leader election?',o:['a durable znode','an ephemeral + sequential znode','a watch alone','a range scan'],a:1,why:'Ephemeral sequential znodes vanish when a node’s session dies and carry an order — lowest sequence number wins, and watches notify the next in line.'},
+   {t:'cloze',q:'Fill the ZooKeeper blanks.',distract:['durable','range'],text:[
+     {blank:'Ephemeral',alt:['ephemeral']},' znodes vanish when the session dies (great for leader election); ',{blank:'watches',alt:['watch']},
+     ' notify you on change. A zxid is ',{blank:'epoch',alt:['epoch:counter']},':counter and doubles as a fencing token.'
+   ]},
+   {t:'recall',q:'Sketch Paxos, and how ZooKeeper turns consensus into a toolkit.',model:['Paxos: Phase 1 Prepare(n) gets a majority to promise + report any accepted value; Phase 2 Accept(n,v) commits a value, reusing an already-accepted one if it exists. Multi-Paxos keeps a stable leader and skips Phase 1 per entry.','ZooKeeper runs ZAB (atomic broadcast) underneath; zxid (epoch:counter) gives total order plus a fencing token.','It exposes znodes + watches + ephemeral/sequential nodes; from those you build locks, leader election, config, and discovery. Reads can be stale — sync() before a read for freshness.']}
   ]}
  ],
- boss:{title:'Consensus Boss',time:95,q:[
+ boss:{title:'Consensus Boss',time:105,q:[
    {q:'Consensus powers all EXCEPT…',o:['leader election','replicated logs','distributed locks','image compression'],a:3},
    {q:'Consensus is fault-tolerant (vs 2PC) because it needs…',o:['every vote','a majority quorum','no coordinator','zero clocks'],a:1},
    {q:'Paxos, Raft and ZAB are…',o:['caches','the same consensus family','load balancers','clocks'],a:1},
@@ -770,7 +797,10 @@ const UNITS=[
    {q:'A partitioned old leader risks…',o:['fast reads','serving stale reads','double commits','nothing'],a:1},
    {q:'Safe linearizable reads use…',o:['any follower','read-index or lease','random nodes','no method'],a:1},
    {q:'Tolerating f Byzantine (lying) nodes needs…',o:['f+1','2f+1','3f+1','2f'],a:2},
-   {q:'You actually need BFT…',o:['always','inside one datacenter','across trust boundaries','for any cache'],a:2}
+   {q:'You actually need BFT…',o:['always','inside one datacenter','across trust boundaries','for any cache'],a:2},
+   {q:'Paxos Phase 2 must reuse…',o:['its own value always','any already-accepted value','the lowest ballot','nothing'],a:1},
+   {q:'ZooKeeper leader election uses…',o:['durable znodes','ephemeral sequential znodes','watches only','a range scan'],a:1},
+   {q:'A ZooKeeper zxid is structured as…',o:['a random UUID','epoch:counter','a timestamp','a hash'],a:1}
  ]}
 },
 {
@@ -910,15 +940,37 @@ const UNITS=[
    ]},
    {t:'mcq',q:'A Bloom filter can tell you with certainty that an item is…',o:['present','definitely NOT present','recently used','large'],a:1,why:'No false negatives: "no" is certain, "yes" is "maybe". Great to skip pointless disk reads.'},
    {t:'recall',q:'Name 2 ways to prevent a cache stampede.',model:['Mutex/lock so only the first miss rebuilds; others wait.','Jittered TTLs to spread expirations; or stale-while-revalidate to serve stale while refreshing.']}
+  ]},
+  {id:'cache-3',title:'Eviction & CDN',steps:[
+   {t:'teach',h:'Eviction policies',body:[
+     {k:'tldr',t:'A cache is bounded — when it’s full, something must go. The policy picks the victim.'},
+     {k:'point',i:'♻️',t:'<b>LRU</b> (least recently used): evict the coldest by recency — the common default.'},
+     {k:'point',i:'📊',t:'<b>LFU</b> (least frequently used): evict by access count — better under skewed popularity, but slower to adapt to changes.'},
+     {k:'note',t:'FIFO/random are simpler; TTL expiry is orthogonal. Many caches combine TTL + LRU.'}
+   ]},
+   {t:'mcq',q:'Cache is full; you drop the coldest-by-recency entry. That’s…',o:['LFU','LRU','FIFO','TTL'],a:1,why:'LRU evicts the least-recently-used key; LFU evicts by frequency, FIFO by insertion order.'},
+   {t:'teach',h:'CDN & edge caching',body:[
+     {k:'tldr',t:'Cache content at edge PoPs near users — cuts latency and offloads the origin.'},
+     {k:'vs',a:{h:'Pull CDN',t:'edge fetches from origin on first miss, then caches. Simple; first hit is slow.'},b:{h:'Push CDN',t:'you pre-upload/prewarm content to the edge. Good for large or predictable assets.'}},
+     {k:'point',i:'🧹',t:'Freshness: TTL / cache-control headers, plus <b>invalidate/purge</b> or version the URL (cache-busting) to push updates immediately.'}
+   ]},
+   {t:'mcq',q:'A pull CDN’s first request for an object…',o:['is the fastest','misses, fetches from origin, then caches','is rejected','is always stale'],a:1,why:'Pull CDNs lazily fetch on first miss and cache; later edge hits are fast.'},
+   {t:'cloze',q:'Fill the cache-edge blanks.',distract:['shard','quorum'],text:[
+     'When full, a cache evicts by a policy like ',{blank:'LRU',alt:['lru']},'. A ',{blank:'CDN',alt:['cdn']},
+     ' caches near users to cut latency; push fresh content by ',{blank:'invalidating',alt:['purge','purging','invalidate']},' or versioning the URL.'
+   ]},
+   {t:'recall',q:'LRU vs LFU, and pull vs push CDN?',model:['LRU evicts the least-recently-used entry (good default); LFU evicts by access frequency (better under skew, slower to adapt).','Pull CDN lazily fetches from origin on first miss then caches (simple, slow first hit); push CDN pre-loads content to the edge (good for big/predictable assets).','Keep CDN content fresh with TTLs plus invalidation/purge or URL versioning.']}
   ]}
  ],
- boss:{title:'Caching Boss',time:65,q:[
+ boss:{title:'Caching Boss',time:80,q:[
    {q:'Cache-aside consistency relies on…',o:['the TTL','2PC','quorums','nothing'],a:0},
    {q:'On a write you should…',o:['update the key','delete the key','ignore cache','lock the DB'],a:1},
    {q:'Write-behind risks…',o:['latency','data loss on crash','too consistent','no hits'],a:1},
    {q:'A cache stampede happens when…',o:['cache is empty','a hot key expires en masse','TTL is long','LRU runs'],a:1},
    {q:'Jittered TTLs help by…',o:['saving memory','spreading expirations','encrypting','evicting LRU'],a:1},
-   {q:'Bloom filters have no…',o:['false positives','false negatives','memory use','hashing'],a:1}
+   {q:'Bloom filters have no…',o:['false positives','false negatives','memory use','hashing'],a:1},
+   {q:'Evicting the coldest-by-recency entry is…',o:['LFU','LRU','FIFO','random'],a:1},
+   {q:'A pull CDN fetches from origin…',o:['never','on first miss, then caches','every request','only at night'],a:1}
  ]}
 },
 {
@@ -1039,6 +1091,11 @@ const UNITS=[
      {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
      {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'}
    ]},
+   {t:'teach',h:'Kafka internals',body:[
+     {k:'point',i:'👥',t:'<b>Consumer groups</b>: each partition is read by exactly ONE consumer in a group — so consumer parallelism is capped by partition count. Add partitions to scale out.'},
+     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): a partition has a leader + follower replicas; <code>acks=all</code> commits only once the ISR set has it — that’s the durability knob.'},
+     {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> instead keeps only the latest value per key.'}
+   ]},
    {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
      {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
    ]},
@@ -1052,6 +1109,7 @@ const UNITS=[
      ' messages — so consumers must be ',{blank:'idempotent'},'. True exactly-once over a network is ',{blank:'impossible'},'.'
    ]},
    {t:'mcq',q:'Kafka guarantees ordering…',o:['globally','within a partition only','never','per consumer'],a:1,why:'Order holds within a partition; pick the partition key to keep a key’s events ordered.'},
+   {t:'mcq',q:'In a Kafka consumer group, a partition is consumed by…',o:['every consumer','exactly one consumer in the group','the leader only','no one'],a:1,why:'One partition → one consumer per group, so consumer parallelism is bounded by the partition count.'},
    {t:'recall',q:'How do systems achieve "exactly-once" in practice?',model:['Use at-least-once delivery plus idempotent processing (or transactional offset+write).','Repeats become harmless, so the observable effect is exactly-once — much cheaper than true EO delivery.']}
   ]},
   {id:'msg-2',title:'Reliability',steps:[
@@ -1090,6 +1148,7 @@ const UNITS=[
    {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
    {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
    {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
+   {q:'Kafka consumer parallelism is capped by…',o:['brokers','partition count','replicas','topics'],a:1},
    {q:'The outbox pattern fixes…',o:['hot keys','dual-write inconsistency','stale reads','GC pauses'],a:1},
    {q:'Poison messages go to a…',o:['cache','dead-letter queue','replica','leader'],a:1},
    {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0},
