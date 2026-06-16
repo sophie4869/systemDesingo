@@ -2334,6 +2334,8 @@ function stRecall(stage,step){
     +'<div class="recall"><textarea id="ra" placeholder="Optional: jot your answer or say it aloud, then reveal."></textarea></div>';
   stage.innerHTML=h;
   footBtn('Reveal model answer',()=>{
+    stopTimer(); // self-graded from here — stop the clock while you read + judge
+    const tEl=document.querySelector('.timer');if(tEl)tEl.classList.add('paused');
     const m=document.createElement('div');m.className='model';
     m.innerHTML='<h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul>'
       +'<div class="gradebtns"><button class="btn" data-g="2">Nailed it</button><button class="btn blue" data-g="1">Partly</button><button class="btn grey" data-g="0">Missed</button></div>';
@@ -2341,7 +2343,7 @@ function stRecall(stage,step){
     clearFoot();
     m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
       const g=+b.dataset.g;
-      R.graded++;R.correct+= (g===2?1:0);
+      // recall is self-graded → excluded from the accuracy %, but still earns XP and tracks recallNailed
       R.xp+= (g===2?15:g===1?8:3);
       if(g===2){S.recallNailed=(S.recallNailed||0)+1;}
       // Partly / Missed → log for review; Nailed it → clears it from the review queue
