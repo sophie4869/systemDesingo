@@ -688,7 +688,7 @@ const UNITS=[
      {k:'cause',a:'Timeout fires → become candidate, vote self, ask others',b:'Win with a STRICT MAJORITY'},
      {k:'keyt',term:'Up-to-date check',def:'voters refuse a candidate whose log is behind → winner has all committed entries.'}
    ]},
-   {t:'order',q:'Put a Raft election in order.',items:['Heartbeats stop','Election timer isn’t reset → it elapses','It becomes a candidate & votes for itself','Others grant votes','Majority reached → new leader']},
+   {t:'order',q:'Put a Raft election in order.',items:['Heartbeats stop','It becomes a candidate & votes for itself','Others grant votes','Majority reached → new leader']},
    {t:'mcq',q:'A candidate becomes leader when it gets…',o:['the most recent log','votes from ALL nodes','a strict majority','the lowest id'],a:2,why:'Majority (quorum) wins; plus its log must be up-to-date.'},
    {t:'cloze',q:'Unmask the Raft election.',distract:['leader','minority'],text:[
      'A follower waits for ',{blank:'heartbeats'},'. After a randomised ',{blank:'timeout'},
@@ -727,7 +727,7 @@ const UNITS=[
    ]},
    {t:'teach',h:'The stale-leader trap',body:[
      {k:'callout',c:'warn',t:'An old leader partitioned away may still answer reads — returning STALE data.'},
-     {k:'vs',a:{h:'Lease read',t:'time-bounded "I’m still leader" — fast, needs clocks.'},b:{h:'Read index',t:'confirm leadership via a heartbeat quorum — safe, no clocks.'}}
+     {k:'vs',a:{h:'Lease read',t:'hold a time-bounded "I’m still leader" lease, then serve reads directly without checking. Fast — but trusts clocks (a pause/skew can make it stale).'},b:{h:'Read index',t:'before replying: note the current commit index, ping a heartbeat majority to confirm you’re STILL the leader, wait until that index is applied locally, then serve. Safe, no clocks.'}}
    ]},
    {t:'mcq',q:'Why can routing reads to "the leader" still be unsafe?',o:['leaders are slow','a stale partitioned leader serves old data','leaders can’t read','followers are faster'],a:1,why:'Use leases or the read-index trick to confirm current leadership.'},
    {t:'build',q:'Pick valid ways to serve LINEARIZABLE reads in Raft.',options:['Read from any follower','Leader lease','Read index (heartbeat quorum)','Random replica'],correct:[1,2]},
