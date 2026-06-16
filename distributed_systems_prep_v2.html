@@ -104,7 +104,9 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .optrow input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
 
 .unit{margin:8px 0 4px;scroll-margin-top:118px}
-.unit-head{margin:18px 18px 6px;border-radius:var(--r);padding:14px 18px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.12)}
+.unit-head{margin:18px 18px 6px;border-radius:var(--r);padding:14px 18px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.12);position:relative}
+.udrill{position:absolute;top:12px;right:13px;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:20px;background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.55);color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit}
+.udrill:active{transform:translateY(1px)}
 .unit-head .u-k{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.85}
 .unit-head .u-t{font-size:20px;font-weight:900;display:flex;align-items:center;gap:8px}
 .unit-head .u-b{font-size:13px;font-weight:700;opacity:.92;margin-top:2px}
@@ -1935,7 +1937,9 @@ function renderHome(){
     const unlocked=unitUnlocked(ui);
     const {d,total}=unitProgress(u);
     h+='<div class="unit" id="unit-'+u.id+'">';
+    const uRecall=u.lessons.reduce((b,l)=>b+l.steps.filter(s=>s.t==='recall').length,0);
     h+='<div class="unit-head" style="background:'+u.color+'">'
+      +(unlocked&&uRecall?'<button class="udrill" data-unitrecall="'+u.id+'" title="Drill this unit\'s explain-it questions">🗣️ drill</button>':'')
       +'<div class="u-k">Unit '+(ui+1)+' · '+d+'/'+total+'</div>'
       +'<div class="u-t">'+u.icon+' '+u.title+(unlocked?'':' 🔒')+'</div>'
       +'<div class="u-b">'+u.blurb+'</div></div>';
@@ -1978,6 +1982,7 @@ function renderHome(){
   APP().querySelectorAll('[data-boss]').forEach(n=>n.onclick=()=>startBoss(n.dataset.boss));
   document.getElementById('reviewBtn').onclick=startReview;
   document.getElementById('recallBtn').onclick=startRecallReview;
+  APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
   const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
   APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
@@ -2020,6 +2025,13 @@ function startRecallReview(){
   const steps=shuffle(UNITS.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>s.t==='recall'));
   if(!steps.length){toast('No explain-it questions found.');return;}
   R={mode:'review',source:'recall',unit:{id:'recall'},steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  renderStep();
+}
+function startUnitRecall(uid){
+  const u=UNITS.find(x=>x.id===uid);
+  const steps=shuffle(u.lessons.flatMap(l=>l.steps).filter(s=>s.t==='recall'));
+  if(!steps.length){toast('No explain-it questions in this unit.');return;}
+  R={mode:'review',source:'unitrecall',unit:u,steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
   renderStep();
 }
 
@@ -2447,7 +2459,7 @@ function resultsScreen(success){
   }
   clearFoot();APP().innerHTML=h;
   const hb=document.getElementById('homeBtn');if(hb)hb.onclick=renderHome;
-  const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?(R.source==='recall'?startRecallReview():startReview()):startLesson(R.lesson.id);};
+  const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?(R.source==='recall'?startRecallReview():R.source==='unitrecall'?startUnitRecall(R.unit.id):startReview()):startLesson(R.lesson.id);};
   if(success){burst();}
 }
 function burst(){
