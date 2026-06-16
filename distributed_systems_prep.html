@@ -830,27 +830,60 @@ Read  &rarr;                              TAIL</div>
         <div class="card-body">
           <p><strong>Phase 1 — Prepare:</strong> the coordinator asks every participant "can you commit?" Each participant durably logs its vote and responds yes or no. The critical detail: once a participant votes yes, it's locked in — it cannot unilaterally abort, it has to wait for the coordinator's decision.</p>
           <p><strong>Phase 2 — Commit:</strong> if all participants voted yes, the coordinator sends Commit and everyone applies the transaction. Any no vote → the coordinator sends Abort.</p>
-          <div class="code">NORMAL FLOW:
-  Coordinator     Participant 1    Participant 2
-       │                │                │
-       ├── Prepare ────→│                │
-       ├── Prepare ─────────────────────→│
-       │←── Vote YES ───│                │
-       │←────────────────── Vote YES ────│
-       ├── Commit ─────→│                │
-       ├── Commit ──────────────────────→│  ✓ done
-
-COORDINATOR CRASHES after Prepare, before Commit:
-  Coordinator     Participant 1    Participant 2
-       │                │                │
-       ├── Prepare ────→│                │
-       ├── Prepare ─────────────────────→│
-       │←── Vote YES ───│                │
-       │←────────────────── Vote YES ────│
-     CRASH
-                    ??? holding locks    ??? holding locks
-                    ← can't commit or abort without coordinator →
-                    ← blocked indefinitely until coordinator recovers →</div>
+          <div class="v2pc-wrap" onclick="event.stopPropagation()">
+<style>
+.v2pc-wrap{padding:6px 0}
+.v2pc-cap{font-size:12px;font-weight:600;color:var(--color-text-primary);margin:0 0 4px}
+.v2pc-cap.crash{margin-top:16px;color:var(--color-text-danger)}
+.tpc-svg{width:100%;height:auto;display:block;max-width:440px}
+.tpc-actor{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5}
+.tpc-an{font-size:11px;font-weight:600;fill:var(--color-text-primary)}
+.tpc-life{stroke:var(--color-border-tertiary);stroke-width:1.5;stroke-dasharray:3 4}
+.tpc-msg{stroke:var(--color-text-secondary);stroke-width:1.6;fill:none}
+.tpc-head{fill:var(--color-text-secondary)}
+.tpc-lbl{font-size:10.5px;font-weight:500;fill:var(--color-text-secondary)}
+.tpc-ok{font-size:11px;font-weight:600;fill:var(--color-text-success)}
+.tpc-x{stroke:var(--color-text-danger);stroke-width:2.6;stroke-linecap:round}
+.tpc-bad{font-size:10.5px;font-weight:600;fill:var(--color-text-danger)}
+.tpc-ex{margin-top:9px;font-size:13px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.tpc-ex b{color:var(--color-text-primary);font-weight:600}
+.tpc-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}
+.tpc-ex.bad b{color:var(--color-text-danger)}
+</style>
+<div class="v2pc-cap">Normal flow — unanimous commit</div>
+<svg viewBox="0 0 360 250" class="tpc-svg">
+<rect class="tpc-actor" x="8" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="58" y="21" text-anchor="middle">Coordinator</text>
+<rect class="tpc-actor" x="130" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="180" y="21" text-anchor="middle">Participant 1</text>
+<rect class="tpc-actor" x="252" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="302" y="21" text-anchor="middle">Participant 2</text>
+<line class="tpc-life" x1="58" y1="30" x2="58" y2="240"/><line class="tpc-life" x1="180" y1="30" x2="180" y2="240"/><line class="tpc-life" x1="302" y1="30" x2="302" y2="240"/>
+<text class="tpc-lbl" x="119" y="56" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="62" x2="180" y2="62"/><polygon class="tpc-head" points="180,62 172,58 172,66"/>
+<text class="tpc-lbl" x="180" y="84" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="90" x2="302" y2="90"/><polygon class="tpc-head" points="302,90 294,86 294,94"/>
+<text class="tpc-lbl" x="119" y="118" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="180" y1="124" x2="58" y2="124"/><polygon class="tpc-head" points="58,124 66,120 66,128"/>
+<text class="tpc-lbl" x="180" y="146" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="302" y1="152" x2="58" y2="152"/><polygon class="tpc-head" points="58,152 66,148 66,156"/>
+<text class="tpc-lbl" x="119" y="180" text-anchor="middle">Commit</text><line class="tpc-msg" x1="58" y1="186" x2="180" y2="186"/><polygon class="tpc-head" points="180,186 172,182 172,190"/>
+<text class="tpc-lbl" x="180" y="208" text-anchor="middle">Commit</text><line class="tpc-msg" x1="58" y1="214" x2="302" y2="214"/><polygon class="tpc-head" points="302,214 294,210 294,218"/>
+<text class="tpc-ok" x="180" y="236" text-anchor="middle">&#10003; all participants commit</text>
+</svg>
+<div class="tpc-ex">Unanimous YES &#8594; the coordinator broadcasts <b>Commit</b> and everyone applies. One NO (or a timeout before deciding) &#8594; it broadcasts <b>Abort</b> instead.</div>
+<div class="v2pc-cap crash">Coordinator crashes after Prepare, before Commit</div>
+<svg viewBox="0 0 360 250" class="tpc-svg">
+<rect class="tpc-actor" x="8" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="58" y="21" text-anchor="middle">Coordinator</text>
+<rect class="tpc-actor" x="130" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="180" y="21" text-anchor="middle">Participant 1</text>
+<rect class="tpc-actor" x="252" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="302" y="21" text-anchor="middle">Participant 2</text>
+<line class="tpc-life" x1="58" y1="30" x2="58" y2="168"/><line class="tpc-life" x1="180" y1="30" x2="180" y2="240"/><line class="tpc-life" x1="302" y1="30" x2="302" y2="240"/>
+<text class="tpc-lbl" x="119" y="56" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="62" x2="180" y2="62"/><polygon class="tpc-head" points="180,62 172,58 172,66"/>
+<text class="tpc-lbl" x="180" y="84" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="90" x2="302" y2="90"/><polygon class="tpc-head" points="302,90 294,86 294,94"/>
+<text class="tpc-lbl" x="119" y="118" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="180" y1="124" x2="58" y2="124"/><polygon class="tpc-head" points="58,124 66,120 66,128"/>
+<text class="tpc-lbl" x="180" y="146" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="302" y1="152" x2="58" y2="152"/><polygon class="tpc-head" points="58,152 66,148 66,156"/>
+<line class="tpc-x" x1="50" y1="164" x2="66" y2="180"/><line class="tpc-x" x1="66" y1="164" x2="50" y2="180"/>
+<text class="tpc-bad" x="58" y="196" text-anchor="middle">CRASH</text>
+<text class="tpc-bad" x="180" y="196" text-anchor="middle">&#128274; in-doubt</text>
+<text class="tpc-bad" x="302" y="196" text-anchor="middle">&#128274; in-doubt</text>
+<text class="tpc-bad" x="241" y="222" text-anchor="middle">can&#39;t commit or abort alone</text>
+<text class="tpc-bad" x="241" y="238" text-anchor="middle">&#8594; blocked, holding locks</text>
+</svg>
+<div class="tpc-ex bad">The coordinator dies <b>after</b> collecting YES votes but <b>before</b> broadcasting the decision. Both participants are <b>in-doubt</b> — they can&#39;t commit (maybe it aborted) or abort (maybe it committed), so they block, holding locks, until it recovers. That&#39;s the <b>coordinator SPOF</b> and why 2PC is a <b>blocking</b> protocol.</div>
+</div>
           <p><strong>The blocking problem — this is the key weakness:</strong> if the coordinator crashes after sending Prepare but before sending the Commit or Abort decision, participants are stuck indefinitely. They voted yes, they don't know the outcome, and they're holding locks. Other transactions pile up behind them. This is why 2PC is called a blocking protocol — a coordinator failure can halt progress until it recovers.</p>
           <p>3PC adds a pre-commit phase to make this non-blocking, but it's rarely used in practice — it breaks under network partitions and adds a round trip. The modern answer is to make the coordinator itself fault-tolerant via consensus, like Spanner running 2PC over Paxos groups.</p>
           <div class="tag-row"><span class="tag">XA transactions</span><span class="tag">blocking protocol</span><span class="tag">coordinator SPOF</span></div>
@@ -861,21 +894,43 @@ COORDINATOR CRASHES after Prepare, before Commit:
         <div class="card-header"><div class="card-meta"><div class="card-title">Saga pattern</div><div class="card-sub">Long-running transactions via compensation</div></div><span class="badge badge-teal">Microservices</span></div>
         <div class="card-body">
           <p>Instead of one distributed transaction, you break the work into a sequence of local transactions, each publishing an event when it succeeds. If a step fails, you run compensating transactions in reverse to undo what already completed.</p>
-          <div class="code">FORWARD (happy path):
-  ┌─────────┐   T1: create   ┌─────────┐   T2: charge   ┌───────────┐
-  │  Order  │ ─────────────→ │ Payment │ ─────────────→ │ Inventory │
-  │ service │                │ service │                │  service  │
-  └─────────┘                └─────────┘                └─────┬─────┘
-                                                               │ FAIL (out of stock)
-
-COMPENSATION (run in reverse):
-  ┌─────────┐  C1: cancel    ┌─────────┐  C2: refund    ┌───────────┐
-  │  Order  │ ←───────────── │ Payment │ ←───────────── │ Inventory │
-  │ service │                │ service │                │  service  │
-  └─────────┘                └─────────┘                └───────────┘
-
-Each T must be: idempotent (safe to retry)
-Each C must be: compensatable (semantic undo — NOT a DB rollback)</div>
+          <div class="vsga-wrap" onclick="event.stopPropagation()">
+<style>
+.vsga-wrap{padding:6px 0}
+.vsga-cap{font-size:12px;font-weight:600;color:var(--color-text-primary);margin:0 0 4px}
+.vsga-cap.two{margin-top:16px}
+.sga-svg{width:100%;height:auto;display:block;max-width:440px}
+.sga-box{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5}
+.sga-box.fail{fill:var(--color-background-danger);stroke:var(--color-text-danger)}
+.sga-box.undo{fill:var(--color-background-warning);stroke:var(--color-border-warning)}
+.sga-bn{font-size:11px;font-weight:600;fill:var(--color-text-primary)}
+.sga-bn.fail{fill:var(--color-text-danger)}
+.sga-msg{stroke:var(--color-text-secondary);stroke-width:1.6;fill:none}
+.sga-head{fill:var(--color-text-secondary)}
+.sga-lbl{font-size:10px;font-weight:500;fill:var(--color-text-secondary)}
+.sga-bad{font-size:9.5px;font-weight:600;fill:var(--color-text-danger)}
+.sga-ex{margin-top:9px;font-size:13px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.sga-ex b{color:var(--color-text-primary);font-weight:600}
+</style>
+<div class="vsga-cap">Forward (happy path) — a step fails</div>
+<svg viewBox="0 0 360 92" class="sga-svg">
+<rect class="sga-box" x="10" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="52" y="60" text-anchor="middle">Order</text>
+<rect class="sga-box" x="138" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="180" y="60" text-anchor="middle">Payment</text>
+<rect class="sga-box fail" x="266" y="36" width="84" height="38" rx="9"/><text class="sga-bn fail" x="308" y="55" text-anchor="middle">Inventory</text><text class="sga-bad" x="308" y="68" text-anchor="middle">&#10007; out of stock</text>
+<text class="sga-lbl" x="116" y="29" text-anchor="middle">T1 create</text><line class="sga-msg" x1="94" y1="55" x2="138" y2="55"/><polygon class="sga-head" points="138,55 130,51 130,59"/>
+<text class="sga-lbl" x="244" y="29" text-anchor="middle">T2 charge</text><line class="sga-msg" x1="222" y1="55" x2="266" y2="55"/><polygon class="sga-head" points="266,55 258,51 258,59"/>
+</svg>
+<div class="sga-ex">Each step is a <b>local</b> txn that commits and emits an event. Order &#10003; and Payment &#10003; already committed — then Inventory <b>fails</b>. There is <b>no global rollback</b> to undo the first two.</div>
+<div class="vsga-cap two">Compensation — run in reverse</div>
+<svg viewBox="0 0 360 92" class="sga-svg">
+<rect class="sga-box undo" x="10" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="52" y="60" text-anchor="middle">Order</text>
+<rect class="sga-box undo" x="138" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="180" y="60" text-anchor="middle">Payment</text>
+<rect class="sga-box" x="266" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="308" y="60" text-anchor="middle">Inventory</text>
+<text class="sga-lbl" x="244" y="29" text-anchor="middle">C2 refund</text><line class="sga-msg" x1="266" y1="55" x2="222" y2="55"/><polygon class="sga-head" points="222,55 230,51 230,59"/>
+<text class="sga-lbl" x="116" y="29" text-anchor="middle">C1 cancel</text><line class="sga-msg" x1="138" y1="55" x2="94" y2="55"/><polygon class="sga-head" points="94,55 102,51 102,59"/>
+</svg>
+<div class="sga-ex">Run <b>compensating</b> txns in reverse: C2 refunds the charge, C1 cancels the order. Each C is a <b>semantic undo</b> (a refund/cancel row), NOT a DB rollback — and must be <b>idempotent</b> so retries are safe.</div>
+</div>
           <p><strong>Choreography:</strong> each service reacts to events from others — decentralised, hard to track overall progress. <strong>Orchestration:</strong> a central saga orchestrator sends commands to each service — clearer flow, easier to debug, single point of control.</p>
           <p>Critical requirements: every step must be idempotent (safe to retry), and every step must be compensable (semantic undo is possible). There's no atomic rollback — compensation is an application-level undo that may itself fail.</p>
           <div class="tag-row"><span class="tag">eventual consistency</span><span class="tag">idempotency required</span><span class="tag">no atomic rollback</span></div>

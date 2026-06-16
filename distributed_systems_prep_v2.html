@@ -992,17 +992,119 @@ const UNITS=[
  blurb:'All-or-nothing across many nodes — the hard part.',
  lessons:[
   {id:'txn-1',title:'Atomic commit',steps:[
+   {t:'teach',h:'ACID: what a transaction guarantees',body:[
+     {k:'tldr',t:'Four promises a transaction makes — the bar a distributed system struggles to keep.'},
+     {k:'point',i:'⚛️',t:'<b>Atomicity</b>: all-or-nothing. Either every write lands or none do — no half-applied transaction after a crash. Implemented via a <b>write-ahead log</b>: changes hit the log before being applied, so recovery can roll incomplete work back.'},
+     {k:'point',i:'✅',t:'<b>Consistency</b>: it moves the DB from one valid state to another, never violating invariants/constraints.'},
+     {k:'point',i:'🪟',t:'<b>Isolation</b>: concurrent txns don’t step on each other — the result is <i>as if</i> they ran one at a time.'},
+     {k:'point',i:'💾',t:'<b>Durability</b>: once committed, it survives crashes (on disk / replicated), not just in memory.'},
+     {k:'callout',c:'warn',t:'<b>Two different "atomicities" — don’t conflate them.</b> The <b>A</b> in ACID = a transaction is all-or-nothing. <b>Atomic/linearizable consistency</b> = single-copy, real-time ordering of operations. Same word, unrelated property — interviewers poke at this on purpose.'},
+     {k:'callout',c:'warn',t:'Across nodes the hard letters are <b>A</b> (need atomic commit → 2PC/saga) and <b>I</b> (need isolation levels / concurrency control). The rest of this unit is how you keep them.'}
+   ]},
+   {t:'mcq',q:'A transaction commits, then the server loses power. The write is still there on restart. Which letter is that?',o:['Atomicity','Consistency','Isolation','Durability'],a:3,why:'Durability = once committed, it survives crashes (persisted to disk / replicated).'},
+   {t:'mcq',q:'The "A" in ACID refers to…',o:['linearizable single-copy ordering','a transaction being all-or-nothing','atomic CPU instructions','atomic broadcast'],a:1,why:'ACID’s A = all-or-nothing per transaction. It’s unrelated to atomic/linearizable consistency, which is about real-time operation ordering — a classic interview trap.'},
    {t:'teach',h:'Two-phase commit (2PC)',body:[
      {k:'tldr',t:'Get many nodes to commit together — or none at all.'},
      {k:'cause',a:'Phase 1: coordinator asks "ready?" — all vote',b:'Phase 2: all yes → commit, else abort'},
      {k:'callout',c:'warn',t:'If the coordinator dies after "ready" but before deciding, participants are stuck holding locks — the blocking problem.'}
    ]},
+   {t:'htmlviz',h:'2PC — normal flow vs the blocking failure',
+    html:`<style>
+.tpc-svg{width:100%;height:auto;display:block;max-width:430px;margin:2px auto 0}
+.tpc-actor{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5}
+.tpc-an{font-size:11px;font-weight:800;fill:var(--color-text-primary)}
+.tpc-life{stroke:var(--color-border-tertiary);stroke-width:1.5;stroke-dasharray:3 4}
+.tpc-msg{stroke:var(--color-text-secondary);stroke-width:1.6;fill:none}
+.tpc-head{fill:var(--color-text-secondary)}
+.tpc-lbl{font-size:10.5px;font-weight:700;fill:var(--color-text-secondary)}
+.tpc-ok{font-size:11px;font-weight:800;fill:var(--color-text-success)}
+.tpc-x{stroke:var(--color-text-danger);stroke-width:2.6;stroke-linecap:round}
+.tpc-bad{font-size:10.5px;font-weight:800;fill:var(--color-text-danger)}
+.tpc-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.tpc-ex b{color:var(--color-text-primary);font-weight:800}
+.tpc-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}
+.tpc-ex.bad b{color:var(--color-text-danger)}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="tpc-panel">
+  <svg viewBox="0 0 360 250" class="tpc-svg">
+    <rect class="tpc-actor" x="8" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="58" y="21" text-anchor="middle">Coordinator</text>
+    <rect class="tpc-actor" x="130" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="180" y="21" text-anchor="middle">Participant 1</text>
+    <rect class="tpc-actor" x="252" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="302" y="21" text-anchor="middle">Participant 2</text>
+    <line class="tpc-life" x1="58" y1="30" x2="58" y2="240"/><line class="tpc-life" x1="180" y1="30" x2="180" y2="240"/><line class="tpc-life" x1="302" y1="30" x2="302" y2="240"/>
+    <text class="tpc-lbl" x="119" y="56" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="62" x2="180" y2="62"/><polygon class="tpc-head" points="180,62 172,58 172,66"/>
+    <text class="tpc-lbl" x="180" y="84" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="90" x2="302" y2="90"/><polygon class="tpc-head" points="302,90 294,86 294,94"/>
+    <text class="tpc-lbl" x="119" y="118" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="180" y1="124" x2="58" y2="124"/><polygon class="tpc-head" points="58,124 66,120 66,128"/>
+    <text class="tpc-lbl" x="180" y="146" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="302" y1="152" x2="58" y2="152"/><polygon class="tpc-head" points="58,152 66,148 66,156"/>
+    <text class="tpc-lbl" x="119" y="180" text-anchor="middle">Commit</text><line class="tpc-msg" x1="58" y1="186" x2="180" y2="186"/><polygon class="tpc-head" points="180,186 172,182 172,190"/>
+    <text class="tpc-lbl" x="180" y="208" text-anchor="middle">Commit</text><line class="tpc-msg" x1="58" y1="214" x2="302" y2="214"/><polygon class="tpc-head" points="302,214 294,210 294,218"/>
+    <text class="tpc-ok" x="180" y="236" text-anchor="middle">✓ all participants commit</text>
+  </svg>
+  <div class="tpc-ex">Unanimous YES → the coordinator broadcasts <b>Commit</b> and everyone applies. One NO (or a timeout before deciding) → it broadcasts <b>Abort</b> instead.</div>
+</div>
+<div class="tpc-panel">
+  <svg viewBox="0 0 360 250" class="tpc-svg">
+    <rect class="tpc-actor" x="8" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="58" y="21" text-anchor="middle">Coordinator</text>
+    <rect class="tpc-actor" x="130" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="180" y="21" text-anchor="middle">Participant 1</text>
+    <rect class="tpc-actor" x="252" y="4" width="100" height="26" rx="6"/><text class="tpc-an" x="302" y="21" text-anchor="middle">Participant 2</text>
+    <line class="tpc-life" x1="58" y1="30" x2="58" y2="168"/><line class="tpc-life" x1="180" y1="30" x2="180" y2="240"/><line class="tpc-life" x1="302" y1="30" x2="302" y2="240"/>
+    <text class="tpc-lbl" x="119" y="56" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="62" x2="180" y2="62"/><polygon class="tpc-head" points="180,62 172,58 172,66"/>
+    <text class="tpc-lbl" x="180" y="84" text-anchor="middle">Prepare</text><line class="tpc-msg" x1="58" y1="90" x2="302" y2="90"/><polygon class="tpc-head" points="302,90 294,86 294,94"/>
+    <text class="tpc-lbl" x="119" y="118" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="180" y1="124" x2="58" y2="124"/><polygon class="tpc-head" points="58,124 66,120 66,128"/>
+    <text class="tpc-lbl" x="180" y="146" text-anchor="middle">Vote YES</text><line class="tpc-msg" x1="302" y1="152" x2="58" y2="152"/><polygon class="tpc-head" points="58,152 66,148 66,156"/>
+    <line class="tpc-x" x1="50" y1="164" x2="66" y2="180"/><line class="tpc-x" x1="66" y1="164" x2="50" y2="180"/>
+    <text class="tpc-bad" x="58" y="196" text-anchor="middle">CRASH</text>
+    <text class="tpc-bad" x="180" y="196" text-anchor="middle">🔒 in-doubt</text>
+    <text class="tpc-bad" x="302" y="196" text-anchor="middle">🔒 in-doubt</text>
+    <text class="tpc-bad" x="241" y="222" text-anchor="middle">can't commit or abort alone</text>
+    <text class="tpc-bad" x="241" y="238" text-anchor="middle">→ blocked, holding locks</text>
+  </svg>
+  <div class="tpc-ex bad">The coordinator dies <b>after</b> collecting YES votes but <b>before</b> broadcasting the decision. Both participants are <b>in-doubt</b> — they can't commit (maybe it aborted) or abort (maybe it committed), so they block, holding locks, until it recovers. That's the <b>coordinator SPOF</b> and why 2PC is a <b>blocking</b> protocol.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,2,{panelClass:'tpc-panel',labels:['Normal flow — unanimous commit','Coordinator crashes → blocked']});}},
    {t:'mcq',q:'Why is 2PC called a blocking protocol?',o:['it locks the whole DB','a coordinator crash leaves participants in-doubt holding locks','phase 2 is slow','votes are sequential'],a:1,why:'In-doubt participants can’t unilaterally decide, so they wait (holding locks) until the coordinator recovers.'},
    {t:'teach',h:'Saga: the microservices answer',body:[
      {k:'point',i:'🧩',t:'Split one big txn into local txns, each with a <b>compensating</b> undo.'},
      {k:'vs',a:{h:'Choreography',t:'services react to each other’s events. Decentralised, harder to trace.'},b:{h:'Orchestration',t:'a central coordinator drives steps. Clearer, single control point.'}},
      {k:'callout',c:'warn',t:'No atomic rollback — compensation is a semantic undo that can itself fail. Every step must be idempotent.'}
    ]},
+   {t:'htmlviz',h:'Saga — forward, then compensate in reverse',
+    html:`<style>
+.sga-svg{width:100%;height:auto;display:block;max-width:430px;margin:2px auto 0}
+.sga-box{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5}
+.sga-box.fail{fill:var(--color-background-danger);stroke:var(--color-text-danger)}
+.sga-box.undo{fill:var(--color-background-warning);stroke:var(--color-border-warning)}
+.sga-bn{font-size:11px;font-weight:800;fill:var(--color-text-primary)}
+.sga-bn.fail{fill:var(--color-text-danger)}
+.sga-msg{stroke:var(--color-text-secondary);stroke-width:1.6;fill:none}
+.sga-head{fill:var(--color-text-secondary)}
+.sga-lbl{font-size:10px;font-weight:700;fill:var(--color-text-secondary)}
+.sga-bad{font-size:9.5px;font-weight:800;fill:var(--color-text-danger)}
+.sga-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.sga-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="sga-panel">
+  <svg viewBox="0 0 360 92" class="sga-svg">
+    <rect class="sga-box" x="10" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="52" y="60" text-anchor="middle">Order</text>
+    <rect class="sga-box" x="138" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="180" y="60" text-anchor="middle">Payment</text>
+    <rect class="sga-box fail" x="266" y="36" width="84" height="38" rx="9"/><text class="sga-bn fail" x="308" y="55" text-anchor="middle">Inventory</text><text class="sga-bad" x="308" y="68" text-anchor="middle">✗ out of stock</text>
+    <text class="sga-lbl" x="116" y="29" text-anchor="middle">T1 create</text><line class="sga-msg" x1="94" y1="55" x2="138" y2="55"/><polygon class="sga-head" points="138,55 130,51 130,59"/>
+    <text class="sga-lbl" x="244" y="29" text-anchor="middle">T2 charge</text><line class="sga-msg" x1="222" y1="55" x2="266" y2="55"/><polygon class="sga-head" points="266,55 258,51 258,59"/>
+  </svg>
+  <div class="sga-ex">Each step is a <b>local</b> txn that commits and emits an event. Order ✓ and Payment ✓ already committed — then Inventory <b>fails</b>. There is <b>no global rollback</b> to undo the first two.</div>
+</div>
+<div class="sga-panel">
+  <svg viewBox="0 0 360 92" class="sga-svg">
+    <rect class="sga-box undo" x="10" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="52" y="60" text-anchor="middle">Order</text>
+    <rect class="sga-box undo" x="138" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="180" y="60" text-anchor="middle">Payment</text>
+    <rect class="sga-box" x="266" y="36" width="84" height="38" rx="9"/><text class="sga-bn" x="308" y="60" text-anchor="middle">Inventory</text>
+    <text class="sga-lbl" x="244" y="29" text-anchor="middle">C2 refund</text><line class="sga-msg" x1="266" y1="55" x2="222" y2="55"/><polygon class="sga-head" points="222,55 230,51 230,59"/>
+    <text class="sga-lbl" x="116" y="29" text-anchor="middle">C1 cancel</text><line class="sga-msg" x1="138" y1="55" x2="94" y2="55"/><polygon class="sga-head" points="94,55 102,51 102,59"/>
+  </svg>
+  <div class="sga-ex">Run <b>compensating</b> txns in reverse: C2 refunds the charge, C1 cancels the order. Each C is a <b>semantic undo</b> (a refund/cancel row), NOT a DB rollback — and must be <b>idempotent</b> so retries are safe.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,2,{panelClass:'sga-panel',labels:['Forward — a step fails','Compensate in reverse']});}},
    {t:'mcq',q:'In a Saga, step 3 of 5 fails. What happens?',o:['atomic rollback of all','compensating txns undo steps 1–2','wait for step 3','retry forever'],a:1,why:'Sagas undo completed steps in reverse with compensations — there’s no atomic rollback.'},
    {t:'recall',q:'Explain the 2PC blocking problem in 2 sentences.',model:['After voting "ready", a participant must wait for the coordinator’s decision and can’t abort on its own.','If the coordinator crashes then, participants block (holding locks) until it recovers. That’s the coordinator SPOF.']},
    {t:'teach',h:'TCC (Try-Confirm-Cancel)',body:[
@@ -1019,15 +1121,29 @@ const UNITS=[
    {t:'teach',h:'Isolation levels',body:[
      {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads OR dirty writes (only committed data; you can’t overwrite an uncommitted write).'},
      {k:'point',i:'🔁',t:'<b>Repeatable read</b>: re-reading a row gives the same value.'},
-     {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time.'},
-     {k:'note',t:'Snapshot Isolation (MVCC) is cheap but allows write skew; SSI detects and aborts it.'}
+     {k:'point',i:'📸',t:'<b>Snapshot Isolation</b> (MVCC): each txn reads a consistent snapshot as of its start — kills dirty + non-repeatable reads, and readers never block writers. Its one gap: <b>write skew</b>.'},
+     {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time — the only level that also stops write skew & phantoms.'},
+     {k:'note',t:'<b>SSI</b> = optimistic serializable: it lets txns run, then aborts one when it detects a write-skew conflict (that’s what PostgreSQL’s Serializable does).'}
    ]},
    {t:'cloze',q:'Fill the isolation blanks.',distract:['phantom','linearizable'],text:[
      'Snapshot Isolation prevents ',{blank:'dirty'},' and ',{blank:'non-repeatable'},' reads but still allows ',
      {blank:'write skew',alt:['write-skew']},'. ',{blank:'SSI'},' detects conflicts and aborts a txn to fix it.'
    ]},
    {t:'mcq',q:'Which level prevents dirty reads but allows non-repeatable reads?',o:['read uncommitted','read committed','repeatable read','serializable'],a:1,why:'Read committed shows only committed data, but a row can change between two reads.'},
+   {t:'teach',h:'Making a write safe to retry',body:[
+     {k:'tldr',t:'A network can drop the <i>ack</i>, not the write — so the client retries and the write lands twice. Safe-retry = the second attempt has no extra effect.'},
+     {k:'keyt',term:'Idempotency key',def:'client attaches a unique key per logical operation; the server records it and ignores a repeat with the same key. Applying twice = applying once.'},
+     {k:'keyt',term:'Conditional (compare-and-set) write',def:'"update only if version=N". The first retry that lands succeeds and bumps the version; later duplicates fail the precondition → no-op.'},
+     {k:'keyt',term:'Naturally idempotent op',def:'<code>PUT x=5</code> (set to an absolute value) is safe to repeat. <code>x += 1</code> (increment) is NOT — each retry adds again.'},
+     {k:'callout',c:'warn',t:'Anti-patterns: a <b>new random ID each retry</b> defeats dedup (every attempt looks new → duplicates). <b>Fire-and-forget</b> has no ack at all — you can’t even tell if a retry is needed, so it’s neither safe nor reliable.'}
+   ]},
    {t:'build',q:'Pick ways to make a write safely retryable.',options:['Idempotency key','Conditional (compare-and-set) write','Naturally idempotent PUT','New random ID each retry','Fire-and-forget'],correct:[0,1,2]},
+   {t:'teach',h:'Delivery semantics & exactly-once',body:[
+     {k:'point',i:'1️⃣',t:'<b>At-most-once</b>: may lose, never duplicate (fire-and-forget).'},
+     {k:'point',i:'🔁',t:'<b>At-least-once</b>: never lose, may duplicate → the pragmatic default, but consumers must be idempotent.'},
+     {k:'point',i:'🎯',t:'<b>Exactly-once</b>: each effect happens once. True exactly-once <i>delivery</i> over a network is impossible (two-generals).'},
+     {k:'callout',c:'note',t:'The trick: <b>at-least-once delivery + idempotent consumer = exactly-once effect</b>. Repeats still arrive, but applying twice = applying once, so the observable result is exactly-once — far cheaper than chasing true EO delivery.'}
+   ]},
    {t:'recall',q:'Why is "at-least-once + idempotent consumer" equal to exactly-once?',model:['Networks duplicate and clients retry, so you’ll get repeats (at-least-once).','An idempotent consumer makes repeats harmless — applying twice = applying once.','So the observable effect is exactly-once, far cheaper than true exactly-once delivery.']}
   ]}
  ],
