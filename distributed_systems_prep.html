@@ -1437,26 +1437,51 @@ round 2: ~4 know
         <div class="card-header"><div class="card-meta"><div class="card-title">Kafka internals</div><div class="card-sub">Partitions, offsets, consumer groups, ISR</div></div><span class="badge badge-teal">Internals</span></div>
         <div class="card-body">
           <p><strong>Topics and partitions:</strong> a topic is split into partitions — each is an ordered, immutable log. Ordering is guaranteed only within a partition, not across them. The partition key (e.g. user_id) determines where a message lands, so all events for one user always go to the same partition and stay in order.</p>
-          <div class="code">Topic "orders" — 4 partitions, consumer group G1:
-
-4 consumers (ideal — 1 partition each):
-  P0 ──→ Consumer-1
-  P1 ──→ Consumer-2
-  P2 ──→ Consumer-3
-  P3 ──→ Consumer-4
-
-Scale down to 2 consumers (Kafka rebalances):
-  P0, P1 ──→ Consumer-1
-  P2, P3 ──→ Consumer-2
-
-Scale up to 5 consumers:
-  P0 ──→ Consumer-1
-  P1 ──→ Consumer-2
-  P2 ──→ Consumer-3
-  P3 ──→ Consumer-4
-         Consumer-5  IDLE ← no partition available
-
-→ max parallelism = partition count, set it at topic creation</div>
+          <div class="kcg-root" id="kcgViz" onclick="event.stopPropagation()">
+<style>
+.kcg-root{margin:.6rem 0}
+.kcg-root .kcg-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.kcg-root .kcg-topic{font-weight:600;color:var(--color-text-primary);font-size:13px}
+.kcg-root .kcg-ctrls{display:flex;align-items:center;gap:8px}
+.kcg-root .kcg-ctrls button{font:inherit;font-weight:700;font-size:12px;padding:5px 10px;border-radius:8px;border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer;width:auto}
+.kcg-root .kcg-ctrls button:disabled{opacity:.4;cursor:default}
+.kcg-root .kcg-count{font-size:12px;color:var(--color-text-secondary);font-weight:700;min-width:96px;text-align:center}
+.kcg-root .kcg-list{display:flex;flex-direction:column;gap:7px}
+.kcg-root .kcg-row{display:flex;align-items:center;gap:10px}
+.kcg-root .kcg-c{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--color-text-primary);min-width:92px}
+.kcg-root .kcg-row.idle .kcg-c{color:var(--color-text-tertiary)}
+.kcg-root .kcg-parts{display:flex;gap:5px;flex-wrap:wrap}
+.kcg-root .kcg-p{font-family:var(--font-mono);font-size:11px;font-weight:700;color:#fff;background:var(--color-text-info);border-radius:6px;padding:3px 8px}
+.kcg-root .kcg-idle{font-size:11.5px;color:var(--color-text-tertiary);font-style:italic}
+.kcg-root .kcg-note{margin-top:12px;font-size:13px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--code-bg);border:1px solid var(--border);border-radius:9px}
+.kcg-root .kcg-note b{color:var(--color-text-primary);font-weight:600}
+</style>
+<div class="kcg-top"><span class="kcg-topic">Topic "orders" — 4 partitions, group G1</span>
+  <span class="kcg-ctrls"><button class="kcg-dec" type="button">− consumer</button><span class="kcg-count"></span><button class="kcg-inc" type="button">+ consumer</button></span></div>
+<div class="kcg-list"></div>
+<div class="kcg-note"></div>
+</div>
+<script>(function(){
+  var root=document.getElementById('kcgViz'); if(!root) return;
+  var P=4, n=4;
+  var list=root.querySelector('.kcg-list'), note=root.querySelector('.kcg-note'), count=root.querySelector('.kcg-count');
+  var dec=root.querySelector('.kcg-dec'), inc=root.querySelector('.kcg-inc');
+  function assign(){var per=Math.floor(P/n),extra=P%n,res=[],off=0;for(var i=0;i<n;i++){var c=per+(i<extra?1:0),parts=[];for(var k=0;k<c;k++)parts.push('P'+(off+k));off+=c;res.push(parts);}return res;}
+  function render(){
+    count.textContent=n+' consumer'+(n===1?'':'s');
+    var a=assign();
+    list.innerHTML=a.map(function(parts,i){var idle=parts.length===0;return '<div class="kcg-row'+(idle?' idle':'')+'"><span class="kcg-c">Consumer-'+(i+1)+'</span>'+(idle?'<span class="kcg-idle">idle — no partition</span>':'<span class="kcg-parts">'+parts.map(function(p){return '<span class="kcg-p">'+p+'</span>';}).join('')+'</span>')+'</div>';}).join('');
+    var idleCount=a.filter(function(p){return p.length===0;}).length;
+    note.innerHTML=idleCount>0
+      ? '<b>'+idleCount+' consumer'+(idleCount>1?'s':'')+' idle.</b> Parallelism is capped at <b>'+P+'</b> (the partition count) — extra consumers get nothing. To scale further, add partitions, not consumers.'
+      : (n<P ? 'Some consumers own multiple partitions. Each partition still goes to exactly <b>one</b> consumer — ordering is preserved per partition.'
+             : '<b>Ideal:</b> one partition per consumer → parallelism = <b>'+P+'</b>, the partition count.');
+    dec.disabled=n<=1; inc.disabled=n>=6;
+  }
+  dec.onclick=function(){if(n>1){n--;render();}};
+  inc.onclick=function(){if(n<6){n++;render();}};
+  render();
+})();</script>
           <p><strong>Consumer groups:</strong> Kafka distributes partitions across consumers in a group, and each partition is assigned to exactly one consumer. Your parallelism is capped at the partition count — add more consumers than partitions and the extras sit idle.</p>
           <p><strong>Offsets and delivery semantics:</strong> each consumer group tracks the offset it's processed up to. Commit the offset after processing → at-least-once (safe, might reprocess on crash). Commit before → at-most-once (might miss some). For exactly-once, use Kafka transactions to atomically commit both the offset and the output write.</p>
           <p><strong>Replication and ISR:</strong> each partition has a leader and follower replicas. The in-sync replica set (ISR) is the set of followers currently caught up to the leader. acks=all means the producer waits for all ISR to acknowledge — paired with min.insync.replicas, this is how you tune the durability vs latency trade-off.</p>
@@ -1486,30 +1511,50 @@ COMMIT
           <p>Normally you store <em>current state</em> — a row that gets overwritten on every update. Event sourcing flips this: you store an <strong>immutable log of every event that happened</strong>, and current state is just what you get by replaying that log. The log is the source of truth; the state is a derived view.</p>
           <p><strong>Why bother?</strong> You get a full audit trail for free, you can replay history to rebuild state, you can project the same events into multiple different views, and debugging becomes "look at what events happened" rather than "figure out what state mutation caused this."</p>
           <p><strong>CQRS (Command Query Responsibility Segregation)</strong> is the natural companion: separate the write path (commands that append events) from the read path (queries against a materialized view). The read model is rebuilt by consuming the event log — you can have multiple read models optimized for different access patterns.</p>
-          <div class="code">── EVENT SOURCING ───────────────────────────────────────────────────
-  Write path:
-    command arrives → validate → append event to log (immutable)
-    e.g. OrderPlaced{id, items, ts}, PaymentReceived{id, amount}, OrderShipped{id}
-
-  Read path:
-    replay log → fold events → current state
-    state = events.reduce(apply, initialState)
-
-── CQRS + MATERIALIZED VIEWS ────────────────────────────────────────
-  Event log (Kafka / DB append-only table)
-       │
-       ├─→ Projector A → orders_summary table  (for dashboard queries)
-       ├─→ Projector B → user_inbox table      (for notification feed)
-       └─→ Projector C → audit_log table       (for compliance)
-
-  Command service writes events only — never reads from read models
-  Query service reads from materialized views — never touches event log
-
-── ML PIPELINE EXAMPLE ──────────────────────────────────────────────
-  Events: JobQueued, ResourceAllocated, TrainingStarted,
-          CheckpointSaved{step=1000}, CheckpointSaved{step=2000}, JobFailed
-  State = replay → current step, last checkpoint, failure reason
-  Bonus: replay lets you reconstruct exactly what happened to a job post-mortem</div>
+          <div class="esv-root" onclick="event.stopPropagation()">
+<style>
+.esv-root{margin:.6rem 0;display:flex;flex-direction:column;gap:12px}
+.esv-sec{border:1px solid var(--border);border-radius:10px;background:var(--code-bg);padding:12px 13px}
+.esv-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-info);margin-bottom:9px}
+.esv-lbl{font-size:11.5px;color:var(--color-text-tertiary);font-weight:700;margin:9px 0 5px;text-transform:uppercase;letter-spacing:.03em}
+.esv-lbl:first-of-type{margin-top:0}
+.esv-flow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12.5px}
+.esv-chip{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-weight:600;color:var(--color-text-primary)}
+.esv-chip.ev{font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary);font-weight:700}
+.esv-arr{color:var(--color-text-tertiary);font-weight:700}
+.esv-fan{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.esv-fanrow{display:flex;align-items:center;gap:8px;font-size:12.5px;flex-wrap:wrap}
+.esv-proj{background:var(--color-background-info);color:var(--color-text-info);border-radius:8px;padding:4px 9px;font-weight:700;font-size:12px;white-space:nowrap}
+.esv-tbl{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary)}
+.esv-mut{color:var(--color-text-tertiary);font-size:11.5px}
+.esv-note2{font-size:12.5px;color:var(--color-text-secondary);line-height:1.5;margin-top:9px}
+.esv-note2 b{color:var(--color-text-primary);font-weight:600}
+</style>
+<div class="esv-sec">
+  <div class="esv-h">Event sourcing</div>
+  <div class="esv-lbl">Write path</div>
+  <div class="esv-flow"><span class="esv-chip">command</span><span class="esv-arr">→</span><span class="esv-chip">validate</span><span class="esv-arr">→</span><span class="esv-chip">append event to log (immutable)</span></div>
+  <div class="esv-note2">e.g. <span class="esv-chip ev">OrderPlaced{id,items}</span> <span class="esv-chip ev">PaymentReceived{id,amount}</span> <span class="esv-chip ev">OrderShipped{id}</span></div>
+  <div class="esv-lbl">Read path</div>
+  <div class="esv-flow"><span class="esv-chip">replay log</span><span class="esv-arr">→</span><span class="esv-chip">fold events</span><span class="esv-arr">→</span><span class="esv-chip">current state</span></div>
+  <div class="esv-note2"><span class="esv-tbl">state = events.reduce(apply, initialState)</span></div>
+</div>
+<div class="esv-sec">
+  <div class="esv-h">CQRS + materialized views</div>
+  <div class="esv-flow"><span class="esv-chip">Event log <span class="esv-mut">(Kafka / append-only table)</span></span><span class="esv-arr">fans out →</span></div>
+  <div class="esv-fan">
+    <div class="esv-fanrow"><span class="esv-proj">Projector A</span><span class="esv-arr">→</span><span class="esv-tbl">orders_summary</span><span class="esv-mut">dashboards</span></div>
+    <div class="esv-fanrow"><span class="esv-proj">Projector B</span><span class="esv-arr">→</span><span class="esv-tbl">user_inbox</span><span class="esv-mut">notification feed</span></div>
+    <div class="esv-fanrow"><span class="esv-proj">Projector C</span><span class="esv-arr">→</span><span class="esv-tbl">audit_log</span><span class="esv-mut">compliance</span></div>
+  </div>
+  <div class="esv-note2"><b>Command</b> service writes events only — never reads from read models. <b>Query</b> service reads materialized views only — never touches the event log.</div>
+</div>
+<div class="esv-sec">
+  <div class="esv-h">ML pipeline example</div>
+  <div class="esv-flow"><span class="esv-chip ev">JobQueued</span><span class="esv-chip ev">ResourceAllocated</span><span class="esv-chip ev">TrainingStarted</span><span class="esv-chip ev">CheckpointSaved{step=1000}</span><span class="esv-chip ev">JobFailed</span></div>
+  <div class="esv-note2">State = replay → current step, last checkpoint, failure reason. <b>Replay</b> reconstructs exactly what happened to a job for a post-mortem.</div>
+</div>
+</div>
           <p><strong>When it's worth it:</strong> you need a full audit trail (finance, compliance, ML experiment tracking), you want to project the same data into multiple views, or you need time-travel queries ("what did the state look like at 3pm yesterday?").</p>
           <p><strong>When it's not worth it:</strong> simple CRUD with no audit requirements, small scale, or team unfamiliar with eventual consistency. Materialized views are <em>eventually consistent</em> — a write is in the log before the read model catches up. That's fine for dashboards, not fine for "check balance then charge."</p>
           <div class="note"><strong>Interview tip:</strong> don't reach for event sourcing by default. The question to ask is: "do I need the audit trail or multiple projections?" If the answer is no, a plain DB with updated_at timestamps is simpler and you should say so.</div>
