@@ -1553,8 +1553,10 @@ const UNITS=[
   {id:'msg-1',title:'Queues vs logs',steps:[
    {t:'teach',h:'Two shapes',body:[
      {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
-     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'}
+     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'},
+     {k:'callout',c:'warn',t:'<b>A queue isn’t free latency-wise.</b> It adds a hop (enqueue + poll) and decouples timing — perfect for spikes, fan-out, and slow work, but it <b>blows a tight synchronous latency budget</b>. Don’t drop one into a &lt;500ms request path just to "decouple" — the caller now waits on a queue it can’t see.'}
    ]},
+   {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
    {t:'teach',h:'Kafka internals',body:[
      {k:'point',i:'👥',t:'<b>Consumer groups</b>: each partition is read by exactly ONE consumer in a group — so consumer parallelism is capped by partition count. Add partitions to scale out.'},
      {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): a partition has a leader + follower replicas; <code>acks=all</code> commits only once the ISR set has it — that’s the durability knob.'},
@@ -1869,7 +1871,14 @@ const UNITS=[
      'A ',{blank:'bulkhead'},' isolates pools so one dependency can’t starve the rest; ',{blank:'load shedding',alt:['shedding','load-shedding']},
      ' drops low-priority work under overload. Schema changes roll out ',{blank:'expand',alt:['expand-contract','expand–contract']},'-then-contract, backward-compatible at each step.'
    ]},
-   {t:'recall',q:'How do you change a column safely under a rolling deploy?',model:['Expand–contract: add the new column (don’t touch the old), deploy code that writes BOTH.','Backfill the new column in batches, then switch reads to it.','Once nothing uses the old column, contract: drop it. Every step is backward-compatible so old + new code coexist.']}
+   {t:'recall',q:'How do you change a column safely under a rolling deploy?',model:['Expand–contract: add the new column (don’t touch the old), deploy code that writes BOTH.','Backfill the new column in batches, then switch reads to it.','Once nothing uses the old column, contract: drop it. Every step is backward-compatible so old + new code coexist.']},
+   {t:'teach',h:'Graceful shutdown & connection draining',body:[
+     {k:'tldr',t:'On a deploy or scale-down, don’t kill a node mid-request — drain it first.'},
+     {k:'point',i:'🚪',t:'<b>Deregister</b> from the load balancer (or fail the readiness check) so NO new requests are routed to it.'},
+     {k:'point',i:'⏳',t:'<b>Drain</b>: on SIGTERM, stop accepting new work but let in-flight requests/streams finish (up to a grace timeout), then exit.'},
+     {k:'callout',c:'warn',t:'Skip the drain and every routine deploy drops in-flight requests — users see 5xx / connection resets during rollouts and autoscale-downs.'}
+   ]},
+   {t:'mcq',q:'On a rolling deploy, how do you stop a node without dropping in-flight requests?',o:['kill it immediately','deregister from the LB, let in-flight work finish, then exit (drain)','rely on client retries only','scale up first'],a:1,why:'Connection draining: stop new traffic (deregister / fail readiness), let existing requests finish within a grace period, then shut down.'}
   ]}
  ],
  boss:{title:'Reliability Boss',time:85,q:[

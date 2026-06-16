@@ -2077,6 +2077,17 @@ HALF-OPEN &rarr; allow a few trial calls
       </div>
 
       <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Graceful shutdown &amp; connection draining</div><div class="card-sub">Don't drop in-flight work on deploys</div></div><span class="badge badge-teal">Operations</span></div>
+        <div class="card-body">
+          <p>On a rolling deploy or scale-down, a node is told to stop — but it may still be serving requests. Killing it immediately drops those in-flight requests, so users see 5xx errors and connection resets during routine rollouts.</p>
+          <p><strong>Connection draining:</strong> first <strong>deregister</strong> the node from the load balancer (or fail its readiness check) so no <em>new</em> requests are routed to it. Then let the <strong>in-flight</strong> requests finish on their own, up to a grace timeout, before the process exits.</p>
+          <p><strong>The shutdown sequence:</strong> on <code>SIGTERM</code> — stop accepting new connections, finish (or hand off) existing ones, flush buffers/commit offsets, then exit. Long-lived streams (WebSockets, gRPC) should stop accepting new streams and let active ones complete or reconnect elsewhere.</p>
+          <div class="note"><strong>Interview tip:</strong> pair draining with health checks — the LB should see the node as unhealthy <em>before</em> it stops, and the grace period must be longer than your slowest normal request. This is how zero-downtime deploys actually work.</div>
+          <div class="tag-row"><span class="tag">deregister first</span><span class="tag">finish in-flight</span><span class="tag">SIGTERM grace period</span><span class="tag">zero-downtime deploy</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Observability</div><div class="card-sub">Metrics, logs, traces — and what to watch</div></div><span class="badge badge-purple">Operations</span></div>
         <div class="card-body">
           <p><strong>The three pillars:</strong> metrics (cheap aggregate time-series — rates, latencies, saturation — good for dashboards and alerts); logs (discrete events with rich detail — expensive at volume, but essential for debugging); traces (one request's path across all services, with timing per hop — essential in microservices for finding where the latency actually is).</p>
