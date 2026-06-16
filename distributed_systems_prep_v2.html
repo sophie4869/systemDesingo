@@ -1432,67 +1432,45 @@ const UNITS=[
    ]},
    {t:'htmlviz',h:'Lamport clock — step through it',
     html:`<style>
-.lcv-row{display:flex;align-items:center;gap:10px;padding:7px 0}
-.lcv-node{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:15px;flex-shrink:0}
-.lcv-node.a{background:var(--blue)}.lcv-node.b{background:var(--green)}.lcv-node.c{background:var(--orange)}
-.lcv-cnt{font-family:var(--font-mono);font-size:19px;font-weight:800;color:var(--color-text-tertiary);min-width:26px;text-align:center;border-radius:7px;padding:1px 5px}
-.lcv-cnt.up{color:var(--color-text-success);background:var(--color-background-success)}
-.lcv-act{font-size:12.5px;color:var(--color-text-tertiary)}
-.lcv-rules{font-size:13px;color:var(--color-text-secondary);line-height:1.9;padding:6px 0}
-.lcv-rules b{color:var(--color-text-primary);font-weight:800}
-.lcv-rules code{font-family:var(--font-mono);font-size:12px;background:var(--color-background-secondary);padding:1px 5px;border-radius:4px}
-.lcv-ex{margin-top:12px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
-.lcv-ex b{color:var(--color-text-primary);font-weight:800}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="lcv-panel">
-  <div class="lcv-rules"><b>Rule 1 — local event:</b> <code>C = C + 1</code><br><b>Rule 2 — send:</b> attach C to the message<br><b>Rule 3 — receive:</b> <code>C = max(local, received) + 1</code></div>
-  <div class="lcv-ex">These three rules guarantee: if event A <b>caused</b> B, then <code>L(A) &lt; L(B)</code>.</div>
-</div>
-<div class="lcv-panel">
-  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt up">1</span><span class="lcv-act">writes x → +1</span></div>
-  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt">0</span></div>
-  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt">0</span></div>
-  <div class="lcv-ex">A does a local event and increments: <b>0 → 1</b>.</div>
-</div>
-<div class="lcv-panel">
-  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt up">2</span><span class="lcv-act">send (msg carries 2)</span></div>
-  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt up">3</span><span class="lcv-act">recv: max(0,2)+1</span></div>
-  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt">0</span></div>
-  <div class="lcv-ex">A increments before sending (<b>1 → 2</b>). B receives and applies Rule 3: <b>max(0, 2) + 1 = 3</b>.</div>
-</div>
-<div class="lcv-panel">
-  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt">2</span></div>
-  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt">3</span></div>
-  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt up">1</span><span class="lcv-act">writes z → +1</span></div>
-  <div class="lcv-ex">C independently writes z: <b>0 → 1</b>. Same value as A's first event — are they ordered? <b>No, concurrent.</b> Lamport can't tell; only vector clocks can.</div>
-</div>
-<div class="lcv-panel">
-  <div class="lcv-row"><span class="lcv-node a">A</span><span class="lcv-cnt">2</span></div>
-  <div class="lcv-row"><span class="lcv-node b">B</span><span class="lcv-cnt up">4</span><span class="lcv-act">send (msg carries 4)</span></div>
-  <div class="lcv-row"><span class="lcv-node c">C</span><span class="lcv-cnt up">5</span><span class="lcv-act">recv: max(1,4)+1</span></div>
-  <div class="lcv-ex">B increments (<b>3 → 4</b>) and sends to C: <b>max(1, 4) + 1 = 5</b>. The causal chain A→B→C reads <b>1 &lt; 2 &lt; 3 &lt; 4 &lt; 5</b>, even though C never talked to A directly.</div>
-</div>`,
-    setup:function(root,stepper){stepper(root,5,{panelClass:'lcv-panel',labels:['The three rules','A: local event','A → B: counters merge','C: concurrent event','B → C: chain catches up']});}},
+.cv-mount svg{width:100%;height:auto;display:block}
+.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
+.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
+.cv-arrow{fill:var(--color-text-tertiary)}
+.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
+.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
+.cv-dot.sel{fill:var(--color-text-info)}
+.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
+.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
+.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+.cv-controls button:disabled{opacity:.4;cursor:default}
+.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
+.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
+.cv-cap b{color:var(--color-text-primary);font-weight:800}
+</style><div class="cv-mount"></div>`,
+    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'lamport','L');}},
    {t:'teach',h:'Vector clocks',body:[
      {k:'point',i:'🧮',t:'One counter per process. Compare element-wise.'},
      {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
      {k:'point',i:'∥',t:'Neither dominates → concurrent. Now you CAN tell.'}
    ]},
-   {t:'vecviz',h:'Vector clocks — step through it',nodes:['A','B','C'],
-    rule:'Local event or send: bump your own slot. Receive: bump your slot, then take element-wise max with the message.',
-    frames:[
-     {cap:'Start — every node’s clock is [0,0,0].',v:[[0,0,0],[0,0,0],[0,0,0]]},
-     {cap:'A does a local event → A bumps its own slot.',v:[[1,0,0],[0,0,0],[0,0,0]],hi:[[0,0]]},
-     {cap:'B does a local event, with no knowledge of A.',v:[[1,0,0],[0,1,0],[0,0,0]],hi:[[1,1]],
-      verdict:{cls:'conc',t:'∥ Compare A=[1,0,0] vs B=[0,1,0]: neither is ≤ the other → these events are <b>concurrent</b>.'}},
-     {cap:'A sends message m1 to C (A bumps its slot first; m1 carries A’s clock).',v:[[2,0,0],[0,1,0],[0,0,0]],hi:[[0,0]],msg:{from:0,to:2,label:'[2,0,0]'}},
-     {cap:'C receives m1: bump own slot, then max with [2,0,0].',v:[[2,0,0],[0,1,0],[2,0,1]],hi:[[2,0],[2,2]],
-      verdict:{cls:'hb',t:'→ V(A’s send)=[2,0,0] ≤ V(C)=[2,0,1] → A’s send <b>happened-before</b> C’s receive.'}},
-     {cap:'B sends message m2 to C (B bumps its slot; m2 carries B’s clock).',v:[[2,0,0],[0,2,0],[2,0,1]],hi:[[1,1]],msg:{from:1,to:2,label:'[0,2,0]'}},
-     {cap:'C receives m2: bump own slot, then max with [0,2,0].',v:[[2,0,0],[0,2,0],[2,2,2]],hi:[[2,1],[2,2]],
-      verdict:{cls:'hb',t:'C’s clock [2,2,2] now dominates both A and B — C has causally seen everything so far.'}}
-    ]},
+   {t:'htmlviz',h:'Vector clock — step through it',
+    html:`<style>
+.cv-mount svg{width:100%;height:auto;display:block}
+.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
+.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
+.cv-arrow{fill:var(--color-text-tertiary)}
+.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
+.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
+.cv-dot.sel{fill:var(--color-text-info)}
+.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
+.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
+.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+.cv-controls button:disabled{opacity:.4;cursor:default}
+.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
+.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
+.cv-cap b{color:var(--color-text-primary);font-weight:800}
+</style><div class="cv-mount"></div>`,
+    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'vector','V');}},
    {t:'cloze',q:'Fill the clock blanks.',distract:['physical','atomic'],text:[
      'Lamport clocks give a ',{blank:'partial'},' order but can’t spot ',{blank:'concurrent'},
      ' events. ',{blank:'Vector',alt:['vector']},' clocks compare ',{blank:'element-wise',alt:['elementwise']},
@@ -3056,6 +3034,79 @@ function stTeach(stage,step){
 }
 
 /* ---------- step: vecviz (interactive version-vector walkthrough) ---------- */
+/* ---- ported timeline clock viz (Lamport + vector), shared by htmlviz steps ---- */
+const CLK_EVENTS=[
+  {p:0,type:'local',col:1},
+  {p:0,type:'send',msg:'m1',col:2},
+  {p:1,type:'recv',msg:'m1',col:3},
+  {p:1,type:'send',msg:'m2',col:4},
+  {p:2,type:'recv',msg:'m2',col:5},
+  {p:0,type:'local',col:6}
+];
+function computeClocks(){
+  const L=[],V=[],lc=[0,0,0],vc=[[0,0,0],[0,0,0],[0,0,0]],msgL={},msgV={};
+  CLK_EVENTS.forEach((e,idx)=>{
+    if(e.type==='recv'){
+      lc[e.p]=Math.max(lc[e.p],msgL[e.msg])+1;
+      for(let i=0;i<3;i++)vc[e.p][i]=Math.max(vc[e.p][i],msgV[e.msg][i]);
+      vc[e.p][e.p]++;
+    }else{
+      lc[e.p]++;vc[e.p][e.p]++;
+      if(e.type==='send'){msgL[e.msg]=lc[e.p];msgV[e.msg]=vc[e.p].slice();}
+    }
+    L[idx]=lc[e.p];V[idx]=vc[e.p].slice();
+  });
+  return {L,V};
+}
+function makeClockViz(mount,mode,uid){
+  const {L,V}=computeClocks();
+  const names=['A','B','C'],laneY=[46,104,162],W=460,H=196;
+  const colX=c=>72+(c-1)*64;
+  const sendByMsg={};CLK_EVENTS.forEach((e,i)=>{if(e.type==='send')sendByMsg[e.msg]=i;});
+  const msgs=[];CLK_EVENTS.forEach((e,i)=>{if(e.type==='recv')msgs.push({from:sendByMsg[e.msg],to:i});});
+  const stamp=i=>mode==='lamport'?String(L[i]):'['+V[i].join(',')+']';
+  const evtName=i=>names[CLK_EVENTS[i].p]+' '+stamp(i);
+  function relation(a,b){let ale=true,ble=true,lt=false,gt=false;for(let k=0;k<3;k++){if(V[a][k]>V[b][k]){ale=false;gt=true;}if(V[a][k]<V[b][k]){ble=false;lt=true;}}if(ale&&lt)return'before';if(ble&&gt)return'after';return'concurrent';}
+  let revealed=0,sel=[],caption='Press <b>Step</b> to advance the simulation event by event.',timer=null;
+  function stepCaption(i){
+    const e=CLK_EVENTS[i],nm=names[e.p];
+    if(e.type==='local')return nm+' has a <b>local event</b> → '+(mode==='lamport'?('increment counter to <b>'+L[i]+'</b>'):('bump slot '+nm+' → <b>'+stamp(i)+'</b>'))+'.';
+    if(e.type==='send')return nm+' <b>sends '+e.msg+'</b> → increment and attach '+(mode==='lamport'?('counter <b>'+L[i]+'</b>'):('vector <b>'+stamp(i)+'</b>'))+'.';
+    return nm+' <b>receives '+e.msg+'</b> → '+(mode==='lamport'?('max(local, '+L[sendByMsg[e.msg]]+')+1 = <b>'+L[i]+'</b>'):('element-wise max with '+stamp(sendByMsg[e.msg])+', then bump slot '+nm+' = <b>'+stamp(i)+'</b>'))+'.';
+  }
+  function render(){
+    let s='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+    s+='<defs><marker id="cvarr'+uid+'" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path class="cv-arrow" d="M0,0 L8,3 L0,6 Z"/></marker></defs>';
+    for(let p=0;p<3;p++){s+='<line class="cv-lane" x1="50" y1="'+laneY[p]+'" x2="'+(W-12)+'" y2="'+laneY[p]+'"/><text class="cv-label" x="22" y="'+(laneY[p]+5)+'">'+names[p]+'</text>';}
+    msgs.forEach(m=>{if(m.from<revealed&&m.to<revealed){const e1=CLK_EVENTS[m.from],e2=CLK_EVENTS[m.to];s+='<line class="cv-msg" x1="'+colX(e1.col)+'" y1="'+laneY[e1.p]+'" x2="'+colX(e2.col)+'" y2="'+laneY[e2.p]+'" marker-end="url(#cvarr'+uid+')"/>';}});
+    for(let i=0;i<revealed;i++){const e=CLK_EVENTS[i],x=colX(e.col),y=laneY[e.p];s+='<text class="cv-stamp" x="'+x+'" y="'+(y-12)+'" text-anchor="middle">'+stamp(i)+'</text><circle class="cv-dot'+(sel.includes(i)?' sel':'')+'" data-i="'+i+'" cx="'+x+'" cy="'+y+'" r="7"/>';}
+    s+='</svg>';
+    s+='<div class="cv-controls"><button data-act="back"'+(revealed===0?' disabled':'')+'>◀ Back</button><button data-act="step"'+(revealed>=CLK_EVENTS.length?' disabled':'')+'>Step ▶</button><button data-act="play">Play</button><button data-act="reset">Reset</button><span class="cv-hint">'+(revealed<CLK_EVENTS.length?('Event '+revealed+' / '+CLK_EVENTS.length):'All revealed — tap two events to compare')+'</span></div>';
+    s+='<div class="cv-cap">'+caption+'</div>';
+    mount.innerHTML=s;
+    mount.querySelectorAll('.cv-dot').forEach(d=>d.addEventListener('click',()=>onDot(+d.dataset.i)));
+    mount.querySelectorAll('.cv-controls button').forEach(b=>b.addEventListener('click',()=>onAct(b.dataset.act)));
+  }
+  function onAct(a){
+    if(timer){clearInterval(timer);timer=null;}
+    if(a==='step'){if(revealed<CLK_EVENTS.length){caption=stepCaption(revealed);revealed++;}render();}
+    else if(a==='back'){if(revealed>0){revealed--;sel=[];caption=revealed>0?stepCaption(revealed-1):'Press <b>Step</b> to advance the simulation event by event.';}render();}
+    else if(a==='reset'){revealed=0;sel=[];caption='Press <b>Step</b> to advance the simulation event by event.';render();}
+    else if(a==='play'){revealed=0;sel=[];caption='Playing…';render();timer=setInterval(()=>{if(revealed<CLK_EVENTS.length){caption=stepCaption(revealed);revealed++;render();}else{clearInterval(timer);timer=null;caption='Done. Tap two events to test their causal relationship.';render();}},850);}
+  }
+  function onDot(i){
+    if(sel.includes(i))sel=sel.filter(x=>x!==i);else{sel.push(i);if(sel.length>2)sel.shift();}
+    if(sel.length===2){const[a,b]=sel,r=relation(a,b);
+      if(r==='concurrent')caption='<b>'+evtName(a)+'</b> ∥ <b>'+evtName(b)+'</b> — <b>concurrent</b> (neither vector dominates).'+(mode==='lamport'?' Their Lamport numbers ('+L[a]+', '+L[b]+') look ordered, but Lamport can’t prove this — only vector clocks can.':'');
+      else{const[x,y]=r==='before'?[a,b]:[b,a];caption='<b>'+evtName(x)+'</b> → <b>'+evtName(y)+'</b> — causally <b>happened-before</b> (its vector is ≤ the other, strictly less in ≥1 slot).';}
+    }else if(sel.length===1)caption='Selected <b>'+evtName(sel[0])+'</b>. Tap one more to compare.';
+    else caption='Tap two events to compare their causal relationship.';
+    render();
+  }
+  mount.addEventListener('click',e=>e.stopPropagation());
+  render();
+}
+
 function stVecViz(stage,step){
   const nodes=step.nodes,frames=step.frames,nc=['na','nb','nc'];
   let f=0;
