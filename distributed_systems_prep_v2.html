@@ -530,33 +530,67 @@ const UNITS=[
  ]}
 },
 {
- id:'raft',title:'Consensus (Raft)',icon:'🗳️',color:'#CE82FF',colorD:'#A560E8',
- blurb:'Make many nodes agree — even when some die.',
+ id:'raft',title:'Consensus',icon:'🗳️',color:'#CE82FF',colorD:'#A560E8',
+ blurb:'Get nodes to agree on one value — even when some crash. (Raft is one example.)',
  lessons:[
   {id:'raft-1',title:'Why consensus',steps:[
    {t:'teach',h:'The job',body:[
      {k:'tldr',t:'Consensus = many nodes agree on ONE value, despite failures.'},
-     {k:'point',i:'👑',t:'Powers <b>leader election</b>, <b>distributed locks</b>, and <b>replicated logs</b>.'}
+     {k:'point',i:'👑',t:'Powers <b>leader election</b>, <b>distributed locks</b>, <b>replicated logs</b>, <b>config/membership</b>, and <b>atomic commit</b>.'},
+     {k:'note',t:'You rarely build it yourself — you lean on a coordination service (ZooKeeper, etcd, Consul) that solves consensus for you.'}
+   ]},
+   {t:'teach',h:'What "agree" really means',body:[
+     {k:'point',i:'🤝',t:'<b>Agreement</b>: no two correct nodes decide different values.'},
+     {k:'point',i:'✅',t:'<b>Validity / integrity</b>: the chosen value was actually proposed, and each node decides at most once.'},
+     {k:'point',i:'🏁',t:'<b>Termination</b> (liveness): every correct node eventually decides — this is the hard part FLP attacks.'},
+     {k:'note',t:'Consensus is equivalent to <b>total-order broadcast</b>: agreeing on a value = agreeing on the order of a log of messages.'}
+   ]},
+   {t:'sort',q:'Safety property, or the liveness one?',buckets:['Safety (always holds)','Liveness (eventually)'],items:[
+     {text:'no two nodes decide differently',b:0},{text:'the value was proposed',b:0},{text:'every node eventually decides',b:1},{text:'decide at most once',b:0}
    ]},
    {t:'teach',h:'The hard limit',body:[
-     {k:'keyt',term:'FLP impossibility',def:'in a pure async network with 1 faulty node, no algorithm always agrees.'},
-     {k:'point',i:'❓',t:'You can’t tell a <b>crashed</b> node from a <b>slow</b> one.'},
-     {k:'note',c:'note',t:'Real systems dodge FLP with timeouts (partial synchrony) — that’s what Raft does.'}
+     {k:'keyt',term:'FLP impossibility',def:'in a pure async network with 1 faulty node, no algorithm can guarantee it ALWAYS agrees (terminates).'},
+     {k:'point',i:'❓',t:'Root cause: you can’t tell a <b>crashed</b> node from a <b>slow</b> one.'},
+     {k:'note',t:'Real systems keep safety always and dodge the liveness limit with timeouts (partial synchrony) — that’s what Raft & Paxos do.'}
    ]},
-   {t:'mcq',q:'How do Raft/Paxos get around FLP?',o:['quantum clocks','timeouts / partial synchrony','more nodes','ignoring failures'],a:1,why:'Assuming the network is eventually timely lets them make progress.'},
-   {t:'recall',q:'In one line: what does FLP say, and how do real systems cope?',model:['FLP: pure-async consensus can’t guarantee termination with even one fault.','You can’t distinguish crashed from slow.','Fix: add timeouts/partial synchrony (Raft, Paxos).']}
+   {t:'mcq',q:'How do consensus algorithms (Paxos/Raft) get around FLP?',o:['quantum clocks','timeouts / partial synchrony','more nodes','ignoring failures'],a:1,why:'Assuming the network is eventually timely lets them make progress while never breaking safety.'},
+   {t:'recall',q:'In one line: what does FLP say, and how do real systems cope?',model:['FLP: pure-async consensus can’t guarantee termination (liveness) with even one fault.','Root cause: you can’t distinguish crashed from slow.','Fix: keep safety always; add timeouts/partial synchrony for liveness (Raft, Paxos).']}
+  ]},
+  {id:'raft-fam',title:'The consensus landscape',steps:[
+   {t:'teach',h:'One problem, many algorithms',body:[
+     {k:'point',i:'📜',t:'<b>Paxos</b> (1998): the original, proven correct — but famously hard to understand and to build right.'},
+     {k:'point',i:'🗳️',t:'<b>Raft</b>: same guarantees, designed for understandability — strong leader + terms + a replicated log.'},
+     {k:'point',i:'🐘',t:'<b>ZAB</b> (ZooKeeper) and <b>Viewstamped Replication</b>: same family, slightly different mechanics.'},
+     {k:'note',t:'They all share the recipe: a <b>leader</b> + a <b>majority quorum</b> + a <b>replicated log</b>. Learn one well (Raft) and the rest rhyme.'}
+   ]},
+   {t:'teach',h:'Consensus vs atomic commit (2PC)',body:[
+     {k:'vs',a:{h:'2PC (atomic commit)',t:'EVERY participant must vote yes; one missing vote or a dead coordinator → blocks. Not fault-tolerant.'},b:{h:'Consensus',t:'only a MAJORITY needed → survives a minority crashing. Fault-tolerant.'}},
+     {k:'callout',c:'warn',t:'Don’t confuse them: 2PC needs unanimity and can block; consensus needs a majority and keeps going.'}
+   ]},
+   {t:'teach',h:'Where you actually meet it',body:[
+     {k:'tldr',t:'You usually consume consensus through a coordination service rather than coding it.'},
+     {k:'point',i:'🛠️',t:'<b>ZooKeeper / etcd / Consul</b>: leader election, config, distributed locks, service discovery, membership.'},
+     {k:'point',i:'⚖️',t:'Keep the consensus group SMALL (3 or 5 nodes) — every decision needs a majority round-trip, so more nodes = slower.'}
+   ]},
+   {t:'mcq',q:'Why is consensus fault-tolerant where 2PC blocks?',o:['it uses more nodes','it needs only a majority, not every vote','it skips durability','it has no leader'],a:1,why:'A majority quorum still forms when a minority (incl. a failed coordinator) is down; 2PC needs unanimity.'},
+   {t:'cloze',q:'Fill the landscape blanks.',distract:['sharding','caching'],text:[
+     {blank:'Paxos',alt:['paxos']},' and ',{blank:'Raft',alt:['raft']},' solve the same problem; both rely on a ',
+     {blank:'majority',alt:['quorum']},' quorum. In practice you use a coordination service like ',
+     {blank:'ZooKeeper',alt:['etcd','Consul','zookeeper']},' instead of building it yourself.'
+   ]},
+   {t:'recall',q:'How does consensus differ from two-phase commit?',model:['2PC (atomic commit) needs EVERY participant to vote commit and a live coordinator — a single failure blocks it.','Consensus (Raft/Paxos) needs only a MAJORITY, so it tolerates a minority of failures and keeps making progress.','That’s why config/locks/leader-election ride on consensus services (ZooKeeper, etcd), not on raw 2PC.']}
   ]},
   {id:'raft-2',title:'Raft elections',steps:[
    {t:'teach',h:'Terms & heartbeats',body:[
      {k:'point',i:'🕒',t:'<b>Terms</b> = ever-increasing numbers; each starts with an election.'},
-     {k:'point',i:'💓',t:'Leader sends <b>heartbeats</b>. No heartbeat → a follower suspects failure.'},
+     {k:'point',i:'💓',t:'Leader sends <b>heartbeats</b>. The election timer is ALWAYS running — each heartbeat <b>resets</b> it. Miss enough → it elapses and the follower suspects failure.'},
      {k:'point',i:'🎲',t:'<b>Randomised timeout</b> (150–300ms) avoids everyone running at once.'}
    ]},
    {t:'teach',h:'Winning an election',body:[
      {k:'cause',a:'Timeout fires → become candidate, vote self, ask others',b:'Win with a STRICT MAJORITY'},
      {k:'keyt',term:'Up-to-date check',def:'voters refuse a candidate whose log is behind → winner has all committed entries.'}
    ]},
-   {t:'order',q:'Put a Raft election in order.',items:['Heartbeats stop','Follower’s random timer fires','It becomes a candidate & votes for itself','Others grant votes','Majority reached → new leader']},
+   {t:'order',q:'Put a Raft election in order.',items:['Heartbeats stop','Election timer isn’t reset → it elapses','It becomes a candidate & votes for itself','Others grant votes','Majority reached → new leader']},
    {t:'mcq',q:'A candidate becomes leader when it gets…',o:['the most recent log','votes from ALL nodes','a strict majority','the lowest id'],a:2,why:'Majority (quorum) wins; plus its log must be up-to-date.'},
    {t:'cloze',q:'Unmask the Raft election.',distract:['leader','minority'],text:[
      'A follower waits for ',{blank:'heartbeats'},'. After a randomised ',{blank:'timeout'},
@@ -579,8 +613,12 @@ const UNITS=[
    {t:'recall',q:'How does Raft keep reads linearizable?',model:['Reads go through the leader, but a partitioned old leader could be stale.','Read-index: record commit index, confirm leadership with a heartbeat majority, wait until applied, then serve.','Or a leader lease (time-bounded) if clocks are trustworthy.']}
   ]}
  ],
- boss:{title:'Raft Boss',time:75,q:[
+ boss:{title:'Consensus Boss',time:85,q:[
    {q:'Consensus powers all EXCEPT…',o:['leader election','replicated logs','distributed locks','image compression'],a:3},
+   {q:'Consensus is fault-tolerant (vs 2PC) because it needs…',o:['every vote','a majority quorum','no coordinator','zero clocks'],a:1},
+   {q:'Paxos, Raft and ZAB are…',o:['caches','the same consensus family','load balancers','clocks'],a:1},
+   {q:'In practice you get consensus from…',o:['a CDN','ZooKeeper / etcd / Consul','a message queue','DNS'],a:1},
+   {q:'FLP threatens which property?',o:['agreement','liveness (termination)','validity','durability'],a:1},
    {q:'FLP is dodged with…',o:['timeouts','more RAM','GPUs','sharding'],a:0},
    {q:'A Raft candidate wins with…',o:['any vote','a strict majority','all votes','seniority'],a:1},
    {q:'Randomised election timeouts prevent…',o:['data loss','split votes / herds','stale reads','partitions'],a:1},
@@ -1494,7 +1532,7 @@ const BADGES=[
  {id:'first',icon:'🌱',name:'First Steps',test:s=>Object.keys(s.done).length>=1},
  {id:'cap',icon:'⚖️',name:'CAP Crusher',test:s=>s.done['boss-cap']},
  {id:'repl',icon:'📑',name:'Replicator',test:s=>s.done['boss-repl']},
- {id:'raft',icon:'🗳️',name:'Raft Wrangler',test:s=>s.done['boss-raft']},
+ {id:'raft',icon:'🗳️',name:'Consensus Master',test:s=>s.done['boss-raft']},
  {id:'streak3',icon:'🔥',name:'3-Day Streak',test:s=>s.streak>=3},
  {id:'lvl5',icon:'⭐',name:'Level 5',test:s=>levelOf(s.xp)>=5},
  {id:'recall',icon:'🧠',name:'Deep Recall',test:s=>s.recallNailed>=5},
@@ -1539,7 +1577,7 @@ function renderHome(){
     +'<div class="spacer"></div>'
     +'<div class="stat gem"><span class="ic">🏅</span>'+Object.keys(S.badges).length+'</div>'
     +'</div>';
-  const SHORT={cap:'CAP',repl:'Repl',raft:'Raft',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
+  const SHORT={cap:'CAP',repl:'Repl',raft:'Consensus',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
   h+='<div class="jumpbar">';
   UNITS.forEach((u,ui)=>{const bd=S.done['boss-'+u.id];const open=unitUnlocked(ui);
     h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'" data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
