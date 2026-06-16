@@ -1314,8 +1314,9 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
 .hlc-root .hval{font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--color-text-primary);margin-top:3px}
 .hlc-root .hlc-node.bump .hval{color:var(--color-text-success)}
 .hlc-root .hlc-node.idle .hval{color:var(--color-text-tertiary)}
-.hlc-root .hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);background:var(--code-bg);border:1px solid var(--border);border-radius:9px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
-.hlc-root .hlc-cap{margin-top:10px;font-size:13px;color:var(--color-text-secondary);line-height:1.55}
+.hlc-root .hlc-box{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.hlc-root .hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);padding:11px 13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hlc-root .hlc-cap{font-size:13px;color:var(--color-text-secondary);line-height:1.55;padding:11px 13px;border-top:1px solid var(--border)}
 .hlc-root .hlc-cap b{color:var(--color-text-primary);font-weight:600}
 </style>
 <div class="hlc-nav"><button class="hlc-back" type="button">◀ Back</button><button class="hlc-next" type="button">Step ▶</button><span class="hlc-prog"></span></div>
@@ -1323,8 +1324,7 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
   <div class="hlc-node" data-n="A"><div class="hnm">Node A</div><div class="hval" data-v="A">—</div></div>
   <div class="hlc-node" data-n="B"><div class="hnm">Node B</div><div class="hval" data-v="B">—</div></div>
 </div>
-<div class="hlc-step"></div>
-<div class="hlc-cap"></div>
+<div class="hlc-box"><div class="hlc-step"></div><div class="hlc-cap"></div></div>
 </div>
 <script>(function(){
   var root=document.getElementById('hlcViz'); if(!root) return;

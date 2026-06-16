@@ -1500,8 +1500,9 @@ const UNITS=[
 .hlc-node .hval{font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--color-text-primary);margin-top:3px}
 .hlc-node.bump .hval{color:var(--color-text-success)}
 .hlc-node.idle .hval{color:var(--color-text-tertiary)}
-.hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:9px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
-.hlc-cap{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.hlc-box{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:12px;overflow:hidden}
+.hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);padding:11px 13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hlc-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:11px 13px;border-top:1px solid var(--color-border-tertiary)}
 .hlc-cap b{color:var(--color-text-primary);font-weight:800}
 </style>
 <div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
@@ -1517,7 +1518,7 @@ const UNITS=[
       function panel(s){return '<div class="hlc-panel"><div class="hlc-state">'
         +'<div class="hlc-node'+(s.act==='A'?' bump':(s.a==='—'?' idle':''))+'"><div class="hnm">Node A</div><div class="hval">'+s.a+'</div></div>'
         +'<div class="hlc-node'+(s.act==='B'?' bump':(s.b==='—'?' idle':''))+'"><div class="hnm">Node B</div><div class="hval">'+s.b+'</div></div>'
-        +'</div><div class="hlc-step">'+s.step+'</div><div class="hlc-cap">'+s.cap+'</div></div>';}
+        +'</div><div class="hlc-box"><div class="hlc-step">'+s.step+'</div><div class="hlc-cap">'+s.cap+'</div></div></div>';}
       root.querySelector('.hlc-host').innerHTML=STEPS.map(panel).join('');
       stepper(root,STEPS.length,{panelClass:'hlc-panel',labels:['HLC = (l, c)','A: local event','B: receives','B: same-ms tie','Compare']});
     }},
