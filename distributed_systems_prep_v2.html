@@ -146,6 +146,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .lhearts{color:var(--red);font-weight:900;display:flex;align-items:center;gap:3px}
 .timer{font-weight:900;color:var(--ink);display:flex;align-items:center;gap:4px}
 .timer.low{color:var(--red)}
+.timer.paused{color:var(--faint);font-weight:700}
 .combo{position:fixed;left:50%;top:64px;transform:translateX(-50%);background:var(--purple);color:#fff;font-weight:900;padding:5px 14px;border-radius:20px;font-size:14px;box-shadow:0 3px 0 var(--purple-d);opacity:0;transition:opacity .2s,transform .2s;z-index:30}
 .combo.show{opacity:1}
 
@@ -1978,12 +1979,20 @@ function renderHome(){
 
 /* ============================ LESSON RUNNER ============================ */
 var R=null; // active run state
+function isQuizStep(t){return t==='mcq'||t==='sort'||t==='match'||t==='order'||t==='build'||t==='cloze'||t==='recall';}
 function startLesson(id){
   const {u,l}=lessonById(id);
-  const t=Math.max(150,l.steps.length*35); // ~35s/step, min 150s — mild pressure, still time to read
+  const quizN=l.steps.filter(s=>isQuizStep(s.t)).length;
+  const t=Math.max(60,quizN*25); // clock only ticks on quiz steps; learning steps are untimed
   R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
-  startTimer();
-  renderStep();
+  renderStep(); // renderStep starts/pauses the timer per step
+}
+/* run the countdown only on a fresh quiz step (or in boss mode); pause it on learning/review steps */
+function manageTimer(){
+  if(R.timeLeft==null){return;}
+  const step=R.steps[R.idx];
+  const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+  if(active){startTimer();}else{stopTimer();}
 }
 function startBoss(uid){
   const u=UNITS.find(x=>x.id===uid);
@@ -2014,7 +2023,13 @@ function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
 function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
   let right='';
-  if(R.timeLeft!=null){right='<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>';}
+  if(R.timeLeft!=null){
+    const step=R.steps[R.idx];
+    const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+    right=active
+      ?'<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>'
+      :'<div class="timer paused" title="Timer pauses while you learn — runs during quiz steps"><span>⏸</span><span>'+R.timeLeft+'s</span></div>';
+  }
   const back=(R.idx>0&&R.mode!=='boss')?'<button class="lback" id="backBtn" title="Previous">←</button>':'';
   return '<div class="lhead">'
     +'<button class="close" id="quitBtn">×</button>'
@@ -2035,6 +2050,7 @@ function renderStep(){
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
   else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz,htmlviz:stHtmlViz}[step.t])(stage,step);}
+  manageTimer();
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
