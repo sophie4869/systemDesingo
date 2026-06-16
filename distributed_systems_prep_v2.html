@@ -671,7 +671,7 @@ const UNITS=[
    ]},
    {t:'mcq',q:'Why is consensus fault-tolerant where 2PC blocks?',o:['it uses more nodes','it needs only a majority, not every vote','it skips durability','it has no leader'],a:1,why:'A majority quorum still forms when a minority (incl. a failed coordinator) is down; 2PC needs unanimity.'},
    {t:'cloze',q:'Fill the landscape blanks.',distract:['sharding','caching'],text:[
-     {blank:'Paxos',alt:['paxos']},' and ',{blank:'Raft',alt:['raft']},' solve the same problem; both rely on a ',
+     {blank:'Paxos',alt:['paxos','Raft','raft']},' and ',{blank:'Raft',alt:['raft','Paxos','paxos']},' solve the same problem; both rely on a ',
      {blank:'majority',alt:['quorum']},' quorum. In practice you use a coordination service like ',
      {blank:'ZooKeeper',alt:['etcd','Consul','zookeeper']},' instead of building it yourself.'
    ]},
@@ -1980,7 +1980,9 @@ function renderHome(){
 var R=null; // active run state
 function startLesson(id){
   const {u,l}=lessonById(id);
-  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  const t=Math.max(90,l.steps.length*20); // ~20s/step, min 90s — adds time pressure
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
+  startTimer();
   renderStep();
 }
 function startBoss(uid){
@@ -2012,7 +2014,7 @@ function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
 function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
   let right='';
-  if(R.mode==='boss'){right='<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>';}
+  if(R.timeLeft!=null){right='<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>';}
   const back=(R.idx>0&&R.mode!=='boss')?'<button class="lback" id="backBtn" title="Previous">←</button>':'';
   return '<div class="lhead">'
     +'<button class="close" id="quitBtn">×</button>'
@@ -2374,7 +2376,7 @@ function finishRun(timedOut){
     else{commitRun(false);}
     return resultsScreen(ok);
   }
-  if(R.hearts>0){S.done[R.lesson.id]=true;recordResult(R.lesson.id);commitRun(true);resultsScreen(true);}
+  if(R.hearts>0&&!timedOut){S.done[R.lesson.id]=true;recordResult(R.lesson.id);commitRun(true);resultsScreen(true);}
   else{commitRun(false);resultsScreen(false);}
 }
 function recordResult(id){
