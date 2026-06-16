@@ -694,6 +694,29 @@ const UNITS=[
      ', it becomes a ',{blank:'candidate'},', votes for itself, and wins with a strict ',
      {blank:'majority'},' — but only if its ',{blank:'log'},' is up-to-date.'
    ]},
+   {t:'htmlviz',h:'Raft election — step through it',
+    html:`<style>
+.rft-cluster{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.rft-node{flex:1;min-width:78px;border-radius:12px;padding:10px 6px;text-align:center;border:2px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.rft-node.cand{border-color:var(--color-border-warning);background:var(--color-background-warning)}
+.rft-node.leader{border-color:var(--color-border-success);background:var(--color-background-success)}
+.rft-node.dead{border-color:var(--color-text-danger);background:var(--color-background-danger);opacity:.65}
+.rft-role{display:block;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--color-text-tertiary)}
+.rft-node.cand .rft-role{color:var(--color-text-warning)}
+.rft-node.leader .rft-role{color:var(--color-text-success)}
+.rft-node.dead .rft-role{color:var(--color-text-danger)}
+.rft-id{display:block;font-size:20px;font-weight:900;color:var(--color-text-primary)}
+.rft-term{display:block;font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono)}
+.rft-ex{margin-top:11px;font-size:13px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.rft-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="rft-panel"><div class="rft-cluster"><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">A</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 1</span></div></div><div class="rft-ex">Three followers at term 1. A stops hearing heartbeats — its randomised election timer expires first.</div></div>
+<div class="rft-panel"><div class="rft-cluster"><div class="rft-node cand"><span class="rft-role">Candidate</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 1</span></div></div><div class="rft-ex">A <b>increments its term</b> (1→2) and becomes a candidate, voting for itself.</div></div>
+<div class="rft-panel"><div class="rft-cluster"><div class="rft-node cand"><span class="rft-role">Candidate</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Voted A ✓</span><span class="rft-id">B</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Voted A ✓</span><span class="rft-id">C</span><span class="rft-term">term 2</span></div></div><div class="rft-ex">A sends <b>RequestVote(term=2)</b>. B and C check A's log is at least as up-to-date → both grant. <b>2 of 3 = majority.</b></div></div>
+<div class="rft-panel"><div class="rft-cluster"><div class="rft-node leader"><span class="rft-role">Leader</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 2</span></div></div><div class="rft-ex">A wins the majority → <b>leader</b>. Its heartbeats reset B's and C's timers, so no one else starts an election.</div></div>
+<div class="rft-panel"><div class="rft-cluster"><div class="rft-node dead"><span class="rft-role">Crashed</span><span class="rft-id">A</span><span class="rft-term">—</span></div><div class="rft-node leader"><span class="rft-role">Leader</span><span class="rft-id">B</span><span class="rft-term">term 3</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 3</span></div></div><div class="rft-ex">A crashes. B times out first → candidate at <b>term 3</b>, wins C's vote, becomes the new leader. <b>Terms only ever increase.</b></div></div>`,
+    setup:function(root,stepper){stepper(root,5,{panelClass:'rft-panel',labels:['Followers · term 1','A → candidate','RequestVote → majority','A is leader','A crashes → B takes over']});}},
    {t:'recall',q:'Walk me through a Raft leader election (the interview classic).',model:['Followers expect heartbeats; if none arrives before a randomised timeout, one becomes a candidate in a new term.','It votes for itself and requests votes; nodes won’t vote for a less up-to-date log.','With a strict majority it becomes leader and starts sending heartbeats.']}
   ]},
   {id:'raft-3',title:'Log & safe reads',steps:[

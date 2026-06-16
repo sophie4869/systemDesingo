@@ -596,24 +596,51 @@ Read  &rarr;                              TAIL</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Raft</div><div class="card-sub">Designed for understandability</div></div><span class="badge badge-blue">Industry standard</span></div>
         <div class="card-body">
           <p>Raft breaks the consensus problem into three subproblems: leader election, log replication, and safety. The design goal was understandability — Paxos is correct but notoriously hard to implement.</p>
-          <div class="code">ELECTION (3-node cluster, all followers at term=1):
-
-  [F:A t=1]   [F:B t=1]   [F:C t=1]    ← heartbeat timeout on A
-
-  A increments term, becomes candidate:
-  [C:A t=2]   [F:B t=1]   [F:C t=1]
-
-  A sends RequestVote(term=2) to B and C.
-  B checks: A's log ok? yes → grant vote
-  C checks: A's log ok? yes → grant vote
-  A has 2/3 votes → majority → becomes leader
-
-  [L:A t=2]   [F:B t=2]   [F:C t=2]
-       │ heartbeat →  B, C reset timers
-
-  If leader A crashes:
-  [DEAD:A]    [F:B t=2]   [F:C t=2]    ← B times out first
-  B becomes candidate(t=3), wins vote from C → new leader</div>
+          <style>
+          .rft-cluster{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+          .rft-node{flex:1;min-width:78px;border-radius:10px;padding:9px 6px;text-align:center;border:2px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+          .rft-node.cand{border-color:var(--color-border-warning);background:var(--color-background-warning)}
+          .rft-node.leader{border-color:var(--color-border-success);background:var(--color-background-success)}
+          .rft-node.dead{border-color:var(--color-text-danger);background:var(--color-background-danger);opacity:.65}
+          .rft-role{display:block;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--color-text-tertiary)}
+          .rft-node.cand .rft-role{color:var(--color-text-warning)}
+          .rft-node.leader .rft-role{color:var(--color-text-success)}
+          .rft-node.dead .rft-role{color:var(--color-text-danger)}
+          .rft-id{display:block;font-size:19px;font-weight:800;color:var(--color-text-primary)}
+          .rft-term{display:block;font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono)}
+          .rft-ex{margin-top:11px;font-size:13px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+          .rft-ex b{color:var(--color-text-primary);font-weight:600}
+          .rft-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+          .rft-dots{display:flex;gap:6px}
+          .rft-dot{width:8px;height:8px;border-radius:50%;background:var(--color-border-tertiary)}
+          .rft-dot.on{background:var(--color-text-info)}
+          .rft-lbl{font-size:13px;color:var(--color-text-secondary);font-weight:500;flex:1}
+          </style>
+          <div class="viz-embed rft-wrap" id="rftWrap" onclick="event.stopPropagation()">
+            <div class="rft-nav"><button onclick="rftGo(-1)" aria-label="Previous">‹</button><span class="rft-dots" id="rftDots"></span><button onclick="rftGo(1)" aria-label="Next">›</button><span class="rft-lbl" id="rftLbl"></span></div>
+            <div class="rft-panel"><div class="rft-cluster"><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">A</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 1</span></div></div><div class="rft-ex">Three followers at term 1. A stops hearing the leader's heartbeats — its randomised election timer expires first.</div></div>
+            <div class="rft-panel"><div class="rft-cluster"><div class="rft-node cand"><span class="rft-role">Candidate</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 1</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 1</span></div></div><div class="rft-ex">A <b>increments its term</b> (1→2) and becomes a candidate, voting for itself.</div></div>
+            <div class="rft-panel"><div class="rft-cluster"><div class="rft-node cand"><span class="rft-role">Candidate</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Voted A ✓</span><span class="rft-id">B</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Voted A ✓</span><span class="rft-id">C</span><span class="rft-term">term 2</span></div></div><div class="rft-ex">A sends <b>RequestVote(term=2)</b>. B and C check A's log is at least as up-to-date as theirs → both grant. <b>2 of 3 = majority.</b></div></div>
+            <div class="rft-panel"><div class="rft-cluster"><div class="rft-node leader"><span class="rft-role">Leader</span><span class="rft-id">A</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">B</span><span class="rft-term">term 2</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 2</span></div></div><div class="rft-ex">A wins the majority → <b>leader</b>. Its heartbeats reset B's and C's election timers, so no one else starts an election.</div></div>
+            <div class="rft-panel"><div class="rft-cluster"><div class="rft-node dead"><span class="rft-role">Crashed</span><span class="rft-id">A</span><span class="rft-term">—</span></div><div class="rft-node leader"><span class="rft-role">Leader</span><span class="rft-id">B</span><span class="rft-term">term 3</span></div><div class="rft-node"><span class="rft-role">Follower</span><span class="rft-id">C</span><span class="rft-term">term 3</span></div></div><div class="rft-ex">A crashes. B's timer expires first → it becomes candidate at <b>term 3</b>, wins C's vote, and is the new leader. <b>Terms only ever increase.</b></div></div>
+          </div>
+          <script>(function(){
+            const root=document.getElementById('rftWrap');
+            const labels=['Followers · term 1','A → candidate','RequestVote → majority','A is leader','A crashes → B takes over'];
+            const panels=root.querySelectorAll('.rft-panel');
+            const dots=root.querySelector('#rftDots');
+            panels.forEach(()=>{const d=document.createElement('span');d.className='rft-dot';dots.appendChild(d);});
+            let cur=0;
+            function show(){
+              panels.forEach((p,i)=>p.style.display=i===cur?'':'none');
+              root.querySelectorAll('.rft-dot').forEach((d,i)=>d.classList.toggle('on',i===cur));
+              root.querySelector('#rftLbl').textContent=labels[cur];
+              const pv=root.querySelector('.rft-nav button:first-child'),nx=root.querySelector('.rft-nav button:nth-child(3)');
+              pv.disabled=cur===0;nx.disabled=cur===panels.length-1;
+            }
+            window.rftGo=function(d){cur=Math.max(0,Math.min(panels.length-1,cur+d));show();};
+            show();
+          })();</script>
           <p><strong>Terms:</strong> monotonically increasing numbers, one per election cycle. Every message carries a term. If a node sees a higher term than its own, it immediately updates and steps down if it was a leader. Messages with a lower term are rejected.</p>
           <p><strong>Election:</strong> followers wait for heartbeats. If none arrives within a randomised timeout (150–300ms), a follower increments its term, declares itself a candidate, votes for itself, and sends RequestVote to everyone. It wins if it gets a strict majority. The crucial constraint: a node won't vote for a candidate whose log is less up-to-date than its own. This guarantees the elected leader always has all committed entries.</p>
           <div class="code">Log up-to-date check (lexicographic):
