@@ -100,6 +100,8 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .act{flex:1;padding:12px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;font-weight:800;font-size:13px;color:var(--muted)}
 .act:active{transform:translateY(2px)}
 .act.hot{border-color:var(--red);color:var(--red-d);background:var(--red-bg)}
+.optrow{display:flex;align-items:center;gap:7px;margin:6px 18px 4px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
+.optrow input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
 
 .unit{margin:8px 0 4px;scroll-margin-top:118px}
 .unit-head{margin:18px 18px 6px;border-radius:var(--r);padding:14px 18px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.12)}
@@ -1921,10 +1923,13 @@ function renderHome(){
   h+='<div class="levelcard"><div class="ring" style="--p:'+prog+'"><span>'+lvl+'</span></div>'
     +'<div class="lc-meta"><div class="lc-title">Level '+lvl+'</div><div class="lc-sub">'+prog+'/100 XP to level '+(lvl+1)+'</div></div></div>';
   const nMist=Object.keys(S.mistakes).length;
+  const nRecall=UNITS.reduce((a,u)=>a+u.lessons.reduce((b,l)=>b+l.steps.filter(s=>s.t==='recall').length,0),0);
   h+='<div class="actions">'
     +'<button class="act'+(nMist?' hot':'')+'" id="reviewBtn">🩹 Review mistakes'+(nMist?' ('+nMist+')':'')+'</button>'
+    +'<button class="act" id="recallBtn">🗣️ Explain-it drills'+(nRecall?' ('+nRecall+')':'')+'</button>'
     +'<button class="act" id="unlockBtn">'+(S.unlockAll?'🔓 Free-roam: ON':'🔒 Free-roam: OFF')+'</button>'
-    +'</div>';
+    +'</div>'
+    +'<label class="optrow"><input type="checkbox" id="skipRecall"'+(S.reviewSkipRecall?' checked':'')+'> Skip 🗣️ explain-it questions when reviewing mistakes</label>';
 
   UNITS.forEach((u,ui)=>{
     const unlocked=unitUnlocked(ui);
@@ -1972,6 +1977,8 @@ function renderHome(){
   APP().querySelectorAll('[data-lesson]').forEach(n=>n.onclick=()=>startLesson(n.dataset.lesson));
   APP().querySelectorAll('[data-boss]').forEach(n=>n.onclick=()=>startBoss(n.dataset.boss));
   document.getElementById('reviewBtn').onclick=startReview;
+  document.getElementById('recallBtn').onclick=startRecallReview;
+  const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
   APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
   try{window.scrollTo(0,0);}catch(e){}
@@ -2002,9 +2009,17 @@ function startBoss(uid){
   renderStep();
 }
 function startReview(){
-  const steps=shuffle(Object.values(S.mistakes)).slice(0,15);
-  if(!steps.length){toast('No mistakes to review — nice! 🎉');return;}
-  R={mode:'review',unit:{id:'review'},steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  let pool=Object.values(S.mistakes);
+  if(S.reviewSkipRecall)pool=pool.filter(s=>s.t!=='recall');
+  const steps=shuffle(pool).slice(0,15);
+  if(!steps.length){toast(S.reviewSkipRecall?'No non-explain-it mistakes to review 🎉':'No mistakes to review — nice! 🎉');return;}
+  R={mode:'review',source:'mistakes',unit:{id:'review'},steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
+  renderStep();
+}
+function startRecallReview(){
+  const steps=shuffle(UNITS.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>s.t==='recall'));
+  if(!steps.length){toast('No explain-it questions found.');return;}
+  R={mode:'review',source:'recall',unit:{id:'recall'},steps,idx:0,frontier:0,hearts:99,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0};
   renderStep();
 }
 
@@ -2430,7 +2445,7 @@ function resultsScreen(success){
   }
   clearFoot();APP().innerHTML=h;
   const hb=document.getElementById('homeBtn');if(hb)hb.onclick=renderHome;
-  const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?startReview():startLesson(R.lesson.id);};
+  const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?(R.source==='recall'?startRecallReview():startReview()):startLesson(R.lesson.id);};
   if(success){burst();}
 }
 function burst(){
