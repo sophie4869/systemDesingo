@@ -1818,6 +1818,23 @@ const UNITS=[
      {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant. e.g. two on-call doctors each see the other on call, both clock off → zero on call. (fix: serializable / SSI)'},
      {k:'mnemonic',t:'Dirty = uncommitted. Same object → lost update. Different objects, shared assumption → write skew.'}
    ]},
+   {t:'htmlviz',h:'Anomaly → what happens → weakest fix',
+    html:`<style>
+.anx-tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
+.anx-tbl th{text-align:left;padding:7px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
+.anx-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:top;line-height:1.4}
+.anx-tbl tr:last-child td{border-bottom:none}
+.anx-nm{font-weight:800;color:var(--color-text-primary)}
+.anx-fix{color:var(--color-text-success);font-weight:700}
+</style>
+<table class="anx-tbl"><thead><tr><th style="width:26%">Anomaly</th><th style="width:42%">What happens</th><th style="width:32%">Weakest level that stops it</th></tr></thead><tbody>
+<tr><td class="anx-nm">Dirty read</td><td>Read another txn’s uncommitted write</td><td class="anx-fix">Read Committed</td></tr>
+<tr><td class="anx-nm">Dirty write</td><td>Overwrite another txn’s uncommitted write</td><td class="anx-fix">Read Committed (row locks)</td></tr>
+<tr><td class="anx-nm">Non-repeatable read <span style="font-weight:600">(read skew)</span></td><td>Re-reading a row gives a different value mid-txn</td><td class="anx-fix">Snapshot Isolation / Repeatable Read</td></tr>
+<tr><td class="anx-nm">Phantom</td><td>A query’s result set gains/loses rows mid-txn</td><td class="anx-fix">Serializable (predicate / index-range locks)</td></tr>
+<tr><td class="anx-nm">Lost update</td><td>Two read-modify-write cycles; one clobbers the other</td><td class="anx-fix">Atomic op, SELECT … FOR UPDATE, or CAS</td></tr>
+<tr><td class="anx-nm">Write skew</td><td>Two txns read an overlapping set, write disjoint rows, jointly breaking an invariant</td><td class="anx-fix">Serializable / SSI (or materialize the conflict)</td></tr>
+</tbody></table>`},
    {t:'sort',q:'Same object or different objects?',buckets:['Same object','Different objects'],items:[
      {text:'Lost update',b:0},{text:'Write skew',b:1}
    ]},
@@ -1889,6 +1906,84 @@ const UNITS=[
   <div class="phv-ex">A <b>predicate / index-range lock</b> locks the condition itself, so any matching insert is blocked. <b>SSI</b> instead lets both run and aborts one at commit when it detects the conflict.</div>
 </div>`,
     setup:function(root,stepper){stepper(root,3,{panelClass:'phv-panel',labels:['1 · Both check for bookings','2 · Both insert — phantom!','3 · Fix: predicate lock / SSI']});}},
+   {t:'htmlviz',h:'Lost update → step through it',
+    html:`<style>
+.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.av-sql .kw{color:var(--color-text-info)}
+.av-sql .hl{color:var(--color-text-success);font-weight:700}
+.av-sql .bad{color:var(--color-text-danger);font-weight:700}
+.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.av-ex b{color:var(--color-text-primary);font-weight:800}
+.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
+.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
+@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
+  </div>
+  <div class="av-ex">Both read <b>views = 42</b>. Each plans to add 1 in application code (read-modify-write).</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="hl">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="bad">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← clobbers A</span></div></div>
+  </div>
+  <div class="av-ex bad"><b>Two +1s should give 44 — but you get 43.</b> B computed 42+1 from its stale read and overwrote A’s write. One update is silently <b>lost</b>: both targeted the SAME row/value.</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Atomic increment</div><div class="av-sql"><span class="kw">UPDATE</span> posts\n<span class="kw">SET</span> views = <span class="hl">views + 1</span>\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">DB does the read-</span>\n<span class="hl">modify-write atomically</span></div></div>
+    <div class="av-col"><div class="av-ct">…or lock / CAS</div><div class="av-sql"><span class="kw">SELECT</span> views … <span class="kw">FOR UPDATE</span>;\n<span class="hl">(row lock — pessimistic)</span>\n\n<span class="kw">UPDATE</span> … <span class="kw">SET</span> views=43\n<span class="kw">WHERE</span> id=7 <span class="kw">AND</span> views=<span class="hl">42</span>;\n<span class="hl">(CAS — fails if changed)</span></div></div>
+  </div>
+  <div class="av-ex ok">Collapse the read-modify-write into <b>one atomic step</b>: an in-place <b>+1</b>, a <b>row lock</b> (SELECT … FOR UPDATE), or a <b>compare-and-set</b> that fails when the value moved under you.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both read 42','2 · Both write 43 — one lost','3 · Fix: atomic / lock / CAS']});}},
+   {t:'htmlviz',h:'Write skew → step through it',
+    html:`<style>
+.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.av-sql .kw{color:var(--color-text-info)}
+.av-sql .hl{color:var(--color-text-success);font-weight:700}
+.av-sql .bad{color:var(--color-text-danger);font-weight:700}
+.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.av-ex b{color:var(--color-text-primary);font-weight:800}
+.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
+.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
+.av-inv{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:9px;padding:7px 11px;background:var(--color-background-info);border-radius:var(--border-radius-md)}
+@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="av-panel">
+  <div class="av-inv">🏥 Invariant: at least 1 doctor on call. Alice &amp; Bob are both on call — both feel sick and want off.</div>
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Bob covers)</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Alice covers)</span></div></div>
+  </div>
+  <div class="av-ex">Both read <b>count = 2</b> and conclude “safe for ME to go off — the other one covers it.”</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Alice'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Bob'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+  </div>
+  <div class="av-ex bad"><b>0 doctors on call — invariant broken.</b> They wrote <b>different rows</b>, so there’s no write-write conflict for Snapshot Isolation to catch. Each decision was valid alone; together they’re a disaster.</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Serializable / SSI</div><div class="av-sql"><span class="hl">tracks the rw-conflict:</span>\neach txn read rows the\nother then modified.\n\n<span class="bad">→ aborts one</span>\n<span class="hl">→ it retries, now sees</span>\n<span class="hl">  count=1 and backs off</span></div></div>
+    <div class="av-col"><div class="av-ct">…or materialize it</div><div class="av-sql"><span class="kw">SELECT</span> * <span class="kw">FROM</span> shift\n<span class="kw">WHERE</span> id=<span class="hl">'today'</span>\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">both lock one shared</span>\n<span class="hl">row → plain write</span>\n<span class="hl">conflict, serialized</span></div></div>
+  </div>
+  <div class="av-ex ok">SI can’t see it (no shared row written). <b>Serializable / SSI</b> detects the read-write conflict and aborts one. Or <b>materialize the conflict</b>: make both txns lock a common row so the skew becomes an ordinary write conflict.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both see 2 on call','2 · Both clock off — 0 left','3 · Fix: Serializable / SSI']});}},
    {t:'recall',q:'Explain lost update vs write skew.',model:['Lost update: two read-modify-write cycles on the SAME object — one overwrites the other. Fix with atomic op / SELECT FOR UPDATE / compare-and-set.','Write skew: two txns read an overlapping set and write DIFFERENT rows that jointly violate a constraint. Fix with serializable/SSI.']}
   ]},
   {id:'conc-2',title:'Mechanisms',steps:[
@@ -1896,7 +1991,7 @@ const UNITS=[
      {k:'point',i:'🔒',t:'<b>2PL</b>: grow (acquire locks) then shrink (release at commit). Shared reads coexist; exclusive writes don’t.'},
      {k:'point',i:'👻',t:'Predicate / index-range locks block phantoms.'},
      {k:'callout',c:'warn',t:'2PL invites deadlocks — cycles of txns each waiting on the other’s lock.'},
-     {k:'point',i:'🔁',t:'Handle deadlocks by <b>detection</b> (find a wait cycle → abort a victim) or <b>prevention</b> (consistent lock ordering, lock timeouts, wait-die / wound-wait).'}
+     {k:'point',i:'🔁',t:'Handle deadlocks by <b>detection</b> (build a <b>waits-for graph</b>, find a cycle → abort a victim) or <b>prevention</b> (consistent lock ordering, lock timeouts, wait-die / wound-wait).'}
    ]},
    {t:'teach',h:'Optimistic & versioned',body:[
      {k:'keyt',term:'OCC',def:'no locks; at commit, check if your read set changed — abort & retry if so. Great at low contention.'},
