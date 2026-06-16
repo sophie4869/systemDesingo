@@ -2741,9 +2741,15 @@ function renderHome(scrollToNext){
     +'<div class="stat gem"><span class="ic">🏅</span>'+Object.keys(S.badges).length+'</div>'
     +'</div>';
   const SHORT={cap:'CAP',repl:'Repl',raft:'Consensus',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
+  // which unit holds the next playable stage → the jumpbar scrolls to it
+  let curUnit=null;
+  for(let cu=0;cu<UNITS.length&&!curUnit;cu++){const U=UNITS[cu];if(!unitUnlocked(cu))continue;
+    for(let cl=0;cl<U.lessons.length;cl++){if(lessonUnlocked(U,cl)&&!S.done[U.lessons[cl].id]){curUnit=U.id;break;}}
+    if(!curUnit&&bossUnlocked(U)&&!S.done['boss-'+U.id])curUnit=U.id;}
+  if(!curUnit&&UNITS.length)curUnit=UNITS[UNITS.length-1].id;
   h+='<div class="jumpbar">';
   UNITS.forEach((u,ui)=>{const bd=S.done['boss-'+u.id];const open=unitUnlocked(ui);
-    h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'" data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
+    h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'"'+(u.id===curUnit?' id="jump-current"':'')+' data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
   h+='</div></div>';
   h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master distributed systems for your interview — one quick quest at a time.</p></div>';
   h+='<div class="levelcard"><div class="ring" style="--p:'+prog+'"><span>'+lvl+'</span></div>'
@@ -2812,7 +2818,11 @@ function renderHome(scrollToNext){
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
   const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();renderHome();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
-  if(scrollToNext){const ns=document.getElementById('next-stage');if(ns)requestAnimationFrame(()=>ns.scrollIntoView({behavior:'smooth',block:'center'}));}
+  if(scrollToNext){requestAnimationFrame(function(){
+    const ns=document.getElementById('next-stage');if(ns)ns.scrollIntoView({behavior:'smooth',block:'center'});
+    const jb=APP().querySelector('.jumpbar'),jc=document.getElementById('jump-current');
+    if(jb&&jc){const jbr=jb.getBoundingClientRect(),jcr=jc.getBoundingClientRect();jb.scrollTo({left:jb.scrollLeft+(jcr.left-jbr.left)-jb.clientWidth*0.25,behavior:'smooth'});}
+  });}
   APP().querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.jump);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});});
   try{window.scrollTo(0,0);}catch(e){}
 }

@@ -115,7 +115,7 @@ a{color:var(--accent);text-decoration:none}
 .badge-gray{background:var(--tag-bg);color:var(--text-muted)}
 
 /* Card body */
-.card-body{display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.card-body{display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);min-width:0}
 .card.expanded .card-body{display:block}
 .card-body p{font-size:13px;color:var(--text-muted);line-height:1.75;margin-bottom:.6rem}
 .card-body p:last-child{margin-bottom:0}
@@ -123,6 +123,7 @@ a{color:var(--accent);text-decoration:none}
 
 /* Code blocks */
 .code{background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem 1rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;color:var(--text);margin:.75rem 0;overflow-x:auto;white-space:pre}
+.code.wrap{white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:visible}
 
 /* Interview note callout */
 .note{background:var(--accent-light);border-left:3px solid var(--accent);border-radius:var(--radius-sm);padding:.6rem .85rem;font-size:12.5px;color:var(--accent-dark);margin:.75rem 0;line-height:1.65}
@@ -1285,7 +1286,7 @@ Cancel  &rarr; release seat, unfreeze $50</div>
         <div class="card-body">
           <p>Each process maintains a vector — one counter per process. On send: increment your own slot in the vector and attach the full vector to the message. On receive: take the element-wise max of your vector and the received one, then increment your own slot.</p>
           <div class="clockviz" id="clkVector"></div>
-          <div class="code">V(A) &lt; V(B)  iff  every entry of A &le; B's, and at least one strictly less
+          <div class="code wrap">V(A) &lt; V(B)  iff  every entry of A &le; B's, and at least one strictly less
 &rarr; A causally happened-before B
 
 Neither V(A) &le; V(B) nor V(B) &le; V(A)
@@ -3089,7 +3090,7 @@ function makeClockViz(mount,mode,uid){
     msgs.forEach(m=>{if(m.from<revealed&&m.to<revealed){const e1=CLK_EVENTS[m.from],e2=CLK_EVENTS[m.to];s+='<line class="cv-msg" x1="'+colX(e1.col)+'" y1="'+laneY[e1.p]+'" x2="'+colX(e2.col)+'" y2="'+laneY[e2.p]+'" marker-end="url(#cvarr'+uid+')"/>';}});
     for(let i=0;i<revealed;i++){const e=CLK_EVENTS[i],x=colX(e.col),y=laneY[e.p];s+='<text class="cv-stamp" x="'+x+'" y="'+(y-12)+'" text-anchor="middle">'+stamp(i)+'</text><circle class="cv-dot'+(sel.includes(i)?' sel':'')+'" data-i="'+i+'" cx="'+x+'" cy="'+y+'" r="7"/>';}
     s+='</svg>';
-    s+='<div class="cv-controls"><button data-act="step">Step ▶</button><button data-act="play">Play</button><button data-act="reset">Reset</button><span class="cv-hint">'+(revealed<CLK_EVENTS.length?('Event '+revealed+' / '+CLK_EVENTS.length):'All revealed — tap two events to compare')+'</span></div>';
+    s+='<div class="cv-controls"><button data-act="back"'+(revealed===0?' disabled':'')+'>◀ Back</button><button data-act="step"'+(revealed>=CLK_EVENTS.length?' disabled':'')+'>Step ▶</button><button data-act="play">Play</button><button data-act="reset">Reset</button><span class="cv-hint">'+(revealed<CLK_EVENTS.length?('Event '+revealed+' / '+CLK_EVENTS.length):'All revealed — tap two events to compare')+'</span></div>';
     s+='<div class="cv-cap">'+caption+'</div>';
     mount.innerHTML=s;
     mount.querySelectorAll('.cv-dot').forEach(d=>d.addEventListener('click',()=>onDot(+d.dataset.i)));
@@ -3098,6 +3099,7 @@ function makeClockViz(mount,mode,uid){
   function onAct(a){
     if(timer){clearInterval(timer);timer=null;}
     if(a==='step'){if(revealed<CLK_EVENTS.length){caption=stepCaption(revealed);revealed++;}render();}
+    else if(a==='back'){if(revealed>0){revealed--;sel=[];caption=revealed>0?stepCaption(revealed-1):'Press <b>Step</b> to advance the simulation event by event.';}render();}
     else if(a==='reset'){revealed=0;sel=[];caption='Press <b>Step</b> to advance the simulation event by event.';render();}
     else if(a==='play'){revealed=0;sel=[];caption='Playing…';render();timer=setInterval(()=>{if(revealed<CLK_EVENTS.length){caption=stepCaption(revealed);revealed++;render();}else{clearInterval(timer);timer=null;caption='Done. Tap two events to test their causal relationship.';render();}},850);}
   }
