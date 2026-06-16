@@ -1283,13 +1283,67 @@ const UNITS=[
  blurb:'Serve hot data fast — and survive expiry storms.',
  lessons:[
   {id:'cache-1',title:'Patterns',steps:[
-   {t:'teach',h:'Cache-aside',body:[
-     {k:'tldr',t:'App checks cache; on miss, read DB and populate. TTL is your only consistency knob.'},
-     {k:'callout',c:'warn',t:'On writes, DELETE the key (don’t update it) — update races can cache a stale value forever.'}
+   {t:'teach',h:'Cache-aside (lazy loading)',body:[
+     {k:'tldr',t:'The app manages the cache: check cache → on a miss, read the DB and populate it. Also called <b>lazy loading</b> — data is cached only when first requested.'},
+     {k:'point',i:'🐢',t:'A miss costs <b>two round trips</b> — one to the DB, one to re-populate the cache. Worth it for read-heavy data read repeatedly.'},
+     {k:'point',i:'⏲️',t:'TTL is your only consistency knob: <b>too short</b> → you lose the hit-rate benefit; <b>too long</b> → you serve stale data.'},
+     {k:'callout',c:'warn',t:'<b>Invalidate, don’t update</b>: on a write, DELETE the cache key. A concurrent update-then-set race can cache a stale value forever; deleting lets the next read repopulate cleanly. (Redis, Memcached)'}
    ]},
    {t:'teach',h:'Write strategies',body:[
-     {k:'vs',a:{h:'Write-through',t:'write cache + DB together. Always warm, but slower + write pollution.'},b:{h:'Write-behind',t:'write cache now, flush DB later. Fast, but a crash loses data.'}}
+     {k:'vs',a:{h:'Write-through',t:'write cache + DB together. Always warm + strongly consistent, but slower + write pollution.'},b:{h:'Write-behind (write-back)',t:'write cache now, flush DB later. Lowest write latency, but a crash before flush loses data.'}},
+     {k:'note',t:'Names to recognise: <b>cache-aside = lazy loading</b>; <b>write-behind = write-back</b>. Cache-aside populates on read; write-through/back populate on write.'}
    ]},
+   {t:'htmlviz',h:'Cache patterns — watch the data flow',
+    html:`<style>
+.cf-svg{width:100%;height:auto;display:block;max-width:340px;margin:0 auto}
+.cf-actor{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5}
+.cf-an{font-size:11px;font-weight:800;fill:var(--color-text-primary)}
+.cf-life{stroke:var(--color-border-tertiary);stroke-width:1.5;stroke-dasharray:3 4}
+.cf-msg{stroke:var(--color-text-secondary);stroke-width:1.6;fill:none}
+.cf-msg.ok{stroke:var(--color-text-success)}
+.cf-msg.bad{stroke:var(--color-text-danger)}
+.cf-msg.dash{stroke-dasharray:4 3}
+.cf-head{fill:var(--color-text-secondary)}
+.cf-head.ok{fill:var(--color-text-success)}
+.cf-head.bad{fill:var(--color-text-danger)}
+.cf-lbl{font-size:10px;font-weight:700;fill:var(--color-text-secondary)}
+.cf-lbl.ok{fill:var(--color-text-success)}
+.cf-lbl.bad{fill:var(--color-text-danger)}
+.cf-ex{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.cf-ex b{color:var(--color-text-primary);font-weight:800}
+.cf-ex.warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.cf-ex.warn b{color:var(--color-text-warning)}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="cf-host"></div>`,
+    setup:function(root,stepper){
+      var X={App:45,Cache:160,DB:275},BOX={App:[6,78],Cache:[121,78],DB:[236,78]},ORDER=['App','Cache','DB'];
+      var PANELS=[
+        {label:'Cache-aside read — HIT',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'App',x:'value (hit)',k:'ok'}],ex:'Most reads are served straight from the cache — the fast path.'},
+        {label:'Cache-aside read — MISS',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'App',x:'miss',k:'bad'},{f:'App',t:'DB',x:'read'},{f:'DB',t:'App',x:'value'},{f:'App',t:'Cache',x:'SET key (TTL)',k:'ok'}],ex:'On a miss the app reads the DB and <b>populates</b> the cache with a TTL — the TTL is your only consistency knob.'},
+        {label:'Cache-aside write — DELETE the key',msgs:[{f:'App',t:'DB',x:'write'},{f:'App',t:'Cache',x:'DELETE key',k:'bad'}],ex:'<b>Delete the key, do not update it.</b> Two writers updating the cache can interleave and cache a stale value forever; deleting forces the next read to repopulate cleanly.',warn:1},
+        {label:'Write-through',msgs:[{f:'App',t:'Cache',x:'write'},{f:'Cache',t:'DB',x:'write (sync)'},{f:'DB',t:'App',x:'ack',k:'ok'}],ex:'Cache and DB are written <b>together</b> → always warm and strongly consistent, but every write pays DB latency (and rarely-read keys pollute the cache).'},
+        {label:'Write-back (write-behind)',msgs:[{f:'App',t:'Cache',x:'write'},{f:'Cache',t:'App',x:'ack',k:'ok'},{f:'Cache',t:'DB',x:'flush later (async)',k:'dash'}],ex:'The cache <b>acks instantly</b> (lowest write latency) and flushes to the DB later/batched. A crash before the flush loses recent writes.',warn:1}
+      ];
+      function svg(p){
+        var n=p.msgs.length,top=34,dy=26,h=top+n*dy+6;
+        var s='<svg class="cf-svg" viewBox="0 0 320 '+h+'">';
+        ORDER.forEach(function(a){var b=BOX[a];s+='<rect class="cf-actor" x="'+b[0]+'" y="4" width="'+b[1]+'" height="24" rx="6"/><text class="cf-an" x="'+X[a]+'" y="20" text-anchor="middle">'+a+'</text>';});
+        ORDER.forEach(function(a){s+='<line class="cf-life" x1="'+X[a]+'" y1="28" x2="'+X[a]+'" y2="'+(h-4)+'"/>';});
+        p.msgs.forEach(function(m,i){
+          var y=top+i*dy+16,x1=X[m.f],x2=X[m.t],mod=m.k?(' '+m.k):'';
+          s+='<line class="cf-msg'+mod+'" x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'"/>';
+          var hc='cf-head'+(m.k==='ok'?' ok':m.k==='bad'?' bad':'');
+          if(x2>x1)s+='<polygon class="'+hc+'" points="'+x2+','+y+' '+(x2-7)+','+(y-4)+' '+(x2-7)+','+(y+4)+'"/>';
+          else s+='<polygon class="'+hc+'" points="'+x2+','+y+' '+(x2+7)+','+(y-4)+' '+(x2+7)+','+(y+4)+'"/>';
+          var lc='cf-lbl'+(m.k==='ok'?' ok':m.k==='bad'?' bad':'');
+          s+='<text class="'+lc+'" x="'+((x1+x2)/2)+'" y="'+(y-5)+'" text-anchor="middle">'+(i+1)+'. '+m.x+'</text>';
+        });
+        return s+'</svg>';
+      }
+      root.querySelector('.cf-host').innerHTML=PANELS.map(function(p){return '<div class="cf-panel">'+svg(p)+'<div class="cf-ex'+(p.warn?' warn':'')+'">'+p.ex+'</div></div>';}).join('');
+      stepper(root,PANELS.length,{panelClass:'cf-panel',labels:PANELS.map(function(p){return p.label;})});
+    }},
    {t:'htmlviz',h:'Caching strategy trade-offs',
     html:`<style>
 .cmx{width:100%;border-collapse:collapse;table-layout:fixed}
