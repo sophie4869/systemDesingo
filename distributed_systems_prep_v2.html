@@ -128,8 +128,13 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .callout.mem{background:#FFE9F4;color:#A8327D}
 
 /* Options (mcq) */
-.opts{display:flex;flex-direction:column;gap:10px}
+.opts{display:flex;flex-direction:column;gap:10px;counter-reset:kopt}
 .opt{width:100%;text-align:left;padding:14px 16px;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;font-size:16px;font-weight:800;color:var(--ink);transition:all .1s}
+.opt::before{counter-increment:kopt;content:counter(kopt);display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border:1.5px solid #CFCFCF;border-radius:6px;font-size:11px;color:var(--muted);margin-right:9px;vertical-align:middle}
+.bucketrow{counter-reset:kbk}
+.bucketrow .btn::before{counter-increment:kbk;content:counter(kbk);display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.55);border-radius:5px;font-size:10px;margin-right:7px;vertical-align:middle}
+.buildgrid{counter-reset:kbd}
+.bopt::before{counter-increment:kbd;content:counter(kbd);display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border:1.5px solid #CFCFCF;border-radius:5px;font-size:10px;color:var(--muted);margin-right:7px;vertical-align:middle}
 .opt:active{transform:translateY(2px)}
 .opt.sel{border-color:var(--blue);background:var(--blue-bg);color:var(--blue-d)}
 .opt.correct{border-color:var(--green);background:var(--green-bg);color:var(--green-d)}
@@ -1520,7 +1525,7 @@ function renderHome(){
   BADGES.forEach(b=>{const got=S.badges[b.id];h+='<div class="badge '+(got?'':'lock')+'"><div class="bi">'+b.icon+'</div><small>'+b.name+'</small></div>';});
   h+='</div></div>';
 
-  h+='<div class="tip">Progress saves automatically on this device.</div>';
+  h+='<div class="tip">Progress saves automatically on this device. &nbsp;⌨ Keys: <b>1–4</b> answer · <b>Enter</b> continue · <b>Esc</b> quit</div>';
 
   APP().innerHTML=h;
   APP().querySelectorAll('[data-lesson]').forEach(n=>n.onclick=()=>startLesson(n.dataset.lesson));
@@ -1881,6 +1886,41 @@ function burst(){
   // lightweight celebratory toast already; add confetti emojis
   toast('🎊 +'+R.xp+' XP'+(levelOf(S.xp)>levelOf(S.xp-R.xp)?'  —  Level up!':''));
 }
+
+/* ============================ keyboard control ============================ */
+function keyAction(e){
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const tag=(e.target&&e.target.tagName)||'';
+  if(tag==='INPUT'||tag==='TEXTAREA')return; // let typing work (recall textarea)
+  const k=e.key;
+  if(k==='Escape'){const q=document.getElementById('quitBtn');if(q){q.click();e.preventDefault();}return;}
+  // recall self-grade after reveal: 1=Nailed, 2=Partly, 3=Missed
+  const grades=document.querySelectorAll('.gradebtns [data-g]');
+  if(grades.length){const map={'1':'2','2':'1','3':'0'};if(map[k]){const b=document.querySelector('.gradebtns [data-g="'+map[k]+'"]');if(b){b.click();e.preventDefault();}}return;}
+  // feedback Continue bar
+  const cont=document.getElementById('contBtn');
+  if(cont){if(k==='Enter'||k===' '){cont.click();e.preventDefault();}return;}
+  // MCQ options 1..N (only before answering)
+  const opts=document.querySelectorAll('.opts .opt');
+  if(opts.length){
+    if(!document.querySelector('.opt.dim,.opt.correct,.opt.wrong')){const n=parseInt(k,10);if(n>=1&&n<=opts.length){opts[n-1].click();e.preventDefault();}}
+    return;
+  }
+  // sort buckets: 1/← and 2/→
+  const buckets=document.querySelectorAll('.bucketrow [data-b]');
+  if(buckets.length){if(k==='1'||k==='ArrowLeft'){buckets[0].click();e.preventDefault();}else if(k==='2'||k==='ArrowRight'){buckets[1].click();e.preventDefault();}return;}
+  // build: number toggles, Enter checks
+  const bopts=document.querySelectorAll('#bg .bopt');
+  if(bopts.length){
+    const n=parseInt(k,10);
+    if(n>=1&&n<=bopts.length){if(!bopts[n-1].disabled){bopts[n-1].click();e.preventDefault();}return;}
+    if(k==='Enter'||k===' '){const fb=document.getElementById('fbtn');if(fb){fb.click();e.preventDefault();}return;}
+  }
+  // generic footer (Got it / Reveal / Check / Next) — but never auto-Undo
+  const fb=document.getElementById('fbtn');
+  if(fb&&(k==='Enter'||k===' ')&&!/undo/i.test(fb.textContent)){fb.click();e.preventDefault();}
+}
+document.addEventListener('keydown',keyAction);
 
 /* ============================ boot ============================ */
 renderHome();
