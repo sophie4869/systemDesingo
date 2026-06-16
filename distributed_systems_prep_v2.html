@@ -1499,7 +1499,12 @@ const UNITS=[
      ' to reveal the full happened-before relation.'
    ]},
    {t:'mcq',q:'V(A) < V(B) means…',o:['A has fewer events','A causally happened-before B','wall clock earlier','they’re concurrent'],a:1,why:'Every entry ≤ and at least one strictly less → A → B.'},
-   {t:'recall',q:'Why do vector clocks beat Lamport clocks?',model:['Lamport gives ordering but can’t distinguish concurrent from causally-ordered events.','Vector clocks track one counter per process, so element-wise comparison reveals concurrency.']}
+   {t:'recall',q:'Why do vector clocks beat Lamport clocks?',model:['Lamport gives ordering but can’t distinguish concurrent from causally-ordered events.','Vector clocks track one counter per process, so element-wise comparison reveals concurrency.']},
+   {t:'teach',h:'Vector clock vs version vector',body:[
+     {k:'vs',a:{h:'Vector clock',t:'one counter per <b>process</b>. Orders <b>events/messages</b> across the system — the happened-before relation (what you just stepped through).'},b:{h:'Version vector',t:'one counter per <b>replica</b>. Tracks versions of <b>one data item</b> to detect concurrent writes (siblings) in leaderless / multi-leader stores.'}},
+     {k:'note',t:'Same math — element-wise ≤ means happened-before, incomparable means concurrent. They differ in <b>what you count</b> (processes vs replicas of a key) and <b>why</b> (order events vs detect conflicting object versions). Dynamo & Riak attach a version vector per key — that’s the sibling-detection from the Replication unit.'}
+   ]},
+   {t:'mcq',q:'Dynamo decides whether two writes to a shopping-cart key conflict using a…',o:['Lamport clock','vector clock (one counter per process)','version vector (one counter per replica, per key)','single wall-clock timestamp'],a:2,why:'A version vector attaches per-replica counters to the data item, so the store can tell concurrent writes (siblings to merge) from one that supersedes another.'}
   ]},
   {id:'time-2',title:'Physical time',steps:[
    {t:'teach',h:'TrueTime & HLC',body:[
