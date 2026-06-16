@@ -2093,7 +2093,7 @@ const UNITS=[
    {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with the DB: UPDATE … WHERE status=AVAILABLE (compare-and-set). Reach for distributed locks only if data spans systems.'},
    {t:'build',q:'4 · High-level components.',options:['Relational DB (ACID)','Seat hold with TTL','Payment via saga','Virtual waiting room / queue for spikes','A cache as the source of truth'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['browsing seats','contention on popular seats / hot DB rows at on-sale','payment','email confirmation'],a:1,why:'Everyone grabs the same seats at 10:00 — hot rows. Shed load with a waiting-room queue.'},
-   {t:'recall',q:'6 · Deep dive + failure.',model:['Optimistic CAS on seat status + a hold TTL (fencing) that auto-releases abandoned holds.','Waiting-room queue to serialize/shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → TTL releases it back to AVAILABLE.']}
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Optimistic CAS on seat status + a hold TTL that auto-releases abandoned holds; the confirm is conditional (only if still HELD by you). Add a hold_version/fencing token if a stale client can resume and retry.','Waiting-room queue to serialize/shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → TTL releases it back to AVAILABLE.']}
   ]},
   {id:'mock-5',title:'Distributed rate limiter',steps:[
    {t:'teach',h:'1 · Requirements',body:[
@@ -2662,9 +2662,10 @@ function stRecall(stage,step){
     clearFoot();
     m.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
       const g=+b.dataset.g;
-      // recall is self-graded → excluded from the accuracy %, but still earns XP and tracks recallNailed
+      // recall is self-graded → kept OUT of the accuracy % (graded/correct untouched), but still earns XP + tracks recallNailed
       R.xp+= (g===2?15:g===1?8:3);
       if(g===2){S.recallNailed=(S.recallNailed||0)+1;}
+      else{R.mistakes++;} // a self-acknowledged miss means the run isn't flawless (no flawless bonus / gold)
       // Partly / Missed → log for review; Nailed it → clears it from the review queue
       finishGraded(step,g===2);
       nextStep();
