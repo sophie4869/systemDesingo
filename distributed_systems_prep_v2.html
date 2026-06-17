@@ -2691,9 +2691,11 @@ const UNITS=[
      {k:'point',i:'🧱',t:'<b>Relational</b>: ACID txns, joins, strong consistency.'},
      {k:'point',i:'🪣',t:'<b>Wide-column</b> (Cassandra): huge write throughput, time-series.'},
      {k:'point',i:'🔎',t:'<b>Search</b> (Elasticsearch): full-text + faceted. <b>Graph</b>: multi-hop relationships.'},
+     {k:'point',i:'📊',t:'<b>Columnar / OLAP</b> (ClickHouse, BigQuery): scan billions of rows over a few columns for aggregates — analytics & dashboards, not point lookups. (Different from wide-column: that’s for high-write point access.)'},
      {k:'note',t:'Pick by access pattern + consistency need, never by brand familiarity.'}
    ]},
-   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)']]},
+   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)']]},
+   {t:'mcq',q:'Dashboards aggregating billions of rows over just a few columns. Which store?',o:['relational (Postgres)','columnar / OLAP (ClickHouse, BigQuery)','key-value (Redis)','graph (Neo4j)'],a:1,why:'Columnar engines read only the needed columns and compress them well — built for big aggregates, unlike row stores or point-lookup KV/graph engines.'},
    {t:'sort',q:'Strong or eventual consistency?',buckets:['Strong','Eventual'],items:[
      {text:'account balance',b:0},{text:'like / view counts',b:1},{text:'inventory',b:0},{text:'search index',b:1}
    ]},
