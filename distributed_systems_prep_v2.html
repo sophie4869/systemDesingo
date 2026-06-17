@@ -1666,7 +1666,8 @@ const UNITS=[
      {k:'note',t:'Always derive the current user from the <b>verified token</b>, never from the request body. A <b>user_id</b> in the payload is attacker-controlled — identity must come from a signed JWT or a session lookup.'}
    ]},
    {t:'teach',h:'The four auth methods',body:[
-     {k:'vs',a:{h:'Session token',t:'server issues an opaque token, stored in DB/Redis, looked up each request. Instantly revocable; costs a lookup. Best for server-rendered web apps.'},b:{h:'JWT',t:'self-contained signed claims — verify the signature, no DB lookup (stateless). Can\'t revoke before expiry → short TTL + refresh token.'}},
+     {k:'point',i:'🍪',t:'<b>Session token</b>: server issues an opaque token, stored in DB/Redis, looked up each request. Instantly revocable; costs a lookup. Best for server-rendered web apps.'},
+     {k:'point',i:'🎫',t:'<b>JWT</b>: self-contained signed claims — verify the signature, no DB lookup (stateless). Can\'t revoke before expiry → short TTL + refresh token.'},
      {k:'point',i:'🔑',t:'<b>API key</b>: long-lived random string for server-to-server / B2B. No user context. Store only a <b>hash</b>; show the raw key once, revoke by deleting the hash.'},
      {k:'point',i:'🤝',t:'<b>OAuth 2.0 / OIDC</b>: delegation — let a third-party app act for a user without their password. Auth-Code + PKCE (apps), Client-Credentials (machine). Short access + long refresh tokens.'}
    ]},
