@@ -1692,11 +1692,69 @@ const UNITS=[
    {t:'teach',h:'Bucket families',body:[
      {k:'vs',a:{h:'Token bucket',t:'tokens refill at rate R, capacity B. Allows bursts up to B.'},b:{h:'Leaky bucket',t:'constant drain. Smooths output, no bursts.'}}
    ]},
+   {t:'htmlviz',h:'Token bucket — drain it, watch it refill',
+    html:`<style>
+.tkb-bucket{display:flex;gap:7px;justify-content:center;margin:4px 0 12px}
+.tkb-pip{width:30px;height:40px;border-radius:7px;border:2px solid var(--color-border-primary);background:var(--color-background-secondary);transition:all .15s}
+.tkb-pip.full{background:var(--color-text-info);border-color:var(--color-text-info);box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.tkb-controls{display:flex;gap:8px;justify-content:center;margin-bottom:9px}
+.tkb-controls button{font:inherit;font-weight:800;font-size:13px;padding:8px 16px;border-radius:10px;border:none;background:var(--color-text-info);color:#fff;cursor:pointer}
+.tkb-stat{font-size:12.5px;color:var(--color-text-secondary);text-align:center;margin-bottom:5px}
+.tkb-stat b{color:var(--color-text-primary)}
+.tkb-log{font-size:12.5px;color:var(--color-text-secondary);text-align:center;min-height:18px}
+.tkb-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.tkb-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="tkb-bucket"></div>
+<div class="tkb-controls"><button class="tkb-send" type="button">Send request</button></div>
+<div class="tkb-stat"></div>
+<div class="tkb-log"></div>
+<div class="tkb-ex">Capacity <b>B = 5</b>, refill <b>R = 1 token / 1.2s</b>. Tap fast to <b>burst</b> — fire all 5 at once, then you’re throttled to the refill rate and extra requests get <b>429</b>. That’s the token bucket: bursts up to B, long-run average bounded by R.</div>`,
+    setup:function(root){
+      var B=5,tokens=B,allowed=0,rejected=0,last='';
+      var bucket=root.querySelector('.tkb-bucket'),stat=root.querySelector('.tkb-stat'),log=root.querySelector('.tkb-log');
+      function render(){
+        var s='';for(var i=0;i<B;i++)s+='<div class="tkb-pip'+(i<tokens?' full':'')+'"></div>';
+        bucket.innerHTML=s;
+        stat.innerHTML='<b>'+tokens+'</b> / '+B+' tokens · refills <b>+1</b> every 1.2s';
+        log.innerHTML='✓ allowed: <b>'+allowed+'</b> &nbsp;·&nbsp; ✗ 429: <b style="color:var(--color-text-danger)">'+rejected+'</b>'+(last?' &nbsp;—&nbsp; '+last:'');
+      }
+      root.querySelector('.tkb-send').onclick=function(){
+        if(tokens>0){tokens--;allowed++;last='<span style="color:var(--color-text-success);font-weight:800">request ✓ (token spent)</span>';}
+        else{rejected++;last='<span style="color:var(--color-text-danger);font-weight:800">429 — bucket empty</span>';}
+        render();
+      };
+      var iv=setInterval(function(){
+        if(!document.body.contains(root)){clearInterval(iv);return;}
+        if(tokens<B){tokens++;render();}
+      },1200);
+      render();
+    }},
    {t:'mcq',q:'You must allow short bursts but cap the average. Which?',o:['leaky bucket','token bucket','fixed window','none'],a:1,why:'Token bucket permits a burst up to capacity, then enforces the refill rate.'},
    {t:'teach',h:'Window counters',body:[
      {k:'point',i:'🪟',t:'<b>Fixed window</b>: simple, but boundary bursts (2× at the edge).'},
      {k:'point',i:'🌊',t:'<b>Sliding window counter</b>: weight previous window — smooth, O(1).'}
    ]},
+   {t:'htmlviz',h:'Fixed window — the boundary burst',
+    html:`<style>
+.fw-lbl{display:flex;font-size:11px;font-weight:800;color:var(--color-text-tertiary);margin-bottom:4px}
+.fw-lbl span{flex:1;text-align:center}
+.fw-track{display:flex;border:1.5px solid var(--color-border-primary);border-radius:10px;overflow:hidden}
+.fw-win{flex:1;padding:14px 12px;display:flex;align-items:center;gap:6px;min-height:30px}
+.fw-win.w1{justify-content:flex-end;border-right:2px dashed var(--color-border-secondary)}
+.fw-win.w2{justify-content:flex-start}
+.fw-dot{width:14px;height:14px;border-radius:50%;background:var(--color-text-info);flex:0 0 auto}
+.fw-burst{margin-top:8px;text-align:center;font-size:12px;font-weight:800;color:var(--color-text-danger)}
+.fw-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.fw-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="fw-lbl"><span>Window 1 (limit 3)</span><span>Window 2 (limit 3)</span></div>
+<div class="fw-track">
+  <div class="fw-win w1"><span class="fw-dot"></span><span class="fw-dot"></span><span class="fw-dot"></span></div>
+  <div class="fw-win w2"><span class="fw-dot"></span><span class="fw-dot"></span><span class="fw-dot"></span></div>
+</div>
+<div class="fw-burst">⚠ 6 requests cross the boundary in a brief span — 2× the limit</div>
+<div class="fw-ex"><b>Fixed window</b> counts each window independently, so 3 at the end of W1 + 3 at the start of W2 = a <b>2× burst</b> right at the edge. A <b>sliding-window</b> counter weights the previous window’s count to smooth that spike.</div>`},
    {t:'sort',q:'Bursty-friendly or smoothing?',buckets:['Allows bursts','Smooths/strict'],items:[
      {text:'token bucket',b:0},{text:'leaky bucket',b:1}
    ]},
