@@ -2004,45 +2004,29 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
           <p><strong>B-tree (PostgreSQL, MySQL/InnoDB):</strong> updates happen in-place on a balanced tree on disk. Great for reads and range scans. Writes do random I/O — you have to find the right page and modify it in place — plus WAL overhead. Fundamentally read-optimized.</p>
           <p><strong>LSM-tree (Cassandra, RocksDB, HBase, LevelDB):</strong> writes go into an in-memory buffer (memtable), get flushed sequentially to immutable SSTables on disk, and periodically merged via background compaction. Sequential writes means much better write throughput. Reads are slower because you may have to check multiple SSTables — mitigated by Bloom filters that skip SSTables which definitely don't contain the key.</p>
           <style>
-          .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 0 8px; }
-          .cmp-card { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 16px 18px; }
-          .cmp-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 10px; }
-          .cmp-name { font-size: 16px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 14px; }
-          .cmp-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 13px; }
-          .cmp-row:last-child { border-bottom: none; }
-          .cmp-key { color: var(--color-text-secondary); }
-          .cmp-val { color: var(--color-text-primary); font-weight: 500; }
-          .cmp-val.good { color: var(--color-text-success); }
-          .cmp-val.warn { color: var(--color-text-warning); }
-          .cmp-tag  { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
-          .cmp-tag-b { background: var(--color-background-info); color: var(--color-text-info); }
-          .cmp-tag-l { background: var(--color-background-success); color: var(--color-text-success); }
-          @media (max-width: 460px) { .cmp-grid { grid-template-columns: 1fr; } }
+          .cmp-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;margin:4px 0 8px}
+          .cmp-tbl th{text-align:left;padding:8px 8px;font-size:13px;border-bottom:2px solid var(--color-border-primary);color:var(--color-text-primary);font-weight:600;vertical-align:bottom}
+          .cmp-tbl td{padding:8px 8px;border-bottom:1px solid var(--color-border-tertiary);vertical-align:top;line-height:1.4}
+          .cmp-tbl tr:last-child td{border-bottom:none}
+          .cmp-tbl .at{color:var(--color-text-secondary)}
+          .cmp-tbl .g{color:var(--color-text-success);font-weight:600}
+          .cmp-tbl .w{color:var(--color-text-warning);font-weight:600}
+          .cmp-tbl .p{color:var(--color-text-primary);font-weight:600}
+          .cmp-tag{font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;margin-left:5px;white-space:nowrap}
+          .cmp-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
+          .cmp-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
           </style>
-          <div class="cmp-grid">
-            <div class="cmp-card">
-              <div class="cmp-label">classic <span class="cmp-tag cmp-tag-b">B-Tree</span></div>
-              <div class="cmp-name">B-Tree</div>
-              <div class="cmp-row"><span class="cmp-key">writes</span><span class="cmp-val warn">random I/O</span></div>
-              <div class="cmp-row"><span class="cmp-key">reads</span><span class="cmp-val good">O(log n), fast</span></div>
-              <div class="cmp-row"><span class="cmp-key">range scans</span><span class="cmp-val good">excellent</span></div>
-              <div class="cmp-row"><span class="cmp-key">write amplification</span><span class="cmp-val warn">moderate</span></div>
-              <div class="cmp-row"><span class="cmp-key">space overhead</span><span class="cmp-val good">low</span></div>
-              <div class="cmp-row"><span class="cmp-key">update model</span><span class="cmp-val">in-place</span></div>
-              <div class="cmp-row"><span class="cmp-key">used by</span><span class="cmp-val">Postgres, MySQL</span></div>
-            </div>
-            <div class="cmp-card">
-              <div class="cmp-label">write-optimized <span class="cmp-tag cmp-tag-l">LSM</span></div>
-              <div class="cmp-name">LSM-Tree + SSTables</div>
-              <div class="cmp-row"><span class="cmp-key">writes</span><span class="cmp-val good">sequential, fast</span></div>
-              <div class="cmp-row"><span class="cmp-key">reads</span><span class="cmp-val warn">check multiple levels</span></div>
-              <div class="cmp-row"><span class="cmp-key">range scans</span><span class="cmp-val good">good (sorted files)</span></div>
-              <div class="cmp-row"><span class="cmp-key">write amplification</span><span class="cmp-val warn">high (compaction)</span></div>
-              <div class="cmp-row"><span class="cmp-key">space overhead</span><span class="cmp-val warn">higher (pre-compact)</span></div>
-              <div class="cmp-row"><span class="cmp-key">update model</span><span class="cmp-val">append-only</span></div>
-              <div class="cmp-row"><span class="cmp-key">used by</span><span class="cmp-val">Cassandra, RocksDB, LevelDB</span></div>
-            </div>
-          </div>
+          <table class="cmp-tbl"><colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup>
+          <thead><tr><th></th><th>B-Tree <span class="cmp-tag cmp-tag-b">classic</span></th><th>LSM-Tree <span class="cmp-tag cmp-tag-l">write-opt</span></th></tr></thead>
+          <tbody>
+          <tr><td class="at">writes</td><td class="w">random I/O</td><td class="g">sequential, fast</td></tr>
+          <tr><td class="at">reads</td><td class="g">O(log n), fast</td><td class="w">check multiple levels</td></tr>
+          <tr><td class="at">range scans</td><td class="g">excellent</td><td class="g">good (sorted files)</td></tr>
+          <tr><td class="at">write amp</td><td class="w">moderate</td><td class="w">high (compaction)</td></tr>
+          <tr><td class="at">space overhead</td><td class="g">low</td><td class="w">higher (pre-compact)</td></tr>
+          <tr><td class="at">update model</td><td class="p">in-place</td><td class="p">append-only</td></tr>
+          <tr><td class="at">used by</td><td class="p">Postgres, MySQL</td><td class="p">Cassandra, RocksDB</td></tr>
+          </tbody></table>
           <p><strong>Amplification</strong> = how much extra work the engine does versus the logical operation:</p>
           <p><strong>Write amp</strong> = bytes written to disk ÷ bytes your app wrote. High → burns SSD endurance and write bandwidth.<br>
           <strong>Read amp</strong> = disk reads per logical read. High → one lookup touches many places on disk.<br>
