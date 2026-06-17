@@ -2160,6 +2160,41 @@ const UNITS=[
       },1200);
       render();
     }},
+   {t:'htmlviz',h:'Leaky bucket — bursts queue, output stays steady',
+    html:`<style>
+.lkb-bucket{display:flex;gap:7px;justify-content:center;margin:4px 0 12px}
+.lkb-pip{width:30px;height:40px;border-radius:7px;border:2px solid var(--color-border-primary);background:var(--color-background-secondary);transition:all .15s}
+.lkb-pip.queued{background:var(--color-text-warning);border-color:var(--color-text-warning)}
+.lkb-controls{display:flex;gap:8px;justify-content:center;margin-bottom:9px}
+.lkb-controls button{font:inherit;font-weight:800;font-size:13px;padding:8px 16px;border-radius:10px;border:none;background:var(--color-text-info);color:#fff;cursor:pointer}
+.lkb-stat{font-size:12.5px;color:var(--color-text-secondary);text-align:center;margin-bottom:5px}
+.lkb-stat b{color:var(--color-text-primary)}
+.lkb-log{font-size:12.5px;color:var(--color-text-secondary);text-align:center;min-height:18px}
+.lkb-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.lkb-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="lkb-bucket"></div>
+<div class="lkb-controls"><button class="lkb-send" type="button">Send request</button></div>
+<div class="lkb-stat"></div>
+<div class="lkb-log"></div>
+<div class="lkb-ex">Requests <b>queue</b> in a fixed buffer and leak out at a <b>constant</b> 1 / 1.2s. Burst-tap: the queue fills but output stays steady, and once it’s full extra requests are <b>dropped</b>. Unlike a token bucket, bursts don’t pass through — they’re smoothed into a steady stream.</div>`,
+    setup:function(root){
+      var C=5,q=0,processed=0,dropped=0,last='';
+      var bucket=root.querySelector('.lkb-bucket'),stat=root.querySelector('.lkb-stat'),log=root.querySelector('.lkb-log');
+      function render(){
+        var s='';for(var i=0;i<C;i++)s+='<div class="lkb-pip'+(i<q?' queued':'')+'"></div>';
+        bucket.innerHTML=s;
+        stat.innerHTML='<b>'+q+'</b> / '+C+' queued · leaks <b>1</b> every 1.2s';
+        log.innerHTML='⤵ processed: <b>'+processed+'</b> &nbsp;·&nbsp; ✗ dropped: <b style="color:var(--color-text-danger)">'+dropped+'</b>'+(last?' &nbsp;—&nbsp; '+last:'');
+      }
+      root.querySelector('.lkb-send').onclick=function(){
+        if(q<C){q++;last='<span style="color:var(--color-text-warning);font-weight:800">queued</span>';}
+        else{dropped++;last='<span style="color:var(--color-text-danger);font-weight:800">dropped — bucket full</span>';}
+        render();
+      };
+      var iv=setInterval(function(){if(!document.body.contains(root)){clearInterval(iv);return;}if(q>0){q--;processed++;render();}},1200);
+      render();
+    }},
    {t:'mcq',q:'You must allow short bursts but cap the average. Which?',o:['leaky bucket','token bucket','fixed window','none'],a:1,why:'Token bucket permits a burst up to capacity, then enforces the refill rate.'},
    {t:'teach',h:'Window counters',body:[
      {k:'point',i:'🪟',t:'<b>Fixed window</b>: simple, but boundary bursts (2× at the edge).'},
@@ -2185,6 +2220,30 @@ const UNITS=[
 </div>
 <div class="fw-burst">⚠ 6 requests cross the boundary in a brief span — 2× the limit</div>
 <div class="fw-ex"><b>Fixed window</b> counts each window independently, so 3 at the end of W1 + 3 at the start of W2 = a <b>2× burst</b> right at the edge. A <b>sliding-window</b> counter weights the previous window’s count to smooth that spike.</div>`},
+   {t:'htmlviz',h:'Sliding window — weight the previous window',
+    html:`<style>
+.sw-lbl{display:flex;font-size:11px;font-weight:800;color:var(--color-text-tertiary);margin-bottom:4px}
+.sw-lbl span{flex:1;text-align:center}
+.sw-wrap{position:relative;margin-top:22px}
+.sw-track{display:flex;border:1.5px solid var(--color-border-primary);border-radius:10px;overflow:hidden;height:46px}
+.sw-win{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.sw-win.prev{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.sw-win.cur{background:var(--color-background-info);color:var(--color-text-info)}
+.sw-frame{position:absolute;top:-5px;bottom:-5px;left:12.5%;right:37.5%;border:2.5px solid var(--color-text-danger);border-radius:10px;pointer-events:none}
+.sw-frame-lbl{position:absolute;top:-21px;left:12.5%;width:50%;text-align:center;font-size:10.5px;font-weight:800;color:var(--color-text-danger)}
+.sw-calc{margin-top:13px;text-align:center;font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary)}
+.sw-calc b{color:var(--color-text-primary)}
+.sw-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.sw-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="sw-lbl"><span>Previous window — 80</span><span>Current window — 30 so far</span></div>
+<div class="sw-wrap">
+  <div class="sw-track"><div class="sw-win prev">80</div><div class="sw-win cur">30</div></div>
+  <div class="sw-frame"></div>
+  <div class="sw-frame-lbl">sliding window (1 interval)</div>
+</div>
+<div class="sw-calc">est = 30 + 80 × <b>0.75</b> (75% still in window) = <b>90</b></div>
+<div class="sw-ex">A <b>sliding-window counter</b> weights the previous window by how much of it still overlaps "now" (here 75%), then adds the current count. Just one number per window → <b>O(1) memory</b>, and the fixed-window boundary spike is smoothed.</div>`},
    {t:'sort',q:'Bursty-friendly or smoothing?',buckets:['Allows bursts','Smooths/strict'],items:[
      {text:'token bucket',b:0},{text:'leaky bucket',b:1}
    ]},

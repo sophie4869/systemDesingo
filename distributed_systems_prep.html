@@ -1794,6 +1794,41 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
         <div class="card-body">
           <p>Requests enter a fixed-size FIFO queue and are processed ("leak") at a constant rate. Overflow is dropped. Unlike token bucket, it does <em>not</em> allow bursts to pass through — it enforces a steady outflow, which is ideal for protecting a downstream that needs smooth traffic.</p>
           <p><strong>Token bucket vs leaky bucket:</strong> token bucket limits the average but lets bursts through; leaky bucket shapes traffic into a constant stream. Choose by whether the protected resource tolerates bursts.</p>
+          <div class="lkb-root" id="lkbV1" onclick="event.stopPropagation()">
+<style>
+.lkb-root{margin:.6rem 0}
+.lkb-root .lkb-bucket{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0 12px}
+.lkb-root .lkb-pip{width:26px;height:34px;border-radius:6px;border:2px solid var(--color-border-primary);background:var(--color-background-secondary);transition:all .15s}
+.lkb-root .lkb-pip.queued{background:var(--color-text-warning);border-color:var(--color-text-warning)}
+.lkb-root .lkb-controls{display:flex;gap:8px;justify-content:center;margin-bottom:9px}
+.lkb-root .lkb-controls button{font:inherit;font-weight:600;font-size:13px;padding:8px 16px;border-radius:10px;border:none;background:var(--color-text-info);color:#fff;cursor:pointer;width:auto}
+.lkb-root .lkb-stat{font-size:12.5px;color:var(--color-text-secondary);text-align:center;margin-bottom:5px}
+.lkb-root .lkb-stat b{color:var(--color-text-primary)}
+.lkb-root .lkb-log{font-size:12.5px;color:var(--color-text-secondary);text-align:center;min-height:18px}
+</style>
+<div class="lkb-bucket"></div>
+<div class="lkb-controls"><button class="lkb-send" type="button">Send request</button></div>
+<div class="lkb-stat"></div>
+<div class="lkb-log"></div>
+</div>
+<script>(function(){
+  var root=document.getElementById('lkbV1'); if(!root) return;
+  var C=5,q=0,processed=0,dropped=0,last='';
+  var bucket=root.querySelector('.lkb-bucket'),stat=root.querySelector('.lkb-stat'),log=root.querySelector('.lkb-log');
+  function render(){
+    var s='';for(var i=0;i<C;i++)s+='<div class="lkb-pip'+(i<q?' queued':'')+'"></div>';
+    bucket.innerHTML=s;
+    stat.innerHTML='<b>'+q+'</b> / '+C+' queued &middot; leaks <b>1</b> every 1.2s';
+    log.innerHTML='&#10549; processed: <b>'+processed+'</b> &nbsp;&middot;&nbsp; &#10007; dropped: <b style="color:var(--color-text-danger)">'+dropped+'</b>'+(last?' &nbsp;&mdash;&nbsp; '+last:'');
+  }
+  root.querySelector('.lkb-send').onclick=function(){
+    if(q<C){q++;last='<span style="color:var(--color-text-warning);font-weight:600">queued</span>';}
+    else{dropped++;last='<span style="color:var(--color-text-danger);font-weight:600">dropped &mdash; bucket full</span>';}
+    render();
+  };
+  var iv=setInterval(function(){if(!document.body.contains(root)){clearInterval(iv);return;}if(q>0){q--;processed++;render();}},1200);
+  render();
+})();</script>
           <div class="tag-row"><span class="tag">constant outflow</span><span class="tag">traffic shaping</span><span class="tag">no bursts</span></div>
         </div>
       </div>
@@ -1823,9 +1858,29 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
 </div>
           <p><strong>Sliding window log:</strong> store a timestamp per request, count those within the trailing window. Exact, but memory grows with request volume.</p>
           <p><strong>Sliding window counter:</strong> the practical compromise — weight the previous window's count by how much of it overlaps the current sliding window. Smooths the boundary spike with O(1) memory.</p>
-          <div class="code">est = curr_count
-    + prev_count * (overlap_fraction)
-&rarr; approximates a true sliding window, cheaply</div>
+          <div class="sw-root" onclick="event.stopPropagation()">
+<style>
+.sw-root{margin:.6rem 0}
+.sw-root .sw-lbl{display:flex;font-size:11px;font-weight:600;color:var(--color-text-tertiary);margin-bottom:4px}
+.sw-root .sw-lbl span{flex:1;text-align:center}
+.sw-root .sw-wrap{position:relative;margin-top:22px}
+.sw-root .sw-track{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:46px}
+.sw-root .sw-win{flex:1;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+.sw-root .sw-win.prev{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.sw-root .sw-win.cur{background:var(--color-background-info);color:var(--color-text-info)}
+.sw-root .sw-frame{position:absolute;top:-5px;bottom:-5px;left:12.5%;right:37.5%;border:2.5px solid var(--color-text-danger);border-radius:10px;pointer-events:none}
+.sw-root .sw-frame-lbl{position:absolute;top:-21px;left:12.5%;width:50%;text-align:center;font-size:10.5px;font-weight:600;color:var(--color-text-danger)}
+.sw-root .sw-calc{margin-top:13px;text-align:center;font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary)}
+.sw-root .sw-calc b{color:var(--color-text-primary)}
+</style>
+<div class="sw-lbl"><span>Previous window &mdash; 80</span><span>Current window &mdash; 30 so far</span></div>
+<div class="sw-wrap">
+  <div class="sw-track"><div class="sw-win prev">80</div><div class="sw-win cur">30</div></div>
+  <div class="sw-frame"></div>
+  <div class="sw-frame-lbl">sliding window (1 interval)</div>
+</div>
+<div class="sw-calc">est = 30 + 80 &times; <b>0.75</b> (75% still in window) = <b>90</b></div>
+</div>
           <div class="tag-row"><span class="tag">fixed = boundary bursts</span><span class="tag">sliding counter = O(1)</span></div>
         </div>
       </div>
