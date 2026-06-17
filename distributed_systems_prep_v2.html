@@ -1761,16 +1761,19 @@ const UNITS=[
    {t:'recall',q:'Token bucket vs leaky bucket — when each?',model:['Token bucket: allow bursts up to B, average bounded by R — good for APIs.','Leaky bucket: constant outflow, no bursts — good when the downstream needs smooth traffic.']}
   ]},
   {id:'rl-2',title:'Distributed',steps:[
-   {t:'teach',h:'Across a fleet',body:[
+   {t:'teach',h:'Across a fleet — three approaches',body:[
      {k:'cause',a:'Per-instance counters',b:'N instances × R = N×R effective limit (wrong!)'},
-     {k:'point',i:'🧰',t:'Use a shared store (Redis INCR/Lua) or distribute quota slices per node.'},
-     {k:'point',i:'📨',t:'Respond 429 + Retry-After; limit at the edge/gateway.'}
+     {k:'point',i:'🎯',t:'<b>Centralized store</b> (Redis INCR/Lua): all nodes share one counter — accurate, but adds a network hop and makes Redis a hotspot/SPOF. Soften with local pre-checks + async sync.'},
+     {k:'point',i:'🍰',t:'<b>Quota distribution</b>: a coordinator gives each node a slice of the global budget; nodes enforce locally and periodically rebalance. Lower latency, approximate, resilient — how large-scale limiters work.'},
+     {k:'point',i:'📌',t:'<b>Sticky routing</b>: always route a given key (user / API token) to the same node so its counter is authoritative — turns the distributed problem into a local one.'},
+     {k:'note',t:'Always return <b>429 + Retry-After</b> (plus limit/remaining/reset headers), and rate-limit at the edge/gateway before requests reach expensive backends.'}
    ]},
+   {t:'match',q:'Distributed limiter → its trait.',pairs:[['Accurate, but a hotspot / SPOF','Centralized (Redis)'],['Approximate, resilient, low-latency','Quota distribution'],['Pin a key to one node → becomes local','Sticky routing']]},
    {t:'cloze',q:'Fill the distributed-limit blanks.',distract:['cache','shard'],text:[
      'Per-instance counters give an effective limit of ',{blank:'N×R',alt:['NxR','N*R']},'. Use a shared ',
      {blank:'Redis',alt:['redis']},' counter or per-node ',{blank:'quota'},', and return ',{blank:'429'},' with Retry-After.'
    ]},
-   {t:'recall',q:'Why are per-instance counters wrong for a global limit?',model:['Each of N instances independently allows R, so total ≈ N×R, not R.','Fix with a shared counter (Redis) or by handing each node a slice of the global quota.']}
+   {t:'recall',q:'Per-instance counters fail for a global limit — give three fixes.',model:['Per-instance: each of N nodes allows R → ≈ N×R total, not R.','Centralized counter (Redis): accurate but a hotspot/SPOF. Quota distribution: slice the budget per node — approximate, resilient. Sticky routing: pin a key to one node so its count is authoritative (local again).','Always signal 429 + Retry-After and rate-limit at the edge.']}
   ]}
  ],
  boss:{title:'Rate Limiting Boss',time:60,q:[
