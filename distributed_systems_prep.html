@@ -1749,9 +1749,41 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
         <div class="card-header"><div class="card-meta"><div class="card-title">Token bucket</div><div class="card-sub">Allows controlled bursts</div></div><span class="badge badge-blue">Most common</span></div>
         <div class="card-body">
           <p>A bucket holds up to <em>B</em> tokens and refills at <em>R</em> tokens/sec. Each request consumes a token; if the bucket is empty, the request is rejected (or queued). Allows bursts up to the bucket size while bounding the long-run average rate.</p>
-          <div class="code">capacity B = 10, refill R = 5/sec
-burst of 10 allowed instantly,
-then sustained 5/sec thereafter</div>
+          <div class="tkb-root" id="tkbV1" onclick="event.stopPropagation()">
+<style>
+.tkb-root{margin:.6rem 0}
+.tkb-root .tkb-bucket{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0 12px}
+.tkb-root .tkb-pip{width:26px;height:34px;border-radius:6px;border:2px solid var(--color-border-primary);background:var(--color-background-secondary);transition:all .15s}
+.tkb-root .tkb-pip.full{background:var(--color-text-info);border-color:var(--color-text-info)}
+.tkb-root .tkb-controls{display:flex;gap:8px;justify-content:center;margin-bottom:9px}
+.tkb-root .tkb-controls button{font:inherit;font-weight:600;font-size:13px;padding:8px 16px;border-radius:10px;border:none;background:var(--color-text-info);color:#fff;cursor:pointer;width:auto}
+.tkb-root .tkb-stat{font-size:12.5px;color:var(--color-text-secondary);text-align:center;margin-bottom:5px}
+.tkb-root .tkb-stat b{color:var(--color-text-primary)}
+.tkb-root .tkb-log{font-size:12.5px;color:var(--color-text-secondary);text-align:center;min-height:18px}
+</style>
+<div class="tkb-bucket"></div>
+<div class="tkb-controls"><button class="tkb-send" type="button">Send request</button></div>
+<div class="tkb-stat"></div>
+<div class="tkb-log"></div>
+</div>
+<script>(function(){
+  var root=document.getElementById('tkbV1'); if(!root) return;
+  var B=5,tokens=B,allowed=0,rejected=0,last='';
+  var bucket=root.querySelector('.tkb-bucket'),stat=root.querySelector('.tkb-stat'),log=root.querySelector('.tkb-log');
+  function render(){
+    var s='';for(var i=0;i<B;i++)s+='<div class="tkb-pip'+(i<tokens?' full':'')+'"></div>';
+    bucket.innerHTML=s;
+    stat.innerHTML='<b>'+tokens+'</b> / '+B+' tokens &middot; refills <b>+1</b> every 1.2s';
+    log.innerHTML='&#10003; allowed: <b>'+allowed+'</b> &nbsp;&middot;&nbsp; &#10007; 429: <b style="color:var(--color-text-danger)">'+rejected+'</b>'+(last?' &nbsp;&mdash;&nbsp; '+last:'');
+  }
+  root.querySelector('.tkb-send').onclick=function(){
+    if(tokens>0){tokens--;allowed++;last='<span style="color:var(--color-text-success);font-weight:600">request &#10003; (token spent)</span>';}
+    else{rejected++;last='<span style="color:var(--color-text-danger);font-weight:600">429 &mdash; bucket empty</span>';}
+    render();
+  };
+  var iv=setInterval(function(){if(!document.body.contains(root)){clearInterval(iv);return;}if(tokens<B){tokens++;render();}},1200);
+  render();
+})();</script>
           <p>Stored compactly as (token_count, last_refill_time) — compute refill lazily on each request. The de-facto default (AWS, Stripe, NGINX). Tune B for burst tolerance and R for sustained rate independently.</p>
           <div class="tag-row"><span class="tag">burst-friendly</span><span class="tag">two params: B, R</span><span class="tag">lazy refill</span></div>
         </div>
@@ -1770,6 +1802,25 @@ then sustained 5/sec thereafter</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Window counters</div><div class="card-sub">Fixed vs sliding</div></div><span class="badge badge-amber">Counting</span></div>
         <div class="card-body">
           <p><strong>Fixed window:</strong> count requests per fixed interval (e.g. 100/min), reset at the boundary. Simple and cheap, but suffers the <em>boundary burst</em> problem — 100 requests at 0:59 and 100 at 1:01 = 200 in two seconds.</p>
+          <div class="fw-root" onclick="event.stopPropagation()">
+<style>
+.fw-root{margin:.6rem 0}
+.fw-root .fw-lbl{display:flex;font-size:11px;font-weight:600;color:var(--color-text-tertiary);margin-bottom:4px}
+.fw-root .fw-lbl span{flex:1;text-align:center}
+.fw-root .fw-track{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.fw-root .fw-win{flex:1;padding:14px 12px;display:flex;align-items:center;gap:6px;min-height:30px}
+.fw-root .fw-win.w1{justify-content:flex-end;border-right:2px dashed var(--color-border-secondary)}
+.fw-root .fw-win.w2{justify-content:flex-start}
+.fw-root .fw-dot{width:14px;height:14px;border-radius:50%;background:var(--color-text-info);flex:0 0 auto}
+.fw-root .fw-burst{margin-top:8px;text-align:center;font-size:12px;font-weight:600;color:var(--color-text-danger)}
+</style>
+<div class="fw-lbl"><span>Window 1 (limit 3)</span><span>Window 2 (limit 3)</span></div>
+<div class="fw-track">
+  <div class="fw-win w1"><span class="fw-dot"></span><span class="fw-dot"></span><span class="fw-dot"></span></div>
+  <div class="fw-win w2"><span class="fw-dot"></span><span class="fw-dot"></span><span class="fw-dot"></span></div>
+</div>
+<div class="fw-burst">&#9888; 6 requests cross the boundary in a brief span &mdash; 2&times; the limit</div>
+</div>
           <p><strong>Sliding window log:</strong> store a timestamp per request, count those within the trailing window. Exact, but memory grows with request volume.</p>
           <p><strong>Sliding window counter:</strong> the practical compromise — weight the previous window's count by how much of it overlaps the current sliding window. Smooths the boundary spike with O(1) memory.</p>
           <div class="code">est = curr_count
