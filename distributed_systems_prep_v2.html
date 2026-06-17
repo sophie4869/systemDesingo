@@ -1620,6 +1620,7 @@ const UNITS=[
     <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v good">O(log n), fast</span></div>
     <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">excellent</span></div>
     <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">moderate</span></div>
+    <div class="blv-row"><span class="blv-k">read amp</span><span class="blv-v good">low</span></div>
     <div class="blv-row"><span class="blv-k">space</span><span class="blv-v good">low</span></div>
     <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">in-place</span></div>
     <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Postgres, MySQL</span></div>
@@ -1630,6 +1631,7 @@ const UNITS=[
     <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v warn">check many levels</span></div>
     <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">good (sorted)</span></div>
     <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">high (compaction)</span></div>
+    <div class="blv-row"><span class="blv-k">read amp</span><span class="blv-v warn">higher (Bloom-filtered)</span></div>
     <div class="blv-row"><span class="blv-k">space</span><span class="blv-v warn">higher</span></div>
     <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">append-only</span></div>
     <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Cassandra, RocksDB</span></div>
