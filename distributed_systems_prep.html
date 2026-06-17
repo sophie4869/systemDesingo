@@ -2043,12 +2043,11 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
               <div class="cmp-row"><span class="cmp-key">used by</span><span class="cmp-val">Cassandra, RocksDB, LevelDB</span></div>
             </div>
           </div>
-          <div class="code wrap">Amplification vocabulary:
-write amp = bytes written to disk / bytes written by app
-read amp  = disk reads per logical read
-space amp = disk used / logical data size
-LSM: low write amp on ingest, but compaction creates write amp later
-B-tree: steady moderate write amp, lower read amp</div>
+          <p><strong>Amplification</strong> = how much extra work the engine does versus the logical operation:</p>
+          <p><strong>Write amp</strong> = bytes written to disk ÷ bytes your app wrote. High → burns SSD endurance and write bandwidth.<br>
+          <strong>Read amp</strong> = disk reads per logical read. High → one lookup touches many places on disk.<br>
+          <strong>Space amp</strong> = disk used ÷ logical data size. High → storage wasted on stale/duplicate data.</p>
+          <div class="note"><strong>Why LSM and B-tree differ:</strong> an <strong>LSM</strong> buffers writes in memory and flushes them <em>sequentially</em>, so ingest is cheap (low write amp up front). But background <strong>compaction</strong> later rewrites the same data over and over to merge levels — that's where the write amp shows up — and a key can sit in several levels at once, so a read may check multiple files (higher <em>read</em> amp; Bloom filters soften it) and stale copies linger until compaction (higher <em>space</em> amp). A <strong>B-tree</strong> updates a page <em>in place</em> on every write — steady, moderate write amp, no compaction bursts — and a read walks the tree to a single leaf, so <em>read</em> amp stays low.</div>
           <p>The practical rule: write-heavy workloads (time-series, logs, high-throughput ingest) → LSM. Read-heavy with complex queries and range scans → B-tree. This is the actual reason to pick Cassandra over Postgres — not "NoSQL is more scalable."</p>
           <div class="tag-row"><span class="tag">LSM = write-optimized</span><span class="tag">B-tree = read-optimized</span><span class="tag">compaction</span></div>
         </div>
