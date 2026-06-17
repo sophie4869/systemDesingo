@@ -2129,12 +2129,42 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Circuit breaker</div><div class="card-sub">Stop hammering a failing dependency</div></div><span class="badge badge-red">Pattern</span></div>
         <div class="card-body">
           <p>Wrap calls to a remote dependency in a breaker with three states. When failures cross a threshold, the breaker opens and fails fast immediately — instead of waiting on timeouts — giving the dependency room to recover and freeing the caller's threads.</p>
-          <div class="code">CLOSED   &rarr; calls pass; count failures
-  (failure rate &gt; threshold)
-OPEN     &rarr; fail fast immediately, no calls
-  (after cooldown)
-HALF-OPEN &rarr; allow a few trial calls
-  success &rarr; CLOSED   |   failure &rarr; OPEN</div>
+          <div class="cbreaker" onclick="event.stopPropagation()" style="margin:14px 0;">
+          <svg viewBox="0 0 440 240" style="width:100%;height:auto;font-family:inherit" role="img" aria-label="Circuit breaker state machine: CLOSED to OPEN on failure threshold, OPEN to HALF-OPEN after cooldown, HALF-OPEN to CLOSED on success or back to OPEN on failure">
+            <defs>
+              <marker id="cbArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--color-text-secondary)"/>
+              </marker>
+            </defs>
+            <!-- transitions (drawn under the nodes) -->
+            <line x1="110" y1="133" x2="166" y2="133" stroke="var(--color-text-secondary)" stroke-width="1.6" marker-end="url(#cbArrow)"/>
+            <text x="138" y="100" text-anchor="middle" font-size="9.5" fill="var(--color-text-secondary)">fail rate</text>
+            <text x="138" y="111" text-anchor="middle" font-size="9.5" fill="var(--color-text-secondary)">&gt; threshold</text>
+            <line x1="270" y1="133" x2="326" y2="133" stroke="var(--color-text-secondary)" stroke-width="1.6" marker-end="url(#cbArrow)"/>
+            <text x="298" y="100" text-anchor="middle" font-size="9.5" fill="var(--color-text-secondary)">after</text>
+            <text x="298" y="111" text-anchor="middle" font-size="9.5" fill="var(--color-text-secondary)">cooldown</text>
+            <path d="M380,110 C380,22 60,22 60,110" fill="none" stroke="var(--color-text-success)" stroke-width="1.6" marker-end="url(#cbArrow)"/>
+            <text x="220" y="17" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--color-text-success)">trial succeeds &rarr; CLOSED</text>
+            <path d="M380,156 C380,216 220,216 220,156" fill="none" stroke="var(--color-text-danger)" stroke-width="1.6" marker-end="url(#cbArrow)"/>
+            <text x="300" y="233" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--color-text-danger)">trial fails &rarr; OPEN</text>
+            <!-- states -->
+            <g>
+              <rect x="10" y="110" width="100" height="46" rx="9" fill="var(--color-background-success)" stroke="var(--color-border-success)" stroke-width="1.5"/>
+              <text x="60" y="131" text-anchor="middle" font-size="13" font-weight="800" fill="var(--color-text-success)">CLOSED</text>
+              <text x="60" y="146" text-anchor="middle" font-size="9.5" fill="var(--color-text-success)">calls pass</text>
+            </g>
+            <g>
+              <rect x="170" y="110" width="100" height="46" rx="9" fill="var(--color-background-danger)" stroke="var(--color-text-danger)" stroke-width="1.5"/>
+              <text x="220" y="131" text-anchor="middle" font-size="13" font-weight="800" fill="var(--color-text-danger)">OPEN</text>
+              <text x="220" y="146" text-anchor="middle" font-size="9.5" fill="var(--color-text-danger)">fail fast, no calls</text>
+            </g>
+            <g>
+              <rect x="330" y="110" width="100" height="46" rx="9" fill="var(--color-background-warning)" stroke="var(--color-border-warning)" stroke-width="1.5"/>
+              <text x="380" y="131" text-anchor="middle" font-size="12.5" font-weight="800" fill="var(--color-text-warning)">HALF-OPEN</text>
+              <text x="380" y="146" text-anchor="middle" font-size="9.5" fill="var(--color-text-warning)">a few trial calls</text>
+            </g>
+          </svg>
+          </div>
           <p>This prevents the classic cascading failure: a slow dependency ties up every caller thread, the caller's queue fills, and the outage spreads upstream. Always pair circuit breakers with sensible timeouts — a call with no timeout is the root cause of most cascading failures — and define a fallback for the open state.</p>
           <div class="tag-row"><span class="tag">Hystrix / resilience4j</span><span class="tag">fail fast</span><span class="tag">cascading failure</span></div>
         </div>
