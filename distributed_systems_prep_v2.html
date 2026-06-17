@@ -1405,7 +1405,7 @@ const UNITS=[
  ],
  boss:{title:'Concurrency Boss',time:70,q:[
    {q:'Dirty read =',o:['stale snapshot','reading uncommitted data','a phantom','a deadlock'],a:1},
-   {q:'Dirty write (overwriting uncommitted data) is prevented by…',o:['read uncommitted','read committed','a cache','more replicas'],a:1},
+   {q:'Dirty read (seeing another txn’s uncommitted data) is prevented by…',o:['read uncommitted','read committed','a cache','more replicas'],a:1},
    {q:'Write skew is stopped by…',o:['read committed','serializable / SSI','no locks','TTL'],a:1},
    {q:'Lost update is two writes to…',o:['different objects','the same object','an index','a queue'],a:1},
    {q:'2PL is…',o:['optimistic','pessimistic','lock-free','async'],a:1},
