@@ -1163,6 +1163,257 @@ const UNITS=[
  ]}
 },
 {
+ id:'conc',title:'Concurrency Control',icon:'🧵',color:'#6366F1',colorD:'#4F46E5',
+ blurb:'The anomaly zoo — and how databases stop it.',
+ lessons:[
+  {id:'conc-1',title:'Anomaly zoo',steps:[
+   {t:'teach',h:'Read phenomena',body:[
+     {k:'point',i:'🩸',t:'<b>Dirty read</b>: you read another txn’s uncommitted write — if it rolls back, you acted on data that never existed. <i>You see a $0 balance mid-transfer: the debit committed, the credit hasn’t yet.</i> (fix: read committed)'},
+     {k:'point',i:'🔁',t:'<b>Non-repeatable read</b> (read skew): a row changes value between two reads in one txn. <i>A backup reads A=$500, a transfer moves $100 to B, then it reads B=$600 → totals $1100.</i> (fix: snapshot isolation)'},
+     {k:'point',i:'👻',t:'<b>Phantom</b>: a query’s result set gains/loses rows mid-txn — often the root of write skew. <i>Two users both ask “any booking for room 42 @2pm?” (none), both insert → double-booked.</i> (fix: predicate/index-range locks)'}
+   ]},
+   {t:'teach',h:'The sneaky write anomalies',body:[
+     {k:'keyt',term:'Dirty write',def:'overwrite another txn’s UNCOMMITTED write — two txns interleave writes to one row. e.g. Alice buys a car: listing → Alice, but the invoice goes to Bob. (fix: read committed)'},
+     {k:'keyt',term:'Lost update',def:'two read-modify-write cycles on the SAME object; one silently clobbers the other. e.g. counter=42, two requests both read 42 and write 43 → 43, not 44. (fix: CAS / SELECT FOR UPDATE)'},
+     {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant. e.g. two on-call doctors each see the other on call, both clock off → zero on call. (fix: serializable / SSI)'},
+     {k:'mnemonic',t:'Dirty = uncommitted. Same object → lost update. Different objects, shared assumption → write skew.'}
+   ]},
+   {t:'htmlviz',h:'Anomaly → what happens → weakest fix',
+    html:`<style>
+.anx-tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
+.anx-tbl th{text-align:left;padding:7px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
+.anx-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:top;line-height:1.4}
+.anx-tbl tr:last-child td{border-bottom:none}
+.anx-nm{font-weight:800;color:var(--color-text-primary)}
+.anx-fix{color:var(--color-text-success);font-weight:700}
+</style>
+<table class="anx-tbl"><thead><tr><th style="width:26%">Anomaly</th><th style="width:42%">What happens</th><th style="width:32%">Weakest level that stops it</th></tr></thead><tbody>
+<tr><td class="anx-nm">Dirty read</td><td>Read another txn’s uncommitted write</td><td class="anx-fix">Read Committed</td></tr>
+<tr><td class="anx-nm">Dirty write</td><td>Overwrite another txn’s uncommitted write</td><td class="anx-fix">Read Committed (row locks)</td></tr>
+<tr><td class="anx-nm">Non-repeatable read <span style="font-weight:600">(read skew)</span></td><td>Re-reading a row gives a different value mid-txn</td><td class="anx-fix">Snapshot Isolation / Repeatable Read</td></tr>
+<tr><td class="anx-nm">Phantom</td><td>A query’s result set gains/loses rows mid-txn</td><td class="anx-fix">Snapshot Isolation (snapshot read); predicate/index-range locks under 2PL</td></tr>
+<tr><td class="anx-nm">Lost update</td><td>Two read-modify-write cycles; one clobbers the other</td><td class="anx-fix">Atomic op, SELECT … FOR UPDATE, or CAS</td></tr>
+<tr><td class="anx-nm">Write skew</td><td>Two txns read an overlapping set, write disjoint rows, jointly breaking an invariant</td><td class="anx-fix">Serializable / SSI (or materialize the conflict)</td></tr>
+</tbody></table>`},
+   {t:'sort',q:'Same object or different objects?',buckets:['Same object','Different objects'],items:[
+     {text:'Lost update',b:0},{text:'Write skew',b:1}
+   ]},
+   {t:'cloze',q:'Fill the anomaly blanks.',distract:['dirty','phantom'],text:[
+     'A ',{blank:'lost update',alt:['lost-update']},' is two writes to the SAME object; ',{blank:'write skew',alt:['write-skew']},
+     ' is two writes to DIFFERENT objects that jointly break a rule. The fix for both is ',{blank:'serializable',alt:['serializability']},' isolation (or SSI).'
+   ]},
+   {t:'mcq',q:'Two on-call doctors each clock off because each sees the other still on. That’s…',o:['a dirty read','a phantom','write skew','a lost update'],a:2,why:'Disjoint writes that together break an invariant = write skew. Needs serializable/SSI.'},
+   {t:'htmlviz',h:'Isolation levels vs anomalies',
+    html:`<style>
+.iso-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.iso-tbl th{text-align:left;padding:8px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
+.iso-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:middle}
+.iso-tbl tr:last-child td{border-bottom:none}
+.iso-tbl tr.hl td{background:var(--color-background-secondary)}
+.iso-lvl{font-weight:800;color:var(--color-text-primary);font-size:12.5px}
+.iso-y,.iso-n,.iso-m{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-weight:800}
+.iso-y{background:var(--color-background-success);color:var(--color-text-success);font-size:13px}
+.iso-n{background:var(--color-background-danger);color:var(--color-text-danger);font-size:13px}
+.iso-m{background:var(--color-background-warning);color:var(--color-text-warning);font-size:11px}
+.iso-leg{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--color-text-tertiary);flex-wrap:wrap}
+.iso-leg span{display:flex;align-items:center;gap:5px}
+</style>
+<table class="iso-tbl"><thead><tr><th style="width:26%">Isolation level</th><th>Dirty read</th><th>Dirty write</th><th>Read skew</th><th>Phantom</th><th>Lost update</th><th>Write skew</th></tr></thead><tbody>
+<tr><td class="iso-lvl">Read uncommitted</td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Read committed</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr><td class="iso-lvl">Snapshot isolation</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-m">~</span></td><td><span class="iso-n">✕</span></td></tr>
+<tr class="hl"><td class="iso-lvl">Serializable</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td></tr>
+</tbody></table>
+<div class="iso-leg"><span><span class="iso-y">✓</span> prevented</span><span><span class="iso-n">✕</span> vulnerable</span><span><span class="iso-m">~</span> depends on DB</span></div>`},
+   {t:'htmlviz',h:'Phantom read → double booking',
+    html:`<style>
+.phv-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.phv-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.phv-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.phv-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.phv-sql .kw{color:var(--color-text-info)}
+.phv-sql .hl{color:var(--color-text-success);font-weight:700}
+.phv-sql .bad{color:var(--color-text-danger);font-weight:700}
+.phv-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
+.phv-tbl th{text-align:left;padding:5px 8px;font-weight:700;color:var(--color-text-tertiary);border-bottom:1px solid var(--color-border-tertiary);font-size:11px}
+.phv-tbl td{padding:5px 8px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)}
+.phv-tbl tr.bad td{color:var(--color-text-danger);font-weight:700}
+.phv-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.phv-ex b{color:var(--color-text-primary);font-weight:800}
+@media (max-width:460px){.phv-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
+  </div>
+  <div class="phv-ex">Both check Room 42 @2pm, both see <b>zero rows</b>, both conclude the slot is available.</div>
+</div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="hl">42,'2pm','Alice'</span>);\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="bad">42,'2pm','Bob'</span>);\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← should fail</span></div></div>
+  </div>
+  <table class="phv-tbl"><thead><tr><th>room</th><th>time</th><th>user</th></tr></thead><tbody><tr><td>42</td><td>2pm</td><td>Alice</td></tr><tr class="bad"><td>42</td><td>2pm</td><td>Bob</td></tr></tbody></table>
+  <div class="phv-ex"><b>Double booking.</b> When Bob ran his SELECT, Alice's row didn't exist yet — it's a <b>phantom</b>: a row that would change his result appeared after his query but before his commit.</div>
+</div>
+<div class="phv-panel">
+  <div class="phv-cols">
+    <div class="phv-col"><div class="phv-ct">Predicate lock</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=42 <span class="kw">AND</span> time='2pm'\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">locks the predicate —</span>\n<span class="hl">even rows not yet</span>\n<span class="hl">inserted</span></div></div>
+    <div class="phv-col"><div class="phv-ct">Bob now blocks</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(42,'2pm','Bob');\n\n<span class="bad">⏳ BLOCKED — matches</span>\n<span class="bad">  Alice's predicate</span>\n\nafter Alice commits:\ncount=1 → Bob backs off</div></div>
+  </div>
+  <div class="phv-ex">A <b>predicate / index-range lock</b> locks the condition itself, so any matching insert is blocked. <b>SSI</b> instead lets both run and aborts one at commit when it detects the conflict.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'phv-panel',labels:['1 · Both check for bookings','2 · Both insert — phantom!','3 · Fix: predicate lock / SSI']});}},
+   {t:'htmlviz',h:'Lost update → step through it',
+    html:`<style>
+.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.av-sql .kw{color:var(--color-text-info)}
+.av-sql .hl{color:var(--color-text-success);font-weight:700}
+.av-sql .bad{color:var(--color-text-danger);font-weight:700}
+.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.av-ex b{color:var(--color-text-primary);font-weight:800}
+.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
+.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
+@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
+  </div>
+  <div class="av-ex">Both read <b>views = 42</b>. Each plans to add 1 in application code (read-modify-write).</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="hl">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="bad">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← clobbers A</span></div></div>
+  </div>
+  <div class="av-ex bad"><b>Two +1s should give 44 — but you get 43.</b> B computed 42+1 from its stale read and overwrote A’s write. One update is silently <b>lost</b>: both targeted the SAME row/value.</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Atomic increment</div><div class="av-sql"><span class="kw">UPDATE</span> posts\n<span class="kw">SET</span> views = <span class="hl">views + 1</span>\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">DB does the read-</span>\n<span class="hl">modify-write atomically</span></div></div>
+    <div class="av-col"><div class="av-ct">…or lock / CAS</div><div class="av-sql"><span class="kw">SELECT</span> views … <span class="kw">FOR UPDATE</span>;\n<span class="hl">(row lock — pessimistic)</span>\n\n<span class="kw">UPDATE</span> … <span class="kw">SET</span> views=43\n<span class="kw">WHERE</span> id=7 <span class="kw">AND</span> views=<span class="hl">42</span>;\n<span class="hl">(CAS — fails if changed)</span></div></div>
+  </div>
+  <div class="av-ex ok">Collapse the read-modify-write into <b>one atomic step</b>: an in-place <b>+1</b>, a <b>row lock</b> (SELECT … FOR UPDATE), or a <b>compare-and-set</b> that fails when the value moved under you.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both read 42','2 · Both write 43 — one lost','3 · Fix: atomic / lock / CAS']});}},
+   {t:'htmlviz',h:'Write skew → step through it',
+    html:`<style>
+.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
+.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
+.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
+.av-sql .kw{color:var(--color-text-info)}
+.av-sql .hl{color:var(--color-text-success);font-weight:700}
+.av-sql .bad{color:var(--color-text-danger);font-weight:700}
+.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.av-ex b{color:var(--color-text-primary);font-weight:800}
+.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
+.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
+.av-inv{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:9px;padding:7px 11px;background:var(--color-background-info);border-radius:var(--border-radius-md)}
+@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="av-panel">
+  <div class="av-inv">🏥 Invariant: at least 1 doctor on call. Alice &amp; Bob are both on call — both feel sick and want off.</div>
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Bob covers)</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Alice covers)</span></div></div>
+  </div>
+  <div class="av-ex">Both read <b>count = 2</b> and conclude “safe for ME to go off — the other one covers it.”</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Alice'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Bob'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
+  </div>
+  <div class="av-ex bad"><b>0 doctors on call — invariant broken.</b> They wrote <b>different rows</b>, so there’s no write-write conflict for Snapshot Isolation to catch. Each decision was valid alone; together they’re a disaster.</div>
+</div>
+<div class="av-panel">
+  <div class="av-cols">
+    <div class="av-col"><div class="av-ct">Serializable / SSI</div><div class="av-sql"><span class="hl">tracks the rw-conflict:</span>\neach txn read rows the\nother then modified.\n\n<span class="bad">→ aborts one</span>\n<span class="hl">→ it retries, now sees</span>\n<span class="hl">  count=1 and backs off</span></div></div>
+    <div class="av-col"><div class="av-ct">…or materialize it</div><div class="av-sql"><span class="kw">SELECT</span> * <span class="kw">FROM</span> shift\n<span class="kw">WHERE</span> id=<span class="hl">'today'</span>\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">both lock one shared</span>\n<span class="hl">row → plain write</span>\n<span class="hl">conflict, serialized</span></div></div>
+  </div>
+  <div class="av-ex ok">SI can’t see it (no shared row written). <b>Serializable / SSI</b> detects the read-write conflict and aborts one. Or <b>materialize the conflict</b>: make both txns lock a common row so the skew becomes an ordinary write conflict.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both see 2 on call','2 · Both clock off — 0 left','3 · Fix: Serializable / SSI']});}},
+   {t:'recall',q:'Explain lost update vs write skew.',model:['Lost update: two read-modify-write cycles on the SAME object — one overwrites the other. Fix with atomic op / SELECT FOR UPDATE / compare-and-set.','Write skew: two txns read an overlapping set and write DIFFERENT rows that jointly violate a constraint. Fix with serializable/SSI.']}
+  ]},
+  {id:'conc-2',title:'Mechanisms',steps:[
+   {t:'teach',h:'Locking the pessimistic way',body:[
+     {k:'point',i:'🔒',t:'<b>2PL</b>: grow (acquire locks) then shrink (release at commit). Shared reads coexist; exclusive writes don’t.'},
+     {k:'point',i:'👻',t:'Predicate / index-range locks block phantoms.'},
+     {k:'callout',c:'warn',t:'2PL invites deadlocks — cycles of txns each waiting on the other’s lock.'},
+     {k:'point',i:'🔁',t:'Handle deadlocks by <b>detection</b> (build a <b>waits-for graph</b>, find a cycle → abort a victim) or <b>prevention</b> (consistent lock ordering, lock timeouts, wait-die / wound-wait).'}
+   ]},
+   {t:'teach',h:'Optimistic & versioned',body:[
+     {k:'keyt',term:'OCC',def:'no locks; at commit, check if your read set changed — abort & retry if so. Great at low contention.'},
+     {k:'keyt',term:'MVCC',def:'keep multiple row versions; readers see a snapshot and never block writers. Powers Snapshot Isolation.'},
+     {k:'keyt',term:'SSI',def:'optimistic serializable — tracks rw-conflicts and aborts dangerous ones (PostgreSQL Serializable).'}
+   ]},
+   {t:'cloze',q:'Fill the mechanism blanks.',distract:['serializable','sharding'],text:[
+     '2PL is ',{blank:'pessimistic'},' (lock up front); OCC is ',{blank:'optimistic'},' (validate at ',{blank:'commit'},
+     '). ',{blank:'MVCC'},' keeps multiple versions so readers don’t block writers.'
+   ]},
+   {t:'mcq',q:'You expect LOW contention. Which control fits best?',o:['2PL (pessimistic)','OCC (optimistic)','a global lock','serial execution'],a:1,why:'OCC avoids lock overhead and rarely has to retry when conflicts are rare.'},
+   {t:'build',q:'Pick valid ways to handle deadlocks.',options:['Consistent lock ordering','Lock timeouts','Wait-die / wound-wait','Acquire even more locks','Detect a cycle & abort a victim'],correct:[0,1,2,4]},
+   {t:'htmlviz',h:'Fencing tokens vs the GC-pause zombie',
+    html:`<style>
+.fcv-tl{position:relative;padding:0 0 0 12px}
+.fcv-evt{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;position:relative}
+.fcv-evt::before{content:'';position:absolute;left:-8px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--color-border-secondary)}
+.fcv-evt.bad::before{background:var(--color-text-danger)}
+.fcv-evt.good::before{background:var(--color-text-success)}
+.fcv-actor{font-size:12px;font-weight:800;color:var(--color-text-primary);min-width:84px;padding-top:1px}
+.fcv-desc{font-size:13px;color:var(--color-text-secondary);line-height:1.5}
+.fcv-desc b{font-weight:800;color:var(--color-text-primary)}
+.fcv-ex{margin-top:12px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.fcv-ex b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="fcv-panel">
+  <div class="fcv-tl">
+    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock from ZooKeeper (lease 10s)</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc"><b>GC pause — frozen 15s</b></div></div>
+    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → grants lock to Client B</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Holds lock, writes to storage</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes up, <b>still thinks it holds the lock</b>, writes</div></div>
+  </div>
+  <div class="fcv-ex">Two clients both believe they hold the lock. Client A is a <b>zombie</b> — it missed its own lease expiry, and its writes can corrupt Client B's data.</div>
+</div>
+<div class="fcv-panel">
+  <div class="fcv-tl">
+    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock → <b>fencing token #33</b></div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">GC pause — frozen 15s</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → lock + <b>token #34</b> to Client B</div></div>
+    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Writes with #34 → storage records max=34</div></div>
+    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes, writes with stale token #33</div></div>
+    <div class="fcv-evt good"><div class="fcv-actor">Storage</div><div class="fcv-desc"><b>Rejects #33</b> — lower than max seen (34)</div></div>
+  </div>
+  <div class="fcv-ex">Storage itself enforces ordering. It doesn't matter that A thinks it holds the lock — the token proves it's stale. ZooKeeper's <b>zxid</b> serves exactly this purpose.</div>
+</div>`,
+    setup:function(root,stepper){stepper(root,2,{panelClass:'fcv-panel',labels:['The problem: GC-pause zombie','The fix: fencing tokens']});}},
+   {t:'recall',q:'When would you choose OCC over 2PL?',model:['OCC when contention is low — most txns commit without conflict, so skipping locks is a net win.','2PL (pessimistic) when contention is high, so you avoid wasteful aborts/retries.']}
+  ]}
+ ],
+ boss:{title:'Concurrency Boss',time:70,q:[
+   {q:'Dirty read =',o:['stale snapshot','reading uncommitted data','a phantom','a deadlock'],a:1},
+   {q:'Dirty write (overwriting uncommitted data) is prevented by…',o:['read uncommitted','read committed','a cache','more replicas'],a:1},
+   {q:'Write skew is stopped by…',o:['read committed','serializable / SSI','no locks','TTL'],a:1},
+   {q:'Lost update is two writes to…',o:['different objects','the same object','an index','a queue'],a:1},
+   {q:'2PL is…',o:['optimistic','pessimistic','lock-free','async'],a:1},
+   {q:'MVCC lets readers…',o:['block writers','see a snapshot without blocking','skip commits','avoid versions'],a:1},
+   {q:'OCC fits best when contention is…',o:['high','low','unknown','irrelevant'],a:1}
+ ]}
+},
+{
  id:'part',title:'Partitioning',icon:'🧩',color:'#14B8A6',colorD:'#0E8C7F',
  blurb:'Split data across nodes to scale — without hot spots.',
  lessons:[
@@ -1281,6 +1532,402 @@ const UNITS=[
    {q:'A local secondary index needs … on read',o:['one shard','scatter-gather','no reads','a lock'],a:1},
    {q:'DynamoDB GSIs are…',o:['sync','async / possibly stale','local','disabled'],a:1},
    {q:'The partition map is usually stored in…',o:['the app','ZooKeeper/etcd or gossip','a CSV','DNS'],a:1}
+ ]}
+},
+{
+ id:'model',title:'Data Models & Encoding',icon:'🗃️',color:'#0891B2',colorD:'#0E7490',
+ blurb:'Relational, document, graph — and schema evolution.',
+ lessons:[
+  {id:'model-1',title:'Pick a model',steps:[
+   {t:'teach',h:'Three shapes of data',body:[
+     {k:'point',i:'🧱',t:'<b>Relational</b>: tables + joins. Great for many-to-many and ad-hoc queries.'},
+     {k:'point',i:'📄',t:'<b>Document</b>: nested JSON per entity. Great for one-to-many, locality, flexible schema.'},
+     {k:'point',i:'🕸️',t:'<b>Graph</b>: nodes + edges. Great for many-to-many, multi-hop traversals.'}
+   ]},
+   {t:'match',q:'Match the model to its sweet spot.',pairs:[['Relational','Many-to-many + joins'],['Document','Self-contained nested record'],['Graph','Multi-hop relationships']]},
+   {t:'mcq',q:'Highly connected data with multi-hop queries (social graph, fraud rings) suits…',o:['document','graph','key-value','column'],a:1,why:'Graph DBs make multi-hop traversals cheap; the same in SQL means many recursive joins.'},
+   {t:'teach',h:'Normalize vs denormalize',body:[
+     {k:'cause',a:'Denormalize (duplicate data)',b:'Faster reads, but harder writes + consistency'},
+     {k:'note',t:'Normalize for write integrity; denormalize for read speed. Most systems do both, per access pattern.'}
+   ]},
+   {t:'htmlviz',h:'Choosing a database by access pattern',
+    html:`<style>
+.dbv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dbv-opt{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.dbv-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dbv-ic{font-size:17px}
+.dbv-title{font-size:14px;font-weight:800;color:var(--color-text-primary)}
+.dbv-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.5;margin-bottom:7px}
+.dbv-ex{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.dbv-tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#fff;border:1px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.dbv-use{font-size:11px;color:var(--color-text-tertiary);font-style:italic}
+@media (max-width:460px){.dbv-grid{grid-template-columns:1fr}}
+</style>
+<div class="dbv-grid">
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🗃️</span><span class="dbv-title">Relational (SQL)</span></div><div class="dbv-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default.</div><div class="dbv-ex"><span class="dbv-tag">PostgreSQL</span><span class="dbv-tag">MySQL</span></div><div class="dbv-use">users, orders, payments, foreign keys</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📄</span><span class="dbv-title">Document</span></div><div class="dbv-desc">Self-contained objects, flexible schema. Fetch the whole thing by ID; relationships don't matter.</div><div class="dbv-ex"><span class="dbv-tag">MongoDB</span><span class="dbv-tag">DynamoDB</span></div><div class="dbv-use">profiles, catalogs, CMS content</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🔑</span><span class="dbv-title">Key-value</span></div><div class="dbv-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — get/set.</div><div class="dbv-ex"><span class="dbv-tag">Redis</span><span class="dbv-tag">Memcached</span></div><div class="dbv-use">sessions, cache, rate limits, leaderboards</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📊</span><span class="dbv-title">Column (OLAP)</span></div><div class="dbv-desc">Scan billions of rows, few columns. Compression-friendly. Built for aggregates, not point lookups.</div><div class="dbv-ex"><span class="dbv-tag">ClickHouse</span><span class="dbv-tag">BigQuery</span></div><div class="dbv-use">analytics, dashboards, warehouse</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">⏱️</span><span class="dbv-title">Time-series</span></div><div class="dbv-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply.</div><div class="dbv-ex"><span class="dbv-tag">InfluxDB</span><span class="dbv-tag">Prometheus</span></div><div class="dbv-use">metrics, IoT, monitoring, logs</div></div>
+  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🕸️</span><span class="dbv-title">Graph</span></div><div class="dbv-desc">Many-to-many. Index-free adjacency = O(1) hop vs O(log N) join. When traversals are the query.</div><div class="dbv-ex"><span class="dbv-tag">Neo4j</span><span class="dbv-tag">Neptune</span></div><div class="dbv-use">social graphs, recs, fraud rings</div></div>
+</div>`},
+   {t:'recall',q:'When document model over relational?',model:['Document fits self-contained, one-to-many records read together (locality) with a flexible schema.','Relational wins for many-to-many relationships, joins, and ad-hoc queries across entities.']}
+  ]},
+  {id:'model-2',title:'Encoding & evolution',steps:[
+   {t:'teach',h:'Wire formats',body:[
+     {k:'vs',a:{h:'JSON/XML',t:'human-readable, verbose, weak typing. Easy but big.'},b:{h:'Avro / Protobuf / Thrift',t:'compact binary + a schema; fast and small.'}},
+     {k:'note',t:'A schema registry lets producers and consumers evolve independently.'}
+   ]},
+   {t:'teach',h:'Compatibility',body:[
+     {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
+     {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
+   ]},
+   {t:'match',q:'Encoding / compatibility → which?',pairs:[['Human-readable, verbose','JSON / XML'],['Compact binary + schema','Avro / Protobuf'],['New code reads OLD data','Backward compatible'],['Old code reads NEW data','Forward compatible']]},
+   {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
+     {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
+     ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
+   ]},
+   {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
+   {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
+  ]},
+  {id:'model-3',title:'Storage engines',steps:[
+   {t:'teach',h:'B-tree vs LSM-tree',body:[
+     {k:'point',i:'🌲',t:'<b>B-tree</b>: update in place on a balanced on-disk tree. Random-I/O writes; fast reads + range scans. Read-optimized (Postgres, MySQL).'},
+     {k:'point',i:'📥',t:'<b>LSM-tree</b>: buffer writes in memory, flush sequentially to immutable SSTables, compact in the background. Sequential writes = high throughput; reads check multiple levels (Bloom filters help). Write-optimized (Cassandra, RocksDB).'},
+     {k:'note',t:'Rule of thumb: write-heavy / ingest → LSM; read-heavy with range scans → B-tree.'}
+   ]},
+   {t:'htmlviz',h:'B-Tree vs LSM-Tree',
+    html:`<style>
+.blv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.blv-card{background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:14px 16px}
+.blv-label{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--color-text-tertiary);text-transform:uppercase;margin-bottom:8px}
+.blv-name{font-size:15px;font-weight:800;color:var(--color-text-primary);margin-bottom:10px}
+.blv-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--color-border-tertiary);font-size:12.5px}
+.blv-row:last-child{border-bottom:none}
+.blv-k{color:var(--color-text-secondary)}
+.blv-v{color:var(--color-text-primary);font-weight:700}
+.blv-v.good{color:var(--color-text-success)}
+.blv-v.warn{color:var(--color-text-warning)}
+.blv-tag{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:700}
+.blv-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
+.blv-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
+@media (max-width:460px){.blv-grid{grid-template-columns:1fr}}
+</style>
+<div class="blv-grid">
+  <div class="blv-card">
+    <div class="blv-label">classic <span class="blv-tag blv-tag-b">B-Tree</span></div><div class="blv-name">B-Tree</div>
+    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v warn">random I/O</span></div>
+    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v good">O(log n), fast</span></div>
+    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">excellent</span></div>
+    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">moderate</span></div>
+    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v good">low</span></div>
+    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">in-place</span></div>
+    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Postgres, MySQL</span></div>
+  </div>
+  <div class="blv-card">
+    <div class="blv-label">write-optimized <span class="blv-tag blv-tag-l">LSM</span></div><div class="blv-name">LSM-Tree + SSTables</div>
+    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v good">sequential, fast</span></div>
+    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v warn">check many levels</span></div>
+    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">good (sorted)</span></div>
+    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">high (compaction)</span></div>
+    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v warn">higher</span></div>
+    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">append-only</span></div>
+    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Cassandra, RocksDB</span></div>
+  </div>
+</div>`},
+   {t:'mcq',q:'A write-heavy ingest workload (logs, metrics) fits…',o:['B-tree','LSM-tree','a graph DB','a cache only'],a:1,why:'LSM buffers in memory and flushes sequentially → high write throughput; a B-tree does random-I/O in-place updates.'},
+   {t:'recall',q:'B-tree vs LSM — the tradeoff?',model:['B-tree updates in place: random-I/O writes, excellent reads and range scans → read-optimized (Postgres, MySQL).','LSM buffers writes and flushes sequential SSTables with background compaction: high write throughput, reads check multiple levels (Bloom filters mitigate) → write-optimized (Cassandra, RocksDB).','Pick by workload: write-heavy → LSM; read/range-heavy → B-tree.']}
+  ]},
+  {id:'model-4',title:'API design',steps:[
+   {t:'teach',h:'REST vs gRPC vs GraphQL',body:[
+     {k:'point',i:'🌐',t:'<b>REST/JSON</b>: simple, cacheable, universal. Default for public/external APIs. Can over/under-fetch.'},
+     {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
+     {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
+   ]},
+   {t:'teach',h:'Pagination & auth',body:[
+     {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
+     {k:'point',i:'🔑',t:'Derive the user from the <b>auth token</b> (OAuth/JWT), never from the request body. Validate + scope every request; keep servers stateless (state in the token / Redis).'}
+   ]},
+   {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
+     {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
+   ]},
+   {t:'mcq',q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random sampling','no pagination'],a:1,why:'Cursor/keyset pagination is stable when data shifts and stays fast deep in the list, unlike OFFSET.'},
+   {t:'cloze',q:'Fill the API blanks.',distract:['SOAP','UDP'],text:[
+     {blank:'REST',alt:['rest']},' is the universal default; ',{blank:'gRPC',alt:['grpc']},' (protobuf/HTTP2) suits fast internal RPC; ',{blank:'GraphQL',alt:['graphql']},
+     ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
+   ]},
+   {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
+  ]}
+ ],
+ boss:{title:'Data Models Boss',time:90,q:[
+   {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
+   {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
+   {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
+   {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
+   {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
+   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
+   {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
+   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1}
+ ]}
+},
+{
+ id:'time',title:'Time & Ordering',icon:'⏱️',color:'#CE82FF',colorD:'#A560E8',
+ blurb:'Clocks lie. Order events without trusting them.',
+ lessons:[
+  {id:'time-1',title:'Logical clocks',steps:[
+   {t:'teach',h:'Lamport clocks',body:[
+     {k:'tldr',t:'A counter per process. Local/send: +1. Receive: max(local, msg)+1.'},
+     {k:'callout',c:'warn',t:'A→B implies clock(A)&lt;clock(B), but NOT the reverse. Can’t detect concurrency.'}
+   ]},
+   {t:'htmlviz',h:'Lamport clock — step through it',
+    html:`<style>
+.cv-mount svg{width:100%;height:auto;display:block}
+.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
+.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
+.cv-arrow{fill:var(--color-text-tertiary)}
+.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
+.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
+.cv-dot.sel{fill:var(--color-text-info)}
+.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
+.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
+.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+.cv-controls button:disabled{opacity:.4;cursor:default}
+.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
+.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
+.cv-cap b{color:var(--color-text-primary);font-weight:800}
+</style><div class="cv-mount"></div>`,
+    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'lamport','L');}},
+   {t:'teach',h:'Vector clocks',body:[
+     {k:'point',i:'🧮',t:'One counter per process. Compare element-wise.'},
+     {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
+     {k:'point',i:'∥',t:'Neither dominates → concurrent. Now you CAN tell.'}
+   ]},
+   {t:'htmlviz',h:'Vector clock — step through it',
+    html:`<style>
+.cv-mount svg{width:100%;height:auto;display:block}
+.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
+.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
+.cv-arrow{fill:var(--color-text-tertiary)}
+.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
+.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
+.cv-dot.sel{fill:var(--color-text-info)}
+.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
+.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
+.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
+.cv-controls button:disabled{opacity:.4;cursor:default}
+.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
+.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
+.cv-cap b{color:var(--color-text-primary);font-weight:800}
+</style><div class="cv-mount"></div>`,
+    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'vector','V');}},
+   {t:'cloze',q:'Fill the clock blanks.',distract:['physical','atomic'],text:[
+     'Lamport clocks give a ',{blank:'partial'},' order but can’t spot ',{blank:'concurrent'},
+     ' events. ',{blank:'Vector',alt:['vector']},' clocks compare ',{blank:'element-wise',alt:['elementwise']},
+     ' to reveal the full happened-before relation.'
+   ]},
+   {t:'mcq',q:'V(A) < V(B) means…',o:['A has fewer events','A causally happened-before B','wall clock earlier','they’re concurrent'],a:1,why:'Every entry ≤ and at least one strictly less → A → B.'},
+   {t:'recall',q:'Why do vector clocks beat Lamport clocks?',model:['Lamport gives ordering but can’t distinguish concurrent from causally-ordered events.','Vector clocks track one counter per process, so element-wise comparison reveals concurrency.']},
+   {t:'teach',h:'Vector clock vs version vector',body:[
+     {k:'vs',a:{h:'Vector clock',t:'one counter per <b>process</b>. Orders <b>events/messages</b> across the system — the happened-before relation (what you just stepped through).'},b:{h:'Version vector',t:'one counter per <b>replica</b>. Tracks versions of <b>one data item</b> to detect concurrent writes (siblings) in leaderless / multi-leader stores.'}},
+     {k:'note',t:'Same math — element-wise ≤ means happened-before, incomparable means concurrent. They differ in <b>what you count</b> (processes vs replicas of a key) and <b>why</b> (order events vs detect conflicting object versions). Dynamo & Riak attach a version vector per key — that’s the sibling-detection from the Replication unit.'}
+   ]},
+   {t:'mcq',q:'Dynamo decides whether two writes to a shopping-cart key conflict using a…',o:['Lamport clock','vector clock (one counter per process)','version vector (one counter per replica, per key)','single wall-clock timestamp'],a:2,why:'A version vector attaches per-replica counters to the data item, so the store can tell concurrent writes (siblings to merge) from one that supersedes another.'}
+  ]},
+  {id:'time-2',title:'Physical time',steps:[
+   {t:'teach',h:'TrueTime & HLC',body:[
+     {k:'keyt',term:'TrueTime (Spanner)',def:'returns an interval [earliest,latest]; wait out the uncertainty (commit wait) for global order.'},
+     {k:'keyt',term:'HLC',def:'hybrid logical clock — physical time + a logical counter; respects causality, no special hardware.'}
+   ]},
+   {t:'htmlviz',h:'HLC — step through the math',
+    html:`<style>
+.hlc-state{display:flex;gap:12px;margin-bottom:11px}
+.hlc-node{flex:1;border:2px solid var(--color-border-primary);border-radius:12px;padding:9px;text-align:center;background:var(--color-background-secondary);transition:all .2s}
+.hlc-node.bump{border-color:var(--color-border-success);background:var(--color-background-success)}
+.hlc-node .hnm{font-size:11px;font-weight:800;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.03em}
+.hlc-node .hval{font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--color-text-primary);margin-top:3px}
+.hlc-node.bump .hval{color:var(--color-text-success)}
+.hlc-node.idle .hval{color:var(--color-text-tertiary)}
+.hlc-box{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:12px;overflow:hidden}
+.hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);padding:11px 13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hlc-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:11px 13px;border-top:1px solid var(--color-border-tertiary)}
+.hlc-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
+<div class="hlc-host"></div>`,
+    setup:function(root,stepper){
+      var STEPS=[
+        {a:'—',b:'—',act:'',step:'HLC = (l, c)\n  l ≈ physical time\n  c breaks ties within the same millisecond',cap:'Physical clocks repeat or stall within a millisecond. HLC adds a small counter <b>c</b> so timestamps stay strictly ordered while staying close to real time.'},
+        {a:'(100, 0)',b:'—',act:'A',step:'Node A — local event, physical = 100ms\n  l = max(0, 100) = 100   → l advanced → c = 0\n  HLC_A = (100, 0)',cap:'A local/send event sets l = max(old l, physical clock). Physical jumped ahead of l, so the counter c resets to 0.'},
+        {a:'(100, 0)',b:'(101, 0)',act:'B',step:'Node B receives HLC=(100,0) from A, physical = 101ms\n  l = max(l_B=0, recv_l=100, physical=101) = 101  → l advanced → c = 0\n  HLC_B = (101, 0)',cap:'On receive, l = max(local, message l, physical). 101 is the max and beats both, so c = 0.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'B',step:'Two events fire on B in the same millisecond (physical = 101ms)\n  event 1: HLC = (101, 0)\n  event 2: l = max(101, 101) = 101 → l unchanged → c++\n  HLC_B = (101, 1)   ← still strictly ordered',cap:'Physical time did not advance, so l stays 101 and c increments — same-millisecond events still get distinct, ordered stamps.'},
+        {a:'(100, 0)',b:'(101, 1)',act:'',step:'Compare HLC_A=(100,0) vs HLC_B=(101,0)\n  l_A < l_B  →  A happened-before B  ✓\n  100ms and 101ms are still meaningful real timestamps  ✓',cap:'Compare l first, then c on a tie. HLC gives a total causal order AND stays close to wall-clock time — unlike Lamport, whose numbers are not real times.'}
+      ];
+      function panel(s){return '<div class="hlc-panel"><div class="hlc-state">'
+        +'<div class="hlc-node'+(s.act==='A'?' bump':(s.a==='—'?' idle':''))+'"><div class="hnm">Node A</div><div class="hval">'+s.a+'</div></div>'
+        +'<div class="hlc-node'+(s.act==='B'?' bump':(s.b==='—'?' idle':''))+'"><div class="hnm">Node B</div><div class="hval">'+s.b+'</div></div>'
+        +'</div><div class="hlc-box"><div class="hlc-step">'+s.step+'</div><div class="hlc-cap">'+s.cap+'</div></div></div>';}
+      root.querySelector('.hlc-host').innerHTML=STEPS.map(panel).join('');
+      stepper(root,STEPS.length,{panelClass:'hlc-panel',labels:['HLC = (l, c)','A: local event','B: receives','B: same-ms tie','Compare']});
+    }},
+   {t:'mcq',q:'Spanner’s commit wait exists to…',o:['save power','ensure no later txn gets a smaller timestamp','reduce storage','batch writes'],a:1,why:'Waiting out the clock uncertainty preserves external consistency globally.'},
+   {t:'teach',h:'Failure detection',body:[
+     {k:'point',i:'❓',t:'You can’t tell crashed from slow (FLP). All detectors are imperfect.'},
+     {k:'point',i:'🗣️',t:'Phi-accrual gives a tunable suspicion level instead of a binary alive/dead.'}
+   ]},
+   {t:'teach',h:'Gossip protocol',body:[
+     {k:'tldr',t:'No central registry: each node tells a few RANDOM peers, and news spreads like a rumour.'},
+     {k:'point',i:'📈',t:'Reaches all N nodes in ~<b>O(log N)</b> rounds — decentralised, no single point of failure.'},
+     {k:'vs',a:{h:'Anti-entropy',t:'compare full state + reconcile (Merkle diff). Thorough, always converges.'},b:{h:'Rumour-mongering',t:'gossip a fresh change for a while, then stop. Fast + cheap.'}},
+     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul (SWIM). Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
+   ]},
+   {t:'mcq',q:'How does a gossip protocol spread state across the cluster?',o:['a leader pushes to everyone','each node tells random peers; spreads in ~O(log N) rounds','every node broadcasts to all each second','only via ZooKeeper'],a:1,why:'Decentralised epidemic spread — random peer exchange, O(log N) convergence, no coordinator or SPOF.'},
+   {t:'recall',q:'What does TrueTime do differently from a normal clock?',model:['It exposes uncertainty as an interval [earliest, latest] instead of a single point.','Spanner waits out that interval (commit wait) so timestamps never disagree on order — external consistency.']}
+  ]}
+ ],
+ boss:{title:'Time Boss',time:70,q:[
+   {q:'Lamport clocks give only a…',o:['total real-time order','partial order','vector','lease'],a:1},
+   {q:'Vector clocks can detect…',o:['clock drift','concurrency','partitions','leaders'],a:1},
+   {q:'V(A) ≤ V(B), not equal, means…',o:['concurrent','A → B','B → A','unrelated'],a:1},
+   {q:'TrueTime returns…',o:['a single time','an interval','a vector','a counter'],a:1},
+   {q:'HLC’s advantage is…',o:['no clocks','physical-time-close + causal, no special HW','infinite precision','no drift'],a:1},
+   {q:'FLP says you can’t distinguish…',o:['fast vs slow nodes','crashed vs slow','leader vs follower','read vs write'],a:1}
+ ]}
+},
+{
+ id:'trouble',title:'Distributed Trouble',icon:'⚠️',color:'#BE185D',colorD:'#9D174D',
+ blurb:'Networks drop, clocks drift, processes pause.',
+ lessons:[
+  {id:'trouble-1',title:'Networks & clocks',steps:[
+   {t:'teach',h:'Unreliable networks',body:[
+     {k:'tldr',t:'You can’t tell a lost request from a slow one — a timeout is just a guess.'},
+     {k:'point',i:'⏳',t:'Too short = false failures; too long = slow detection. There’s no perfect timeout.'}
+   ]},
+   {t:'teach',h:'Unreliable clocks',body:[
+     {k:'vs',a:{h:'Time-of-day clock',t:'wall-clock; can jump backward on NTP sync. Don’t measure durations with it.'},b:{h:'Monotonic clock',t:'only goes forward; use it for elapsed time / timeouts.'}},
+     {k:'callout',c:'warn',t:'Clock skew breaks Last-Write-Wins — a laggy clock can silently drop the newer write.'}
+   ]},
+   {t:'cloze',q:'Fill the clock blanks.',distract:['vector','logical'],text:[
+     'Measure durations with the ',{blank:'monotonic'},' clock, never the ',{blank:'time-of-day',alt:['time of day','wall-clock','wall clock']},
+     ' clock which can jump on NTP sync. Clock ',{blank:'skew'},' makes ',{blank:'LWW',alt:['last-write-wins']},' silently drop writes.'
+   ]},
+   {t:'mcq',q:'To measure how long an operation took, use…',o:['the time-of-day clock','the monotonic clock','a vector clock','NTP directly'],a:1,why:'Monotonic clocks never jump backward; time-of-day can be reset by NTP mid-measurement.'},
+   {t:'recall',q:'Time-of-day vs monotonic clock — when each?',model:['Time-of-day: for timestamps/calendar time, but it can jump (NTP) — bad for durations.','Monotonic: always increases — use it for elapsed time, timeouts, and benchmarks.']}
+  ]},
+  {id:'trouble-2',title:'Pauses & truth',steps:[
+   {t:'teach',h:'Process pauses',body:[
+     {k:'cause',a:'GC stop-the-world / VM migration / paging',b:'A node freezes, then resumes thinking no time passed'},
+     {k:'callout',c:'warn',t:'A paused lock holder can wake up after its lease expired and corrupt data — TTL alone won’t save you.'}
+   ]},
+   {t:'teach',h:'Truth is decided by majority',body:[
+     {k:'point',i:'🗳️',t:'A node can’t trust its own view; a quorum/majority decides what’s true.'},
+     {k:'point',i:'🎟️',t:'<b>Fencing tokens</b>: every lock grant gets an increasing number; storage rejects an older token.'}
+   ]},
+   {t:'mcq',q:'A GC-paused client resumes holding a now-expired lock. What makes writes safe?',o:['a longer TTL','fencing tokens','a faster network','retries'],a:1,why:'Storage rejects writes carrying a token lower than the highest it has seen — the stale holder is fenced out.'},
+   {t:'build',q:'Pick real causes of an unexpected multi-second pause.',options:['GC stop-the-world','VM live migration','Memory paging/swapping','A tight CPU loop','SIGSTOP'],correct:[0,1,2,4]},
+   {t:'recall',q:'Why is a TTL lock unsafe without fencing tokens?',model:['A paused client’s clock doesn’t advance — it can wake after the lease expired, unaware it’s stale.','Fencing tokens (monotonic per grant) let storage reject the old holder’s writes, preventing corruption.']}
+  ]}
+ ],
+ boss:{title:'Trouble Boss',time:70,q:[
+   {q:'A network timeout is…',o:['exact','a guess','always right','unnecessary'],a:1},
+   {q:'Measure elapsed time with…',o:['time-of-day clock','monotonic clock','vector clock','NTP'],a:1},
+   {q:'Clock skew can break…',o:['hashing','last-write-wins','TCP','compression'],a:1},
+   {q:'A GC pause can make a node…',o:['faster','hold a stale lock','skip writes','rebalance'],a:1},
+   {q:'Stale lock holders are stopped by…',o:['longer TTL','fencing tokens','retries','bigger heap'],a:1},
+   {q:'In a distributed system, truth is decided by…',o:['one node','a quorum/majority','the client','the clock'],a:1}
+ ]}
+},
+{
+ id:'msg',title:'Messaging & Streaming',icon:'📨',color:'#58CC02',colorD:'#46a302',
+ blurb:'Decouple services and absorb spikes with queues & logs.',
+ lessons:[
+  {id:'msg-1',title:'Queues vs logs',steps:[
+   {t:'teach',h:'Two shapes',body:[
+     {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
+     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'},
+     {k:'callout',c:'warn',t:'<b>A queue isn’t free latency-wise.</b> It adds a hop (enqueue + poll) and decouples timing — perfect for spikes, fan-out, and slow work, but it <b>blows a tight synchronous latency budget</b>. Don’t drop one into a &lt;500ms request path just to "decouple" — the caller now waits on a queue it can’t see.'}
+   ]},
+   {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
+   {t:'teach',h:'Kafka: partitions & offsets',body:[
+     {k:'point',i:'👥',t:'<b>Consumer group</b>: each partition → exactly ONE consumer. Parallelism caps at the partition count; extra consumers sit idle. Add partitions to scale out.'},
+     {k:'point',i:'📍',t:'Each group tracks the <b>offset</b> it has processed. <i>When</i> you commit it decides your delivery guarantee:'},
+     {k:'vs',a:{h:'Commit AFTER processing',t:'at-least-once — a crash reprocesses the message'},b:{h:'Commit BEFORE processing',t:'at-most-once — a crash skips it'}},
+     {k:'note',t:'Exactly-once = a Kafka transaction committing the offset + output write atomically.'}
+   ]},
+   {t:'teach',h:'Kafka: durability & retention',body:[
+     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the followers currently <b>caught up</b> to the leader. A laggard drops out, then rejoins once it catches up.'},
+     {k:'point',i:'🎚️',t:'<code>acks=all</code> + <code>min.insync.replicas</code>: commit only once that many ISR replicas hold the write — the durability ↔ latency knob.'},
+     {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> keeps only the latest value per key.'},
+     {k:'callout',c:'warn',t:'<b>Hot partition vs ordering:</b> more partitions = more parallelism, but a hot key serializes onto its one partition. You can’t have global ordering AND high parallelism — pick <b>per-key</b> ordering.'}
+   ]},
+   {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
+     {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
+   ]},
+   {t:'teach',h:'Delivery semantics',body:[
+     {k:'point',i:'1️⃣',t:'<b>At-most-once</b>: may lose, never duplicate.'},
+     {k:'point',i:'🔁',t:'<b>At-least-once</b>: never lose, may duplicate → need idempotency.'},
+     {k:'point',i:'🎯',t:'<b>Exactly-once</b>: hard; usually = at-least-once + idempotent processing.'}
+   ]},
+   {t:'cloze',q:'Fill the delivery blanks.',distract:['ordered','synchronous'],text:[
+     'The pragmatic default is ',{blank:'at-least-once'},' delivery, which can ',{blank:'duplicate'},
+     ' messages — so consumers must be ',{blank:'idempotent'},'. True exactly-once over a network is ',{blank:'impossible'},'.'
+   ]},
+   {t:'mcq',q:'Kafka guarantees ordering…',o:['globally','within a partition only','never','per consumer'],a:1,why:'Order holds within a partition; pick the partition key to keep a key’s events ordered.'},
+   {t:'mcq',q:'In a Kafka consumer group, a partition is consumed by…',o:['every consumer','exactly one consumer in the group','the leader only','no one'],a:1,why:'One partition → one consumer per group, so consumer parallelism is bounded by the partition count.'},
+   {t:'mcq',q:'A consumer commits its offset BEFORE processing the message. If it crashes mid-process, that message is…',o:['reprocessed (at-least-once)','skipped (at-most-once)','duplicated forever','rolled back'],a:1,why:'Committing before processing means the offset already advanced — a crash skips it (at-most-once). Commit AFTER for at-least-once.'},
+   {t:'match',q:'Need → messaging choice.',pairs:[['Replay + many independent readers','Log (Kafka)'],['One consumer per message, work distribution','Queue'],['Must never lose; dupes OK if idempotent','At-least-once'],['Keep one user’s events ordered','Partition by key']]},
+   {t:'mcq',q:'Payment events must never be lost (duplicates tolerable if handled). Delivery semantics?',o:['at-most-once','at-least-once + idempotent consumer','fire-and-forget','exactly-once over the wire'],a:1,why:'At-least-once guarantees no loss; an idempotent consumer makes the inevitable duplicates harmless — the cheap path to an exactly-once effect.'},
+   {t:'recall',q:'How do systems achieve "exactly-once" in practice?',model:['Use at-least-once delivery plus idempotent processing (or transactional offset+write).','Repeats become harmless, so the observable effect is exactly-once — much cheaper than true EO delivery.']}
+  ]},
+  {id:'msg-2',title:'Reliability',steps:[
+   {t:'teach',h:'Outbox & CDC',body:[
+     {k:'cause',a:'Writing DB + publishing event separately',b:'A crash between them = lost/phantom events (dual-write problem)'},
+     {k:'point',i:'📦',t:'<b>Outbox</b>: write business row + outbox row in one txn; a relay publishes it.'},
+     {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
+   ]},
+   {t:'mcq',q:'The transactional outbox solves…',o:['cache misses','the dual-write problem','leader election','hot keys'],a:1,why:'One local txn writes both the data and the event; a relay/CDC publishes reliably.'},
+   {t:'teach',h:'Backpressure',body:[
+     {k:'tldr',t:'Consumers can’t keep up → slow the producer, don’t crash.'},
+     {k:'vs',a:{h:'Pull (Kafka)',t:'consumers fetch at their own pace — lag just builds, nothing falls over. Backpressure for free.'},b:{h:'Push',t:'needs explicit credit / window flow-control (Reactive Streams, gRPC) or the consumer gets overwhelmed.'}},
+     {k:'callout',c:'warn',t:'Never use an <b>unbounded</b> buffer — it just defers the failure to an OOM crash later.'}
+   ]},
+   {t:'mcq',q:'An unbounded in-memory queue under sustained overload leads to…',o:['graceful backpressure','an OOM crash — failure just deferred','faster processing','exactly-once'],a:1,why:'Unbounded buffers hide the overload until memory runs out. Bound the buffer and pick a block/drop/shed policy.'},
+   {t:'teach',h:'Bounded buffers & dead-letter queues',body:[
+     {k:'point',i:'🪣',t:'Bound the buffer; when it’s <b>full</b>, choose a policy: <b>block</b> the producer, <b>drop</b> the oldest, or <b>shed</b> load (reject).'},
+     {k:'point',i:'☠️',t:'A <b>poison message</b> (always fails) blocks a partition or loops forever. After N retries <b>with backoff</b>, route it to a <b>dead-letter queue</b> for human inspection.'},
+     {k:'note',t:'Pair the DLQ with a <b>retry topic</b> to reprocess messages later instead of dropping them.'}
+   ]},
+   {t:'mcq',q:'A message fails on every attempt (poison). After a few backed-off retries you should…',o:['retry forever','drop it silently','route it to a dead-letter queue for inspection','restart the broker'],a:2,why:'A DLQ unblocks the partition and keeps the bad message for debugging, instead of looping forever or losing it.'},
+   {t:'recall',q:'What is the dual-write problem and how does the outbox fix it?',model:['Writing to the DB and a broker separately has no atomicity — a crash leaves them inconsistent.','The outbox writes the row + an event in ONE DB txn; a relay (or CDC) then publishes, at-least-once.']}
+  ]},
+  {id:'msg-3',title:'Event sourcing & CQRS',steps:[
+   {t:'teach',h:'Store events, not state',body:[
+     {k:'keyt',term:'Event sourcing',def:'persist the append-only log of events as the source of truth; current state is a fold (replay) of those events.'},
+     {k:'point',i:'🕰️',t:'You get a full audit trail and time-travel (rebuild state as of any point) for free.'},
+     {k:'callout',c:'warn',t:'Cost: replaying long logs is slow → snapshots; and you must version/evolve event schemas forever.'}
+   ]},
+   {t:'teach',h:'CQRS',body:[
+     {k:'keyt',term:'CQRS',def:'Command Query Responsibility Segregation — separate the write model from one or more read models (projections).'},
+     {k:'point',i:'🔭',t:'Writes append events; async projections build query-optimised read views. Reads scale independently — but are eventually consistent.'},
+     {k:'note',t:'Often paired with event sourcing, but not required. Don’t reach for either unless audit/temporal needs or read/write asymmetry justify the complexity.'}
+   ]},
+   {t:'mcq',q:'In event sourcing, the source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1,why:'State is derived by replaying the event log; snapshots are just an optimization.'},
+   {t:'cloze',q:'Fill the event-sourcing blanks.',distract:['sharding','quorum'],text:[
+     {blank:'Event sourcing',alt:['event-sourcing']},' stores the ',{blank:'log',alt:['event log']},' of changes as truth; current state is a ',{blank:'replay',alt:['fold','projection']},
+     '. ',{blank:'CQRS',alt:['cqrs']},' splits the write model from read-optimised ',{blank:'projections',alt:['read models','views']},'.'
+   ]},
+   {t:'recall',q:'What are event sourcing and CQRS, and the main trade-off?',model:['Event sourcing: the append-only event log is the source of truth; state = replay of events → audit trail + time travel.','CQRS: separate write model from read models (projections), so reads scale independently — at the cost of eventual consistency.','Trade-off: more moving parts (snapshots, schema evolution, projection lag) — use only when audit/temporal or read/write asymmetry needs justify it.']}
+  ]}
+ ],
+ boss:{title:'Messaging Boss',time:80,q:[
+   {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
+   {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
+   {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
+   {q:'Kafka consumer parallelism is capped by…',o:['brokers','partition count','replicas','topics'],a:1},
+   {q:'The outbox pattern fixes…',o:['hot keys','dual-write inconsistency','stale reads','GC pauses'],a:1},
+   {q:'Poison messages go to a…',o:['cache','dead-letter queue','replica','leader'],a:1},
+   {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0},
+   {q:'Event sourcing’s source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1},
+   {q:'CQRS separates…',o:['regions','the write model from read models','producers from brokers','disks'],a:1}
  ]}
 },
 {
@@ -1424,223 +2071,6 @@ const UNITS=[
    {q:'A pull CDN fetches from origin…',o:['never','on first miss, then caches','every request','only at night'],a:1},
    {q:'Write-heavy, instant writes, OK to lose a few on crash →',o:['cache-aside','write-through','write-back','no cache'],a:2},
    {q:'Reads must be fresh with no data loss →',o:['cache-aside','write-through','write-back','TTL only'],a:1}
- ]}
-},
-{
- id:'time',title:'Time & Ordering',icon:'⏱️',color:'#CE82FF',colorD:'#A560E8',
- blurb:'Clocks lie. Order events without trusting them.',
- lessons:[
-  {id:'time-1',title:'Logical clocks',steps:[
-   {t:'teach',h:'Lamport clocks',body:[
-     {k:'tldr',t:'A counter per process. Local/send: +1. Receive: max(local, msg)+1.'},
-     {k:'callout',c:'warn',t:'A→B implies clock(A)&lt;clock(B), but NOT the reverse. Can’t detect concurrency.'}
-   ]},
-   {t:'htmlviz',h:'Lamport clock — step through it',
-    html:`<style>
-.cv-mount svg{width:100%;height:auto;display:block}
-.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
-.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
-.cv-arrow{fill:var(--color-text-tertiary)}
-.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
-.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
-.cv-dot.sel{fill:var(--color-text-info)}
-.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
-.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
-.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
-.cv-controls button:disabled{opacity:.4;cursor:default}
-.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
-.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
-.cv-cap b{color:var(--color-text-primary);font-weight:800}
-</style><div class="cv-mount"></div>`,
-    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'lamport','L');}},
-   {t:'teach',h:'Vector clocks',body:[
-     {k:'point',i:'🧮',t:'One counter per process. Compare element-wise.'},
-     {k:'point',i:'🔗',t:'V(A) ≤ V(B) and not equal → A happened-before B.'},
-     {k:'point',i:'∥',t:'Neither dominates → concurrent. Now you CAN tell.'}
-   ]},
-   {t:'htmlviz',h:'Vector clock — step through it',
-    html:`<style>
-.cv-mount svg{width:100%;height:auto;display:block}
-.cv-lane{stroke:var(--color-border-secondary);stroke-width:1.5}
-.cv-label{fill:var(--color-text-tertiary);font-weight:800;font-size:13px}
-.cv-arrow{fill:var(--color-text-tertiary)}
-.cv-msg{stroke:var(--color-text-tertiary);stroke-width:1.5}
-.cv-dot{fill:var(--color-background-primary);stroke:var(--color-text-info);stroke-width:2;cursor:pointer;transition:fill .15s}
-.cv-dot.sel{fill:var(--color-text-info)}
-.cv-stamp{fill:var(--color-text-primary);font-family:var(--font-mono);font-size:10px;font-weight:800}
-.cv-controls{display:flex;gap:8px;align-items:center;margin-top:.6rem;flex-wrap:wrap}
-.cv-controls button{font:inherit;font-weight:800;font-size:12px;padding:6px 11px;border:1.5px solid var(--color-border-primary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer}
-.cv-controls button:disabled{opacity:.4;cursor:default}
-.cv-hint{font-size:11px;color:var(--color-text-tertiary)}
-.cv-cap{font-size:12.5px;color:var(--color-text-secondary);margin-top:.55rem;min-height:34px;line-height:1.55}
-.cv-cap b{color:var(--color-text-primary);font-weight:800}
-</style><div class="cv-mount"></div>`,
-    setup:function(root){makeClockViz(root.querySelector('.cv-mount'),'vector','V');}},
-   {t:'cloze',q:'Fill the clock blanks.',distract:['physical','atomic'],text:[
-     'Lamport clocks give a ',{blank:'partial'},' order but can’t spot ',{blank:'concurrent'},
-     ' events. ',{blank:'Vector',alt:['vector']},' clocks compare ',{blank:'element-wise',alt:['elementwise']},
-     ' to reveal the full happened-before relation.'
-   ]},
-   {t:'mcq',q:'V(A) < V(B) means…',o:['A has fewer events','A causally happened-before B','wall clock earlier','they’re concurrent'],a:1,why:'Every entry ≤ and at least one strictly less → A → B.'},
-   {t:'recall',q:'Why do vector clocks beat Lamport clocks?',model:['Lamport gives ordering but can’t distinguish concurrent from causally-ordered events.','Vector clocks track one counter per process, so element-wise comparison reveals concurrency.']},
-   {t:'teach',h:'Vector clock vs version vector',body:[
-     {k:'vs',a:{h:'Vector clock',t:'one counter per <b>process</b>. Orders <b>events/messages</b> across the system — the happened-before relation (what you just stepped through).'},b:{h:'Version vector',t:'one counter per <b>replica</b>. Tracks versions of <b>one data item</b> to detect concurrent writes (siblings) in leaderless / multi-leader stores.'}},
-     {k:'note',t:'Same math — element-wise ≤ means happened-before, incomparable means concurrent. They differ in <b>what you count</b> (processes vs replicas of a key) and <b>why</b> (order events vs detect conflicting object versions). Dynamo & Riak attach a version vector per key — that’s the sibling-detection from the Replication unit.'}
-   ]},
-   {t:'mcq',q:'Dynamo decides whether two writes to a shopping-cart key conflict using a…',o:['Lamport clock','vector clock (one counter per process)','version vector (one counter per replica, per key)','single wall-clock timestamp'],a:2,why:'A version vector attaches per-replica counters to the data item, so the store can tell concurrent writes (siblings to merge) from one that supersedes another.'}
-  ]},
-  {id:'time-2',title:'Physical time',steps:[
-   {t:'teach',h:'TrueTime & HLC',body:[
-     {k:'keyt',term:'TrueTime (Spanner)',def:'returns an interval [earliest,latest]; wait out the uncertainty (commit wait) for global order.'},
-     {k:'keyt',term:'HLC',def:'hybrid logical clock — physical time + a logical counter; respects causality, no special hardware.'}
-   ]},
-   {t:'htmlviz',h:'HLC — step through the math',
-    html:`<style>
-.hlc-state{display:flex;gap:12px;margin-bottom:11px}
-.hlc-node{flex:1;border:2px solid var(--color-border-primary);border-radius:12px;padding:9px;text-align:center;background:var(--color-background-secondary);transition:all .2s}
-.hlc-node.bump{border-color:var(--color-border-success);background:var(--color-background-success)}
-.hlc-node .hnm{font-size:11px;font-weight:800;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.03em}
-.hlc-node .hval{font-family:var(--font-mono);font-size:20px;font-weight:800;color:var(--color-text-primary);margin-top:3px}
-.hlc-node.bump .hval{color:var(--color-text-success)}
-.hlc-node.idle .hval{color:var(--color-text-tertiary)}
-.hlc-box{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:12px;overflow:hidden}
-.hlc-step{font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--color-text-secondary);padding:11px 13px;white-space:pre-wrap;overflow-wrap:anywhere}
-.hlc-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:11px 13px;border-top:1px solid var(--color-border-tertiary)}
-.hlc-cap b{color:var(--color-text-primary);font-weight:800}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="hlc-host"></div>`,
-    setup:function(root,stepper){
-      var STEPS=[
-        {a:'—',b:'—',act:'',step:'HLC = (l, c)\n  l ≈ physical time\n  c breaks ties within the same millisecond',cap:'Physical clocks repeat or stall within a millisecond. HLC adds a small counter <b>c</b> so timestamps stay strictly ordered while staying close to real time.'},
-        {a:'(100, 0)',b:'—',act:'A',step:'Node A — local event, physical = 100ms\n  l = max(0, 100) = 100   → l advanced → c = 0\n  HLC_A = (100, 0)',cap:'A local/send event sets l = max(old l, physical clock). Physical jumped ahead of l, so the counter c resets to 0.'},
-        {a:'(100, 0)',b:'(101, 0)',act:'B',step:'Node B receives HLC=(100,0) from A, physical = 101ms\n  l = max(l_B=0, recv_l=100, physical=101) = 101  → l advanced → c = 0\n  HLC_B = (101, 0)',cap:'On receive, l = max(local, message l, physical). 101 is the max and beats both, so c = 0.'},
-        {a:'(100, 0)',b:'(101, 1)',act:'B',step:'Two events fire on B in the same millisecond (physical = 101ms)\n  event 1: HLC = (101, 0)\n  event 2: l = max(101, 101) = 101 → l unchanged → c++\n  HLC_B = (101, 1)   ← still strictly ordered',cap:'Physical time did not advance, so l stays 101 and c increments — same-millisecond events still get distinct, ordered stamps.'},
-        {a:'(100, 0)',b:'(101, 1)',act:'',step:'Compare HLC_A=(100,0) vs HLC_B=(101,0)\n  l_A < l_B  →  A happened-before B  ✓\n  100ms and 101ms are still meaningful real timestamps  ✓',cap:'Compare l first, then c on a tie. HLC gives a total causal order AND stays close to wall-clock time — unlike Lamport, whose numbers are not real times.'}
-      ];
-      function panel(s){return '<div class="hlc-panel"><div class="hlc-state">'
-        +'<div class="hlc-node'+(s.act==='A'?' bump':(s.a==='—'?' idle':''))+'"><div class="hnm">Node A</div><div class="hval">'+s.a+'</div></div>'
-        +'<div class="hlc-node'+(s.act==='B'?' bump':(s.b==='—'?' idle':''))+'"><div class="hnm">Node B</div><div class="hval">'+s.b+'</div></div>'
-        +'</div><div class="hlc-box"><div class="hlc-step">'+s.step+'</div><div class="hlc-cap">'+s.cap+'</div></div></div>';}
-      root.querySelector('.hlc-host').innerHTML=STEPS.map(panel).join('');
-      stepper(root,STEPS.length,{panelClass:'hlc-panel',labels:['HLC = (l, c)','A: local event','B: receives','B: same-ms tie','Compare']});
-    }},
-   {t:'mcq',q:'Spanner’s commit wait exists to…',o:['save power','ensure no later txn gets a smaller timestamp','reduce storage','batch writes'],a:1,why:'Waiting out the clock uncertainty preserves external consistency globally.'},
-   {t:'teach',h:'Failure detection',body:[
-     {k:'point',i:'❓',t:'You can’t tell crashed from slow (FLP). All detectors are imperfect.'},
-     {k:'point',i:'🗣️',t:'Phi-accrual gives a tunable suspicion level instead of a binary alive/dead.'}
-   ]},
-   {t:'teach',h:'Gossip protocol',body:[
-     {k:'tldr',t:'No central registry: each node tells a few RANDOM peers, and news spreads like a rumour.'},
-     {k:'point',i:'📈',t:'Reaches all N nodes in ~<b>O(log N)</b> rounds — decentralised, no single point of failure.'},
-     {k:'vs',a:{h:'Anti-entropy',t:'compare full state + reconcile (Merkle diff). Thorough, always converges.'},b:{h:'Rumour-mongering',t:'gossip a fresh change for a while, then stop. Fast + cheap.'}},
-     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul (SWIM). Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
-   ]},
-   {t:'mcq',q:'How does a gossip protocol spread state across the cluster?',o:['a leader pushes to everyone','each node tells random peers; spreads in ~O(log N) rounds','every node broadcasts to all each second','only via ZooKeeper'],a:1,why:'Decentralised epidemic spread — random peer exchange, O(log N) convergence, no coordinator or SPOF.'},
-   {t:'recall',q:'What does TrueTime do differently from a normal clock?',model:['It exposes uncertainty as an interval [earliest, latest] instead of a single point.','Spanner waits out that interval (commit wait) so timestamps never disagree on order — external consistency.']}
-  ]}
- ],
- boss:{title:'Time Boss',time:70,q:[
-   {q:'Lamport clocks give only a…',o:['total real-time order','partial order','vector','lease'],a:1},
-   {q:'Vector clocks can detect…',o:['clock drift','concurrency','partitions','leaders'],a:1},
-   {q:'V(A) ≤ V(B), not equal, means…',o:['concurrent','A → B','B → A','unrelated'],a:1},
-   {q:'TrueTime returns…',o:['a single time','an interval','a vector','a counter'],a:1},
-   {q:'HLC’s advantage is…',o:['no clocks','physical-time-close + causal, no special HW','infinite precision','no drift'],a:1},
-   {q:'FLP says you can’t distinguish…',o:['fast vs slow nodes','crashed vs slow','leader vs follower','read vs write'],a:1}
- ]}
-},
-{
- id:'msg',title:'Messaging & Streaming',icon:'📨',color:'#58CC02',colorD:'#46a302',
- blurb:'Decouple services and absorb spikes with queues & logs.',
- lessons:[
-  {id:'msg-1',title:'Queues vs logs',steps:[
-   {t:'teach',h:'Two shapes',body:[
-     {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
-     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'},
-     {k:'callout',c:'warn',t:'<b>A queue isn’t free latency-wise.</b> It adds a hop (enqueue + poll) and decouples timing — perfect for spikes, fan-out, and slow work, but it <b>blows a tight synchronous latency budget</b>. Don’t drop one into a &lt;500ms request path just to "decouple" — the caller now waits on a queue it can’t see.'}
-   ]},
-   {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
-   {t:'teach',h:'Kafka: partitions & offsets',body:[
-     {k:'point',i:'👥',t:'<b>Consumer group</b>: each partition → exactly ONE consumer. Parallelism caps at the partition count; extra consumers sit idle. Add partitions to scale out.'},
-     {k:'point',i:'📍',t:'Each group tracks the <b>offset</b> it has processed. <i>When</i> you commit it decides your delivery guarantee:'},
-     {k:'vs',a:{h:'Commit AFTER processing',t:'at-least-once — a crash reprocesses the message'},b:{h:'Commit BEFORE processing',t:'at-most-once — a crash skips it'}},
-     {k:'note',t:'Exactly-once = a Kafka transaction committing the offset + output write atomically.'}
-   ]},
-   {t:'teach',h:'Kafka: durability & retention',body:[
-     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the followers currently <b>caught up</b> to the leader. A laggard drops out, then rejoins once it catches up.'},
-     {k:'point',i:'🎚️',t:'<code>acks=all</code> + <code>min.insync.replicas</code>: commit only once that many ISR replicas hold the write — the durability ↔ latency knob.'},
-     {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> keeps only the latest value per key.'},
-     {k:'callout',c:'warn',t:'<b>Hot partition vs ordering:</b> more partitions = more parallelism, but a hot key serializes onto its one partition. You can’t have global ordering AND high parallelism — pick <b>per-key</b> ordering.'}
-   ]},
-   {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
-     {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
-   ]},
-   {t:'teach',h:'Delivery semantics',body:[
-     {k:'point',i:'1️⃣',t:'<b>At-most-once</b>: may lose, never duplicate.'},
-     {k:'point',i:'🔁',t:'<b>At-least-once</b>: never lose, may duplicate → need idempotency.'},
-     {k:'point',i:'🎯',t:'<b>Exactly-once</b>: hard; usually = at-least-once + idempotent processing.'}
-   ]},
-   {t:'cloze',q:'Fill the delivery blanks.',distract:['ordered','synchronous'],text:[
-     'The pragmatic default is ',{blank:'at-least-once'},' delivery, which can ',{blank:'duplicate'},
-     ' messages — so consumers must be ',{blank:'idempotent'},'. True exactly-once over a network is ',{blank:'impossible'},'.'
-   ]},
-   {t:'mcq',q:'Kafka guarantees ordering…',o:['globally','within a partition only','never','per consumer'],a:1,why:'Order holds within a partition; pick the partition key to keep a key’s events ordered.'},
-   {t:'mcq',q:'In a Kafka consumer group, a partition is consumed by…',o:['every consumer','exactly one consumer in the group','the leader only','no one'],a:1,why:'One partition → one consumer per group, so consumer parallelism is bounded by the partition count.'},
-   {t:'mcq',q:'A consumer commits its offset BEFORE processing the message. If it crashes mid-process, that message is…',o:['reprocessed (at-least-once)','skipped (at-most-once)','duplicated forever','rolled back'],a:1,why:'Committing before processing means the offset already advanced — a crash skips it (at-most-once). Commit AFTER for at-least-once.'},
-   {t:'match',q:'Need → messaging choice.',pairs:[['Replay + many independent readers','Log (Kafka)'],['One consumer per message, work distribution','Queue'],['Must never lose; dupes OK if idempotent','At-least-once'],['Keep one user’s events ordered','Partition by key']]},
-   {t:'mcq',q:'Payment events must never be lost (duplicates tolerable if handled). Delivery semantics?',o:['at-most-once','at-least-once + idempotent consumer','fire-and-forget','exactly-once over the wire'],a:1,why:'At-least-once guarantees no loss; an idempotent consumer makes the inevitable duplicates harmless — the cheap path to an exactly-once effect.'},
-   {t:'recall',q:'How do systems achieve "exactly-once" in practice?',model:['Use at-least-once delivery plus idempotent processing (or transactional offset+write).','Repeats become harmless, so the observable effect is exactly-once — much cheaper than true EO delivery.']}
-  ]},
-  {id:'msg-2',title:'Reliability',steps:[
-   {t:'teach',h:'Outbox & CDC',body:[
-     {k:'cause',a:'Writing DB + publishing event separately',b:'A crash between them = lost/phantom events (dual-write problem)'},
-     {k:'point',i:'📦',t:'<b>Outbox</b>: write business row + outbox row in one txn; a relay publishes it.'},
-     {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
-   ]},
-   {t:'mcq',q:'The transactional outbox solves…',o:['cache misses','the dual-write problem','leader election','hot keys'],a:1,why:'One local txn writes both the data and the event; a relay/CDC publishes reliably.'},
-   {t:'teach',h:'Backpressure',body:[
-     {k:'tldr',t:'Consumers can’t keep up → slow the producer, don’t crash.'},
-     {k:'vs',a:{h:'Pull (Kafka)',t:'consumers fetch at their own pace — lag just builds, nothing falls over. Backpressure for free.'},b:{h:'Push',t:'needs explicit credit / window flow-control (Reactive Streams, gRPC) or the consumer gets overwhelmed.'}},
-     {k:'callout',c:'warn',t:'Never use an <b>unbounded</b> buffer — it just defers the failure to an OOM crash later.'}
-   ]},
-   {t:'mcq',q:'An unbounded in-memory queue under sustained overload leads to…',o:['graceful backpressure','an OOM crash — failure just deferred','faster processing','exactly-once'],a:1,why:'Unbounded buffers hide the overload until memory runs out. Bound the buffer and pick a block/drop/shed policy.'},
-   {t:'teach',h:'Bounded buffers & dead-letter queues',body:[
-     {k:'point',i:'🪣',t:'Bound the buffer; when it’s <b>full</b>, choose a policy: <b>block</b> the producer, <b>drop</b> the oldest, or <b>shed</b> load (reject).'},
-     {k:'point',i:'☠️',t:'A <b>poison message</b> (always fails) blocks a partition or loops forever. After N retries <b>with backoff</b>, route it to a <b>dead-letter queue</b> for human inspection.'},
-     {k:'note',t:'Pair the DLQ with a <b>retry topic</b> to reprocess messages later instead of dropping them.'}
-   ]},
-   {t:'mcq',q:'A message fails on every attempt (poison). After a few backed-off retries you should…',o:['retry forever','drop it silently','route it to a dead-letter queue for inspection','restart the broker'],a:2,why:'A DLQ unblocks the partition and keeps the bad message for debugging, instead of looping forever or losing it.'},
-   {t:'recall',q:'What is the dual-write problem and how does the outbox fix it?',model:['Writing to the DB and a broker separately has no atomicity — a crash leaves them inconsistent.','The outbox writes the row + an event in ONE DB txn; a relay (or CDC) then publishes, at-least-once.']}
-  ]},
-  {id:'msg-3',title:'Event sourcing & CQRS',steps:[
-   {t:'teach',h:'Store events, not state',body:[
-     {k:'keyt',term:'Event sourcing',def:'persist the append-only log of events as the source of truth; current state is a fold (replay) of those events.'},
-     {k:'point',i:'🕰️',t:'You get a full audit trail and time-travel (rebuild state as of any point) for free.'},
-     {k:'callout',c:'warn',t:'Cost: replaying long logs is slow → snapshots; and you must version/evolve event schemas forever.'}
-   ]},
-   {t:'teach',h:'CQRS',body:[
-     {k:'keyt',term:'CQRS',def:'Command Query Responsibility Segregation — separate the write model from one or more read models (projections).'},
-     {k:'point',i:'🔭',t:'Writes append events; async projections build query-optimised read views. Reads scale independently — but are eventually consistent.'},
-     {k:'note',t:'Often paired with event sourcing, but not required. Don’t reach for either unless audit/temporal needs or read/write asymmetry justify the complexity.'}
-   ]},
-   {t:'mcq',q:'In event sourcing, the source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1,why:'State is derived by replaying the event log; snapshots are just an optimization.'},
-   {t:'cloze',q:'Fill the event-sourcing blanks.',distract:['sharding','quorum'],text:[
-     {blank:'Event sourcing',alt:['event-sourcing']},' stores the ',{blank:'log',alt:['event log']},' of changes as truth; current state is a ',{blank:'replay',alt:['fold','projection']},
-     '. ',{blank:'CQRS',alt:['cqrs']},' splits the write model from read-optimised ',{blank:'projections',alt:['read models','views']},'.'
-   ]},
-   {t:'recall',q:'What are event sourcing and CQRS, and the main trade-off?',model:['Event sourcing: the append-only event log is the source of truth; state = replay of events → audit trail + time travel.','CQRS: separate write model from read models (projections), so reads scale independently — at the cost of eventual consistency.','Trade-off: more moving parts (snapshots, schema evolution, projection lag) — use only when audit/temporal or read/write asymmetry needs justify it.']}
-  ]}
- ],
- boss:{title:'Messaging Boss',time:80,q:[
-   {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
-   {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
-   {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
-   {q:'Kafka consumer parallelism is capped by…',o:['brokers','partition count','replicas','topics'],a:1},
-   {q:'The outbox pattern fixes…',o:['hot keys','dual-write inconsistency','stale reads','GC pauses'],a:1},
-   {q:'Poison messages go to a…',o:['cache','dead-letter queue','replica','leader'],a:1},
-   {q:'Pull-based consumers give…',o:['natural backpressure','no ordering','exactly-once','lower durability'],a:0},
-   {q:'Event sourcing’s source of truth is…',o:['the current row','the append-only event log','a cache','a snapshot'],a:1},
-   {q:'CQRS separates…',o:['regions','the write model from read models','producers from brokers','disks'],a:1}
  ]}
 },
 {
@@ -1978,6 +2408,122 @@ const UNITS=[
  ]}
 },
 {
+ id:'batch',title:'Batch & Stream',icon:'🌊',color:'#EA580C',colorD:'#C2410C',
+ blurb:'MapReduce, dataflow, windows, and exactly-once.',
+ lessons:[
+  {id:'batch-1',title:'Batch processing',steps:[
+   {t:'teach',h:'MapReduce',body:[
+     {k:'cause',a:'Map (transform each record) → shuffle by key',b:'Reduce (aggregate per key) → output'},
+     {k:'point',i:'🗺️',t:'<b>Map</b> emits key→value; <b>Reduce</b> folds all values for a key.'}
+   ]},
+   {t:'teach',h:'Beyond MapReduce',body:[
+     {k:'vs',a:{h:'MapReduce',t:'materializes every intermediate step to disk. Robust but slow.'},b:{h:'Dataflow (Spark/Flink)',t:'keeps intermediates in memory, pipelines stages. Much faster.'}},
+     {k:'point',i:'🔗',t:'Joins: sort-merge, broadcast-hash (small side), partitioned-hash.'}
+   ]},
+   {t:'mcq',q:'Why do Spark/Flink beat classic MapReduce?',o:['they use SQL','they don’t materialize every intermediate step to disk','they avoid the shuffle','they need no cluster'],a:1,why:'Dataflow engines pipeline stages in memory instead of writing each step to disk.'},
+   {t:'recall',q:'Describe map and reduce in one line each.',model:['Map: transform each input record into key→value pairs (embarrassingly parallel).','Reduce: gather all values for a key (after a shuffle) and aggregate them into output.']}
+  ]},
+  {id:'batch-2',title:'Stream processing',steps:[
+   {t:'teach',h:'Time & windows',body:[
+     {k:'point',i:'⏰',t:'<b>Event time</b> (when it happened) vs <b>processing time</b> (when seen). Prefer event time.'},
+     {k:'point',i:'🪟',t:'Windows: tumbling (fixed, non-overlap), hopping (overlap), session (by activity gap).'},
+     {k:'point',i:'🌊',t:'<b>Watermarks</b> bound how long to wait for late events.'}
+   ]},
+   {t:'teach',h:'Correctness',body:[
+     {k:'point',i:'💾',t:'Stateful operators checkpoint their state for fault tolerance.'},
+     {k:'point',i:'🎯',t:'Exactly-once = checkpoints + idempotent/transactional sinks.'}
+   ]},
+   {t:'cloze',q:'Fill the streaming blanks.',distract:['offset','partition'],text:[
+     'Group by ',{blank:'event time',alt:['event-time']},', not processing time. ',{blank:'Watermarks',alt:['watermark']},
+     ' bound lateness, and ',{blank:'tumbling'},' windows are fixed and non-overlapping. Checkpoints give ',{blank:'exactly-once'},' processing.'
+   ]},
+   {t:'match',q:'Match the window to its shape.',pairs:[['Tumbling','Fixed, non-overlapping'],['Hopping','Fixed, overlapping'],['Session','Bounded by an activity gap']]},
+   {t:'mcq',q:'Which window groups events by gaps of inactivity?',o:['tumbling','hopping','session','global'],a:2,why:'A session window closes after a period of no events for that key.'},
+   {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
+  ]},
+  {id:'batch-3',title:'Architectures & tiering',steps:[
+   {t:'teach',h:'Lambda vs Kappa',body:[
+     {k:'vs',a:{h:'Lambda',t:'two paths — a batch layer for accurate, reprocessable results + a speed layer for fresh approximate ones; serving merges them. Powerful, but you maintain TWO codebases.'},b:{h:'Kappa',t:'one streaming path; reprocess by replaying the log. Simpler — one codebase — if streaming alone meets accuracy needs.'}},
+     {k:'note',t:'Kappa is the modern default when your stream processor can replay; Lambda lingers where batch tools are much cheaper/more accurate for the bulk path.'}
+   ]},
+   {t:'teach',h:'Data lifecycle tiering',body:[
+     {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD/in-memory/standard object).'},
+     {k:'point',i:'🌤️',t:'<b>Warm</b>: occasional access — cheaper, slower (infrequent-access tiers).'},
+     {k:'point',i:'🧊',t:'<b>Cold</b>: rarely read, keep for compliance — cheapest, slow retrieval (Glacier/archive).'},
+     {k:'note',t:'Lifecycle policies age data hot → warm → cold automatically; time-series/logs are the classic case.'}
+   ]},
+   {t:'mcq',q:'Kappa architecture differs from Lambda by…',o:['using two code paths','using one streaming path and replaying to reprocess','dropping streaming','requiring a warehouse'],a:1,why:'Kappa keeps a single streaming codebase and reprocesses by replaying the log; Lambda maintains separate batch + speed layers.'},
+   {t:'cloze',q:'Fill the tiering blanks.',distract:['shard','quorum'],text:[
+     {blank:'Lambda',alt:['lambda']},' runs batch + speed layers; ',{blank:'Kappa',alt:['kappa']},' uses one stream and ',{blank:'replays',alt:['replay']},' to reprocess. Aging data flows ',{blank:'hot',alt:['hot-warm-cold']},' → warm → cold to cut cost.'
+   ]},
+   {t:'recall',q:'Lambda vs Kappa, and how does data tiering save cost?',model:['Lambda: a batch layer (accurate, reprocessable) plus a speed layer (fresh, approximate), merged at serving — but two codebases.','Kappa: one streaming pipeline; reprocess by replaying the log — simpler when streaming meets accuracy needs.','Tiering ages data hot → warm → cold (e.g. SSD → infrequent-access → Glacier) via lifecycle policies, paying less for rarely-read data.']}
+  ]}
+ ],
+ boss:{title:'Batch & Stream Boss',time:80,q:[
+   {q:'Reduce runs after…',o:['the map + shuffle','the output','nothing','a window'],a:0},
+   {q:'Dataflow engines beat MapReduce by…',o:['using SQL','not materializing every step','skipping reduce','avoiding joins'],a:1},
+   {q:'Prefer which clock for stream windows?',o:['processing time','event time','wall clock','NTP'],a:1},
+   {q:'A tumbling window is…',o:['overlapping','fixed + non-overlapping','gap-based','infinite'],a:1},
+   {q:'Watermarks handle…',o:['hot keys','late events','encryption','sharding'],a:1},
+   {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1},
+   {q:'Kappa architecture uses…',o:['batch + speed layers','one streaming path, replay to reprocess','no streaming','a warehouse only'],a:1},
+   {q:'Rarely-read compliance data belongs in a…',o:['hot tier','cold/archive tier','cache','queue'],a:1}
+ ]}
+},
+{
+ id:'data',title:'Data & ML Infra',icon:'🤖',color:'#1CB0F6',colorD:'#1899D6',
+ blurb:'Pipelines, storage tiers, and serving models at scale.',
+ lessons:[
+  {id:'data-1',title:'Pipelines & storage',steps:[
+   {t:'teach',h:'Batch vs stream; ELT',body:[
+     {k:'vs',a:{h:'Batch',t:'process big chunks on a schedule. High throughput, high latency.'},b:{h:'Stream',t:'process events as they arrive (Flink/Kafka Streams). Low latency.'}},
+     {k:'note',t:'Modern default is ELT: load raw into a warehouse (BigQuery/Snowflake), transform with SQL.'}
+   ]},
+   {t:'sort',q:'Batch or streaming?',buckets:['Batch','Streaming'],items:[
+     {text:'nightly report',b:0},{text:'fraud alert in seconds',b:1},{text:'huge throughput, latency ok',b:0},{text:'live dashboard',b:1}
+   ]},
+   {t:'teach',h:'Storage tiers',body:[
+     {k:'point',i:'💽',t:'<b>Block</b> (EBS): one VM, low-latency DB volumes.'},
+     {k:'point',i:'📂',t:'<b>File</b> (EFS/NFS): shared POSIX across many workers.'},
+     {k:'point',i:'🪣',t:'<b>Object</b> (S3): HTTP, 11 nines, immutable — media, data lakes, checkpoints.'}
+   ]},
+   {t:'mcq',q:'Where do you store ML training data and model checkpoints?',o:['block volume','object storage (S3/GCS)','the app server','a queue'],a:1,why:'Object storage is cheap, durable, and globally accessible — ideal for datasets & checkpoints.'},
+   {t:'recall',q:'Why is ELT the modern default over ETL?',model:['Cheap columnar warehouses make it fine to load raw data first.','Transform on-demand with SQL in the warehouse, and re-run transforms without re-ingesting from source.']}
+  ]},
+  {id:'data-2',title:'Serving ML',steps:[
+   {t:'teach',h:'Feature stores & serving',body:[
+     {k:'keyt',term:'Feature store',def:'serve the SAME features at train and inference time (offline + online) to avoid skew.'},
+     {k:'point',i:'⚡',t:'Online serving: low-latency KV (Redis/DynamoDB); batch features precomputed.'}
+   ]},
+   {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
+   {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
+  ]},
+  {id:'data-3',title:'Training & experiments',steps:[
+   {t:'teach',h:'The training pipeline',body:[
+     {k:'point',i:'🛠️',t:'Stages: ingest → feature engineering → train → evaluate → register → deploy. Orchestrated (Airflow/Kubeflow) and re-runnable.'},
+     {k:'point',i:'♻️',t:'<b>Reproducibility</b> needs versioning of three things: <b>data</b>, <b>code</b>, and <b>model artifacts</b>.'},
+     {k:'note',t:'A model registry stores versioned artifacts + metadata and gates promotion (staging → prod), enabling rollback.'}
+   ]},
+   {t:'teach',h:'Experiment tracking',body:[
+     {k:'keyt',term:'Experiment tracking',def:'log each run’s params, dataset version, code commit, and metrics (MLflow/W&B) so results are comparable and reproducible.'},
+     {k:'point',i:'🧪',t:'Validate online with A/B tests or shadow/canary deploys before full rollout; watch for data/concept drift and retrain.'}
+   ]},
+   {t:'mcq',q:'Reproducible training requires versioning…',o:['only the code','data, code, AND model artifacts','only the model','only hyperparameters'],a:1,why:'A run is reproducible only if the exact data, code, and resulting artifact are all pinned and recorded.'},
+   {t:'recall',q:'What does experiment tracking give you, and why version data + code + model?',model:['Experiment tracking logs each run’s params, dataset version, code commit, and metrics so runs are comparable and reproducible.','Versioning data + code + model artifacts lets you reproduce a result, compare candidates fairly, and roll back a bad model.','Promote via a registry (staging → prod) and validate online with shadow/canary or A/B before full rollout.']}
+  ]}
+ ],
+ boss:{title:'Data & ML Boss',time:75,q:[
+   {q:'Streaming beats batch when you need…',o:['throughput','low latency','cheap storage','simplicity'],a:1},
+   {q:'ELT loads raw data into…',o:['the app','a warehouse, transform later','a queue','a cache'],a:1},
+   {q:'Object storage (S3) is best for…',o:['DB volumes','blobs/datasets/checkpoints','low-latency random I/O','locks'],a:1},
+   {q:'A feature store prevents…',o:['hot keys','train/serve skew','partitions','GC'],a:1},
+   {q:'Online feature serving uses…',o:['a warehouse','low-latency KV store','tape','a CSV'],a:1},
+   {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1},
+   {q:'Reproducible training versions…',o:['only code','data + code + model','only data','nothing'],a:1},
+   {q:'Experiment tracking logs…',o:['only the winner','params, data version, metrics per run','just errors','CPU usage'],a:1}
+ ]}
+},
+{
  id:'pat',title:'Design Patterns',icon:'🧠',color:'#A560E8',colorD:'#7C3AED',
  blurb:'Recognise the shape, reuse the playbook.',
  lessons:[
@@ -2052,552 +2598,6 @@ const UNITS=[
    {q:'Pagination for feeds should be…',o:['offset','cursor/keyset','none','random'],a:1},
    {q:'The deep-dive phase is where you…',o:['draw boxes','harden vs NFRs & failure','clarify scope','estimate'],a:1},
    {q:'A common failure is…',o:['clarifying too much','designing before clarifying','listening','simple designs'],a:1}
- ]}
-},
-{
- id:'data',title:'Data & ML Infra',icon:'🤖',color:'#1CB0F6',colorD:'#1899D6',
- blurb:'Pipelines, storage tiers, and serving models at scale.',
- lessons:[
-  {id:'data-1',title:'Pipelines & storage',steps:[
-   {t:'teach',h:'Batch vs stream; ELT',body:[
-     {k:'vs',a:{h:'Batch',t:'process big chunks on a schedule. High throughput, high latency.'},b:{h:'Stream',t:'process events as they arrive (Flink/Kafka Streams). Low latency.'}},
-     {k:'note',t:'Modern default is ELT: load raw into a warehouse (BigQuery/Snowflake), transform with SQL.'}
-   ]},
-   {t:'sort',q:'Batch or streaming?',buckets:['Batch','Streaming'],items:[
-     {text:'nightly report',b:0},{text:'fraud alert in seconds',b:1},{text:'huge throughput, latency ok',b:0},{text:'live dashboard',b:1}
-   ]},
-   {t:'teach',h:'Storage tiers',body:[
-     {k:'point',i:'💽',t:'<b>Block</b> (EBS): one VM, low-latency DB volumes.'},
-     {k:'point',i:'📂',t:'<b>File</b> (EFS/NFS): shared POSIX across many workers.'},
-     {k:'point',i:'🪣',t:'<b>Object</b> (S3): HTTP, 11 nines, immutable — media, data lakes, checkpoints.'}
-   ]},
-   {t:'mcq',q:'Where do you store ML training data and model checkpoints?',o:['block volume','object storage (S3/GCS)','the app server','a queue'],a:1,why:'Object storage is cheap, durable, and globally accessible — ideal for datasets & checkpoints.'},
-   {t:'recall',q:'Why is ELT the modern default over ETL?',model:['Cheap columnar warehouses make it fine to load raw data first.','Transform on-demand with SQL in the warehouse, and re-run transforms without re-ingesting from source.']}
-  ]},
-  {id:'data-2',title:'Serving ML',steps:[
-   {t:'teach',h:'Feature stores & serving',body:[
-     {k:'keyt',term:'Feature store',def:'serve the SAME features at train and inference time (offline + online) to avoid skew.'},
-     {k:'point',i:'⚡',t:'Online serving: low-latency KV (Redis/DynamoDB); batch features precomputed.'}
-   ]},
-   {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
-   {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
-  ]},
-  {id:'data-3',title:'Training & experiments',steps:[
-   {t:'teach',h:'The training pipeline',body:[
-     {k:'point',i:'🛠️',t:'Stages: ingest → feature engineering → train → evaluate → register → deploy. Orchestrated (Airflow/Kubeflow) and re-runnable.'},
-     {k:'point',i:'♻️',t:'<b>Reproducibility</b> needs versioning of three things: <b>data</b>, <b>code</b>, and <b>model artifacts</b>.'},
-     {k:'note',t:'A model registry stores versioned artifacts + metadata and gates promotion (staging → prod), enabling rollback.'}
-   ]},
-   {t:'teach',h:'Experiment tracking',body:[
-     {k:'keyt',term:'Experiment tracking',def:'log each run’s params, dataset version, code commit, and metrics (MLflow/W&B) so results are comparable and reproducible.'},
-     {k:'point',i:'🧪',t:'Validate online with A/B tests or shadow/canary deploys before full rollout; watch for data/concept drift and retrain.'}
-   ]},
-   {t:'mcq',q:'Reproducible training requires versioning…',o:['only the code','data, code, AND model artifacts','only the model','only hyperparameters'],a:1,why:'A run is reproducible only if the exact data, code, and resulting artifact are all pinned and recorded.'},
-   {t:'recall',q:'What does experiment tracking give you, and why version data + code + model?',model:['Experiment tracking logs each run’s params, dataset version, code commit, and metrics so runs are comparable and reproducible.','Versioning data + code + model artifacts lets you reproduce a result, compare candidates fairly, and roll back a bad model.','Promote via a registry (staging → prod) and validate online with shadow/canary or A/B before full rollout.']}
-  ]}
- ],
- boss:{title:'Data & ML Boss',time:75,q:[
-   {q:'Streaming beats batch when you need…',o:['throughput','low latency','cheap storage','simplicity'],a:1},
-   {q:'ELT loads raw data into…',o:['the app','a warehouse, transform later','a queue','a cache'],a:1},
-   {q:'Object storage (S3) is best for…',o:['DB volumes','blobs/datasets/checkpoints','low-latency random I/O','locks'],a:1},
-   {q:'A feature store prevents…',o:['hot keys','train/serve skew','partitions','GC'],a:1},
-   {q:'Online feature serving uses…',o:['a warehouse','low-latency KV store','tape','a CSV'],a:1},
-   {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1},
-   {q:'Reproducible training versions…',o:['only code','data + code + model','only data','nothing'],a:1},
-   {q:'Experiment tracking logs…',o:['only the winner','params, data version, metrics per run','just errors','CPU usage'],a:1}
- ]}
-},
-{
- id:'conc',title:'Concurrency Control',icon:'🧵',color:'#6366F1',colorD:'#4F46E5',
- blurb:'The anomaly zoo — and how databases stop it.',
- lessons:[
-  {id:'conc-1',title:'Anomaly zoo',steps:[
-   {t:'teach',h:'Read phenomena',body:[
-     {k:'point',i:'🩸',t:'<b>Dirty read</b>: you read another txn’s uncommitted write — if it rolls back, you acted on data that never existed. <i>You see a $0 balance mid-transfer: the debit committed, the credit hasn’t yet.</i> (fix: read committed)'},
-     {k:'point',i:'🔁',t:'<b>Non-repeatable read</b> (read skew): a row changes value between two reads in one txn. <i>A backup reads A=$500, a transfer moves $100 to B, then it reads B=$600 → totals $1100.</i> (fix: snapshot isolation)'},
-     {k:'point',i:'👻',t:'<b>Phantom</b>: a query’s result set gains/loses rows mid-txn — often the root of write skew. <i>Two users both ask “any booking for room 42 @2pm?” (none), both insert → double-booked.</i> (fix: predicate/index-range locks)'}
-   ]},
-   {t:'teach',h:'The sneaky write anomalies',body:[
-     {k:'keyt',term:'Dirty write',def:'overwrite another txn’s UNCOMMITTED write — two txns interleave writes to one row. e.g. Alice buys a car: listing → Alice, but the invoice goes to Bob. (fix: read committed)'},
-     {k:'keyt',term:'Lost update',def:'two read-modify-write cycles on the SAME object; one silently clobbers the other. e.g. counter=42, two requests both read 42 and write 43 → 43, not 44. (fix: CAS / SELECT FOR UPDATE)'},
-     {k:'keyt',term:'Write skew',def:'two txns read an overlapping set, write DIFFERENT rows, together breaking an invariant. e.g. two on-call doctors each see the other on call, both clock off → zero on call. (fix: serializable / SSI)'},
-     {k:'mnemonic',t:'Dirty = uncommitted. Same object → lost update. Different objects, shared assumption → write skew.'}
-   ]},
-   {t:'htmlviz',h:'Anomaly → what happens → weakest fix',
-    html:`<style>
-.anx-tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
-.anx-tbl th{text-align:left;padding:7px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
-.anx-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:top;line-height:1.4}
-.anx-tbl tr:last-child td{border-bottom:none}
-.anx-nm{font-weight:800;color:var(--color-text-primary)}
-.anx-fix{color:var(--color-text-success);font-weight:700}
-</style>
-<table class="anx-tbl"><thead><tr><th style="width:26%">Anomaly</th><th style="width:42%">What happens</th><th style="width:32%">Weakest level that stops it</th></tr></thead><tbody>
-<tr><td class="anx-nm">Dirty read</td><td>Read another txn’s uncommitted write</td><td class="anx-fix">Read Committed</td></tr>
-<tr><td class="anx-nm">Dirty write</td><td>Overwrite another txn’s uncommitted write</td><td class="anx-fix">Read Committed (row locks)</td></tr>
-<tr><td class="anx-nm">Non-repeatable read <span style="font-weight:600">(read skew)</span></td><td>Re-reading a row gives a different value mid-txn</td><td class="anx-fix">Snapshot Isolation / Repeatable Read</td></tr>
-<tr><td class="anx-nm">Phantom</td><td>A query’s result set gains/loses rows mid-txn</td><td class="anx-fix">Snapshot Isolation (snapshot read); predicate/index-range locks under 2PL</td></tr>
-<tr><td class="anx-nm">Lost update</td><td>Two read-modify-write cycles; one clobbers the other</td><td class="anx-fix">Atomic op, SELECT … FOR UPDATE, or CAS</td></tr>
-<tr><td class="anx-nm">Write skew</td><td>Two txns read an overlapping set, write disjoint rows, jointly breaking an invariant</td><td class="anx-fix">Serializable / SSI (or materialize the conflict)</td></tr>
-</tbody></table>`},
-   {t:'sort',q:'Same object or different objects?',buckets:['Same object','Different objects'],items:[
-     {text:'Lost update',b:0},{text:'Write skew',b:1}
-   ]},
-   {t:'cloze',q:'Fill the anomaly blanks.',distract:['dirty','phantom'],text:[
-     'A ',{blank:'lost update',alt:['lost-update']},' is two writes to the SAME object; ',{blank:'write skew',alt:['write-skew']},
-     ' is two writes to DIFFERENT objects that jointly break a rule. The fix for both is ',{blank:'serializable',alt:['serializability']},' isolation (or SSI).'
-   ]},
-   {t:'mcq',q:'Two on-call doctors each clock off because each sees the other still on. That’s…',o:['a dirty read','a phantom','write skew','a lost update'],a:2,why:'Disjoint writes that together break an invariant = write skew. Needs serializable/SSI.'},
-   {t:'htmlviz',h:'Isolation levels vs anomalies',
-    html:`<style>
-.iso-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-.iso-tbl th{text-align:left;padding:8px 7px;font-weight:800;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary);font-size:11px}
-.iso-tbl td{padding:7px 7px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:middle}
-.iso-tbl tr:last-child td{border-bottom:none}
-.iso-tbl tr.hl td{background:var(--color-background-secondary)}
-.iso-lvl{font-weight:800;color:var(--color-text-primary);font-size:12.5px}
-.iso-y,.iso-n,.iso-m{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-weight:800}
-.iso-y{background:var(--color-background-success);color:var(--color-text-success);font-size:13px}
-.iso-n{background:var(--color-background-danger);color:var(--color-text-danger);font-size:13px}
-.iso-m{background:var(--color-background-warning);color:var(--color-text-warning);font-size:11px}
-.iso-leg{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--color-text-tertiary);flex-wrap:wrap}
-.iso-leg span{display:flex;align-items:center;gap:5px}
-</style>
-<table class="iso-tbl"><thead><tr><th style="width:26%">Isolation level</th><th>Dirty read</th><th>Dirty write</th><th>Read skew</th><th>Phantom</th><th>Lost update</th><th>Write skew</th></tr></thead><tbody>
-<tr><td class="iso-lvl">Read uncommitted</td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr class="hl"><td class="iso-lvl">Read committed</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr><td class="iso-lvl">Snapshot isolation</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-m">~</span></td><td><span class="iso-n">✕</span></td></tr>
-<tr class="hl"><td class="iso-lvl">Serializable</td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td><td><span class="iso-y">✓</span></td></tr>
-</tbody></table>
-<div class="iso-leg"><span><span class="iso-y">✓</span> prevented</span><span><span class="iso-n">✕</span> vulnerable</span><span><span class="iso-m">~</span> depends on DB</span></div>`},
-   {t:'htmlviz',h:'Phantom read → double booking',
-    html:`<style>
-.phv-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.phv-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
-.phv-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
-.phv-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
-.phv-sql .kw{color:var(--color-text-info)}
-.phv-sql .hl{color:var(--color-text-success);font-weight:700}
-.phv-sql .bad{color:var(--color-text-danger);font-weight:700}
-.phv-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
-.phv-tbl th{text-align:left;padding:5px 8px;font-weight:700;color:var(--color-text-tertiary);border-bottom:1px solid var(--color-border-tertiary);font-size:11px}
-.phv-tbl td{padding:5px 8px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)}
-.phv-tbl tr.bad td{color:var(--color-text-danger);font-weight:700}
-.phv-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
-.phv-ex b{color:var(--color-text-primary);font-weight:800}
-@media (max-width:460px){.phv-cols{grid-template-columns:1fr}}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="phv-panel">
-  <div class="phv-cols">
-    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
-    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=<span class="hl">42</span> <span class="kw">AND</span> time=<span class="hl">'2pm'</span>;\n\n<span class="hl">→ 0 (slot free)</span></div></div>
-  </div>
-  <div class="phv-ex">Both check Room 42 @2pm, both see <b>zero rows</b>, both conclude the slot is available.</div>
-</div>
-<div class="phv-panel">
-  <div class="phv-cols">
-    <div class="phv-col"><div class="phv-ct">Txn A (Alice)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="hl">42,'2pm','Alice'</span>);\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
-    <div class="phv-col"><div class="phv-ct">Txn B (Bob)</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(<span class="bad">42,'2pm','Bob'</span>);\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← should fail</span></div></div>
-  </div>
-  <table class="phv-tbl"><thead><tr><th>room</th><th>time</th><th>user</th></tr></thead><tbody><tr><td>42</td><td>2pm</td><td>Alice</td></tr><tr class="bad"><td>42</td><td>2pm</td><td>Bob</td></tr></tbody></table>
-  <div class="phv-ex"><b>Double booking.</b> When Bob ran his SELECT, Alice's row didn't exist yet — it's a <b>phantom</b>: a row that would change his result appeared after his query but before his commit.</div>
-</div>
-<div class="phv-panel">
-  <div class="phv-cols">
-    <div class="phv-col"><div class="phv-ct">Predicate lock</div><div class="phv-sql"><span class="kw">SELECT COUNT(*)</span> FROM bookings\n<span class="kw">WHERE</span> room=42 <span class="kw">AND</span> time='2pm'\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">locks the predicate —</span>\n<span class="hl">even rows not yet</span>\n<span class="hl">inserted</span></div></div>
-    <div class="phv-col"><div class="phv-ct">Bob now blocks</div><div class="phv-sql"><span class="kw">INSERT INTO</span> bookings\n  <span class="kw">VALUES</span>(42,'2pm','Bob');\n\n<span class="bad">⏳ BLOCKED — matches</span>\n<span class="bad">  Alice's predicate</span>\n\nafter Alice commits:\ncount=1 → Bob backs off</div></div>
-  </div>
-  <div class="phv-ex">A <b>predicate / index-range lock</b> locks the condition itself, so any matching insert is blocked. <b>SSI</b> instead lets both run and aborts one at commit when it detects the conflict.</div>
-</div>`,
-    setup:function(root,stepper){stepper(root,3,{panelClass:'phv-panel',labels:['1 · Both check for bookings','2 · Both insert — phantom!','3 · Fix: predicate lock / SSI']});}},
-   {t:'htmlviz',h:'Lost update → step through it',
-    html:`<style>
-.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
-.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
-.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
-.av-sql .kw{color:var(--color-text-info)}
-.av-sql .hl{color:var(--color-text-success);font-weight:700}
-.av-sql .bad{color:var(--color-text-danger);font-weight:700}
-.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
-.av-ex b{color:var(--color-text-primary);font-weight:800}
-.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
-.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
-@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="av-panel">
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
-    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">SELECT</span> views <span class="kw">FROM</span> posts\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">→ 42</span></div></div>
-  </div>
-  <div class="av-ex">Both read <b>views = 42</b>. Each plans to add 1 in application code (read-modify-write).</div>
-</div>
-<div class="av-panel">
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Txn A</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="hl">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
-    <div class="av-col"><div class="av-ct">Txn B</div><div class="av-sql"><span class="kw">UPDATE</span> posts <span class="kw">SET</span> views=<span class="bad">43</span>\n<span class="kw">WHERE</span> id=7;\n<span class="kw">COMMIT;</span> <span class="bad">✓ ← clobbers A</span></div></div>
-  </div>
-  <div class="av-ex bad"><b>Two +1s should give 44 — but you get 43.</b> B computed 42+1 from its stale read and overwrote A’s write. One update is silently <b>lost</b>: both targeted the SAME row/value.</div>
-</div>
-<div class="av-panel">
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Atomic increment</div><div class="av-sql"><span class="kw">UPDATE</span> posts\n<span class="kw">SET</span> views = <span class="hl">views + 1</span>\n<span class="kw">WHERE</span> id=7;\n\n<span class="hl">DB does the read-</span>\n<span class="hl">modify-write atomically</span></div></div>
-    <div class="av-col"><div class="av-ct">…or lock / CAS</div><div class="av-sql"><span class="kw">SELECT</span> views … <span class="kw">FOR UPDATE</span>;\n<span class="hl">(row lock — pessimistic)</span>\n\n<span class="kw">UPDATE</span> … <span class="kw">SET</span> views=43\n<span class="kw">WHERE</span> id=7 <span class="kw">AND</span> views=<span class="hl">42</span>;\n<span class="hl">(CAS — fails if changed)</span></div></div>
-  </div>
-  <div class="av-ex ok">Collapse the read-modify-write into <b>one atomic step</b>: an in-place <b>+1</b>, a <b>row lock</b> (SELECT … FOR UPDATE), or a <b>compare-and-set</b> that fails when the value moved under you.</div>
-</div>`,
-    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both read 42','2 · Both write 43 — one lost','3 · Fix: atomic / lock / CAS']});}},
-   {t:'htmlviz',h:'Write skew → step through it',
-    html:`<style>
-.av-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.av-col{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:11px 13px}
-.av-ct{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:7px}
-.av-sql{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;white-space:pre-wrap}
-.av-sql .kw{color:var(--color-text-info)}
-.av-sql .hl{color:var(--color-text-success);font-weight:700}
-.av-sql .bad{color:var(--color-text-danger);font-weight:700}
-.av-ex{font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
-.av-ex b{color:var(--color-text-primary);font-weight:800}
-.av-ex.bad{background:var(--color-background-danger);color:var(--color-text-danger)}.av-ex.bad b{color:var(--color-text-danger)}
-.av-ex.ok{background:var(--color-background-success);color:var(--color-text-success)}.av-ex.ok b{color:var(--color-text-success)}
-.av-inv{font-size:12px;font-weight:800;color:var(--color-text-primary);margin-bottom:9px;padding:7px 11px;background:var(--color-background-info);border-radius:var(--border-radius-md)}
-@media (max-width:460px){.av-cols{grid-template-columns:1fr}}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="av-panel">
-  <div class="av-inv">🏥 Invariant: at least 1 doctor on call. Alice &amp; Bob are both on call — both feel sick and want off.</div>
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Bob covers)</span></div></div>
-    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">SELECT COUNT(*)</span>\n<span class="kw">FROM</span> doctors\n<span class="kw">WHERE</span> on_call=<span class="kw">true</span>;\n\n<span class="hl">→ 2 (Alice covers)</span></div></div>
-  </div>
-  <div class="av-ex">Both read <b>count = 2</b> and conclude “safe for ME to go off — the other one covers it.”</div>
-</div>
-<div class="av-panel">
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Txn A (Alice)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Alice'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
-    <div class="av-col"><div class="av-ct">Txn B (Bob)</div><div class="av-sql"><span class="kw">UPDATE</span> doctors\n<span class="kw">SET</span> on_call=<span class="bad">false</span>\n<span class="kw">WHERE</span> name=<span class="hl">'Bob'</span>;\n<span class="kw">COMMIT;</span> <span class="hl">✓</span></div></div>
-  </div>
-  <div class="av-ex bad"><b>0 doctors on call — invariant broken.</b> They wrote <b>different rows</b>, so there’s no write-write conflict for Snapshot Isolation to catch. Each decision was valid alone; together they’re a disaster.</div>
-</div>
-<div class="av-panel">
-  <div class="av-cols">
-    <div class="av-col"><div class="av-ct">Serializable / SSI</div><div class="av-sql"><span class="hl">tracks the rw-conflict:</span>\neach txn read rows the\nother then modified.\n\n<span class="bad">→ aborts one</span>\n<span class="hl">→ it retries, now sees</span>\n<span class="hl">  count=1 and backs off</span></div></div>
-    <div class="av-col"><div class="av-ct">…or materialize it</div><div class="av-sql"><span class="kw">SELECT</span> * <span class="kw">FROM</span> shift\n<span class="kw">WHERE</span> id=<span class="hl">'today'</span>\n<span class="kw">FOR UPDATE</span>;\n\n<span class="hl">both lock one shared</span>\n<span class="hl">row → plain write</span>\n<span class="hl">conflict, serialized</span></div></div>
-  </div>
-  <div class="av-ex ok">SI can’t see it (no shared row written). <b>Serializable / SSI</b> detects the read-write conflict and aborts one. Or <b>materialize the conflict</b>: make both txns lock a common row so the skew becomes an ordinary write conflict.</div>
-</div>`,
-    setup:function(root,stepper){stepper(root,3,{panelClass:'av-panel',labels:['1 · Both see 2 on call','2 · Both clock off — 0 left','3 · Fix: Serializable / SSI']});}},
-   {t:'recall',q:'Explain lost update vs write skew.',model:['Lost update: two read-modify-write cycles on the SAME object — one overwrites the other. Fix with atomic op / SELECT FOR UPDATE / compare-and-set.','Write skew: two txns read an overlapping set and write DIFFERENT rows that jointly violate a constraint. Fix with serializable/SSI.']}
-  ]},
-  {id:'conc-2',title:'Mechanisms',steps:[
-   {t:'teach',h:'Locking the pessimistic way',body:[
-     {k:'point',i:'🔒',t:'<b>2PL</b>: grow (acquire locks) then shrink (release at commit). Shared reads coexist; exclusive writes don’t.'},
-     {k:'point',i:'👻',t:'Predicate / index-range locks block phantoms.'},
-     {k:'callout',c:'warn',t:'2PL invites deadlocks — cycles of txns each waiting on the other’s lock.'},
-     {k:'point',i:'🔁',t:'Handle deadlocks by <b>detection</b> (build a <b>waits-for graph</b>, find a cycle → abort a victim) or <b>prevention</b> (consistent lock ordering, lock timeouts, wait-die / wound-wait).'}
-   ]},
-   {t:'teach',h:'Optimistic & versioned',body:[
-     {k:'keyt',term:'OCC',def:'no locks; at commit, check if your read set changed — abort & retry if so. Great at low contention.'},
-     {k:'keyt',term:'MVCC',def:'keep multiple row versions; readers see a snapshot and never block writers. Powers Snapshot Isolation.'},
-     {k:'keyt',term:'SSI',def:'optimistic serializable — tracks rw-conflicts and aborts dangerous ones (PostgreSQL Serializable).'}
-   ]},
-   {t:'cloze',q:'Fill the mechanism blanks.',distract:['serializable','sharding'],text:[
-     '2PL is ',{blank:'pessimistic'},' (lock up front); OCC is ',{blank:'optimistic'},' (validate at ',{blank:'commit'},
-     '). ',{blank:'MVCC'},' keeps multiple versions so readers don’t block writers.'
-   ]},
-   {t:'mcq',q:'You expect LOW contention. Which control fits best?',o:['2PL (pessimistic)','OCC (optimistic)','a global lock','serial execution'],a:1,why:'OCC avoids lock overhead and rarely has to retry when conflicts are rare.'},
-   {t:'build',q:'Pick valid ways to handle deadlocks.',options:['Consistent lock ordering','Lock timeouts','Wait-die / wound-wait','Acquire even more locks','Detect a cycle & abort a victim'],correct:[0,1,2,4]},
-   {t:'htmlviz',h:'Fencing tokens vs the GC-pause zombie',
-    html:`<style>
-.fcv-tl{position:relative;padding:0 0 0 12px}
-.fcv-evt{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;position:relative}
-.fcv-evt::before{content:'';position:absolute;left:-8px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--color-border-secondary)}
-.fcv-evt.bad::before{background:var(--color-text-danger)}
-.fcv-evt.good::before{background:var(--color-text-success)}
-.fcv-actor{font-size:12px;font-weight:800;color:var(--color-text-primary);min-width:84px;padding-top:1px}
-.fcv-desc{font-size:13px;color:var(--color-text-secondary);line-height:1.5}
-.fcv-desc b{font-weight:800;color:var(--color-text-primary)}
-.fcv-ex{margin-top:12px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.6;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
-.fcv-ex b{color:var(--color-text-primary);font-weight:800}
-</style>
-<div class="hv-nav"><button class="hv-prev">‹</button><span class="hv-dots"></span><button class="hv-next">›</button><span class="hv-lbl"></span></div>
-<div class="fcv-panel">
-  <div class="fcv-tl">
-    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock from ZooKeeper (lease 10s)</div></div>
-    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc"><b>GC pause — frozen 15s</b></div></div>
-    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → grants lock to Client B</div></div>
-    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Holds lock, writes to storage</div></div>
-    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes up, <b>still thinks it holds the lock</b>, writes</div></div>
-  </div>
-  <div class="fcv-ex">Two clients both believe they hold the lock. Client A is a <b>zombie</b> — it missed its own lease expiry, and its writes can corrupt Client B's data.</div>
-</div>
-<div class="fcv-panel">
-  <div class="fcv-tl">
-    <div class="fcv-evt"><div class="fcv-actor">Client A</div><div class="fcv-desc">Acquires lock → <b>fencing token #33</b></div></div>
-    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">GC pause — frozen 15s</div></div>
-    <div class="fcv-evt"><div class="fcv-actor">ZooKeeper</div><div class="fcv-desc">Lease expires → lock + <b>token #34</b> to Client B</div></div>
-    <div class="fcv-evt"><div class="fcv-actor">Client B</div><div class="fcv-desc">Writes with #34 → storage records max=34</div></div>
-    <div class="fcv-evt bad"><div class="fcv-actor">Client A</div><div class="fcv-desc">Wakes, writes with stale token #33</div></div>
-    <div class="fcv-evt good"><div class="fcv-actor">Storage</div><div class="fcv-desc"><b>Rejects #33</b> — lower than max seen (34)</div></div>
-  </div>
-  <div class="fcv-ex">Storage itself enforces ordering. It doesn't matter that A thinks it holds the lock — the token proves it's stale. ZooKeeper's <b>zxid</b> serves exactly this purpose.</div>
-</div>`,
-    setup:function(root,stepper){stepper(root,2,{panelClass:'fcv-panel',labels:['The problem: GC-pause zombie','The fix: fencing tokens']});}},
-   {t:'recall',q:'When would you choose OCC over 2PL?',model:['OCC when contention is low — most txns commit without conflict, so skipping locks is a net win.','2PL (pessimistic) when contention is high, so you avoid wasteful aborts/retries.']}
-  ]}
- ],
- boss:{title:'Concurrency Boss',time:70,q:[
-   {q:'Dirty read =',o:['stale snapshot','reading uncommitted data','a phantom','a deadlock'],a:1},
-   {q:'Dirty write (overwriting uncommitted data) is prevented by…',o:['read uncommitted','read committed','a cache','more replicas'],a:1},
-   {q:'Write skew is stopped by…',o:['read committed','serializable / SSI','no locks','TTL'],a:1},
-   {q:'Lost update is two writes to…',o:['different objects','the same object','an index','a queue'],a:1},
-   {q:'2PL is…',o:['optimistic','pessimistic','lock-free','async'],a:1},
-   {q:'MVCC lets readers…',o:['block writers','see a snapshot without blocking','skip commits','avoid versions'],a:1},
-   {q:'OCC fits best when contention is…',o:['high','low','unknown','irrelevant'],a:1}
- ]}
-},
-{
- id:'model',title:'Data Models & Encoding',icon:'🗃️',color:'#0891B2',colorD:'#0E7490',
- blurb:'Relational, document, graph — and schema evolution.',
- lessons:[
-  {id:'model-1',title:'Pick a model',steps:[
-   {t:'teach',h:'Three shapes of data',body:[
-     {k:'point',i:'🧱',t:'<b>Relational</b>: tables + joins. Great for many-to-many and ad-hoc queries.'},
-     {k:'point',i:'📄',t:'<b>Document</b>: nested JSON per entity. Great for one-to-many, locality, flexible schema.'},
-     {k:'point',i:'🕸️',t:'<b>Graph</b>: nodes + edges. Great for many-to-many, multi-hop traversals.'}
-   ]},
-   {t:'match',q:'Match the model to its sweet spot.',pairs:[['Relational','Many-to-many + joins'],['Document','Self-contained nested record'],['Graph','Multi-hop relationships']]},
-   {t:'mcq',q:'Highly connected data with multi-hop queries (social graph, fraud rings) suits…',o:['document','graph','key-value','column'],a:1,why:'Graph DBs make multi-hop traversals cheap; the same in SQL means many recursive joins.'},
-   {t:'teach',h:'Normalize vs denormalize',body:[
-     {k:'cause',a:'Denormalize (duplicate data)',b:'Faster reads, but harder writes + consistency'},
-     {k:'note',t:'Normalize for write integrity; denormalize for read speed. Most systems do both, per access pattern.'}
-   ]},
-   {t:'htmlviz',h:'Choosing a database by access pattern',
-    html:`<style>
-.dbv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.dbv-opt{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
-.dbv-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.dbv-ic{font-size:17px}
-.dbv-title{font-size:14px;font-weight:800;color:var(--color-text-primary)}
-.dbv-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.5;margin-bottom:7px}
-.dbv-ex{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
-.dbv-tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#fff;border:1px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
-.dbv-use{font-size:11px;color:var(--color-text-tertiary);font-style:italic}
-@media (max-width:460px){.dbv-grid{grid-template-columns:1fr}}
-</style>
-<div class="dbv-grid">
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🗃️</span><span class="dbv-title">Relational (SQL)</span></div><div class="dbv-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default.</div><div class="dbv-ex"><span class="dbv-tag">PostgreSQL</span><span class="dbv-tag">MySQL</span></div><div class="dbv-use">users, orders, payments, foreign keys</div></div>
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📄</span><span class="dbv-title">Document</span></div><div class="dbv-desc">Self-contained objects, flexible schema. Fetch the whole thing by ID; relationships don't matter.</div><div class="dbv-ex"><span class="dbv-tag">MongoDB</span><span class="dbv-tag">DynamoDB</span></div><div class="dbv-use">profiles, catalogs, CMS content</div></div>
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🔑</span><span class="dbv-title">Key-value</span></div><div class="dbv-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — get/set.</div><div class="dbv-ex"><span class="dbv-tag">Redis</span><span class="dbv-tag">Memcached</span></div><div class="dbv-use">sessions, cache, rate limits, leaderboards</div></div>
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">📊</span><span class="dbv-title">Column (OLAP)</span></div><div class="dbv-desc">Scan billions of rows, few columns. Compression-friendly. Built for aggregates, not point lookups.</div><div class="dbv-ex"><span class="dbv-tag">ClickHouse</span><span class="dbv-tag">BigQuery</span></div><div class="dbv-use">analytics, dashboards, warehouse</div></div>
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">⏱️</span><span class="dbv-title">Time-series</span></div><div class="dbv-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply.</div><div class="dbv-ex"><span class="dbv-tag">InfluxDB</span><span class="dbv-tag">Prometheus</span></div><div class="dbv-use">metrics, IoT, monitoring, logs</div></div>
-  <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🕸️</span><span class="dbv-title">Graph</span></div><div class="dbv-desc">Many-to-many. Index-free adjacency = O(1) hop vs O(log N) join. When traversals are the query.</div><div class="dbv-ex"><span class="dbv-tag">Neo4j</span><span class="dbv-tag">Neptune</span></div><div class="dbv-use">social graphs, recs, fraud rings</div></div>
-</div>`},
-   {t:'recall',q:'When document model over relational?',model:['Document fits self-contained, one-to-many records read together (locality) with a flexible schema.','Relational wins for many-to-many relationships, joins, and ad-hoc queries across entities.']}
-  ]},
-  {id:'model-2',title:'Encoding & evolution',steps:[
-   {t:'teach',h:'Wire formats',body:[
-     {k:'vs',a:{h:'JSON/XML',t:'human-readable, verbose, weak typing. Easy but big.'},b:{h:'Avro / Protobuf / Thrift',t:'compact binary + a schema; fast and small.'}},
-     {k:'note',t:'A schema registry lets producers and consumers evolve independently.'}
-   ]},
-   {t:'teach',h:'Compatibility',body:[
-     {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
-     {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
-   ]},
-   {t:'match',q:'Encoding / compatibility → which?',pairs:[['Human-readable, verbose','JSON / XML'],['Compact binary + schema','Avro / Protobuf'],['New code reads OLD data','Backward compatible'],['Old code reads NEW data','Forward compatible']]},
-   {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
-     {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
-     ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
-   ]},
-   {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
-   {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
-  ]},
-  {id:'model-3',title:'Storage engines',steps:[
-   {t:'teach',h:'B-tree vs LSM-tree',body:[
-     {k:'point',i:'🌲',t:'<b>B-tree</b>: update in place on a balanced on-disk tree. Random-I/O writes; fast reads + range scans. Read-optimized (Postgres, MySQL).'},
-     {k:'point',i:'📥',t:'<b>LSM-tree</b>: buffer writes in memory, flush sequentially to immutable SSTables, compact in the background. Sequential writes = high throughput; reads check multiple levels (Bloom filters help). Write-optimized (Cassandra, RocksDB).'},
-     {k:'note',t:'Rule of thumb: write-heavy / ingest → LSM; read-heavy with range scans → B-tree.'}
-   ]},
-   {t:'htmlviz',h:'B-Tree vs LSM-Tree',
-    html:`<style>
-.blv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.blv-card{background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:14px 16px}
-.blv-label{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--color-text-tertiary);text-transform:uppercase;margin-bottom:8px}
-.blv-name{font-size:15px;font-weight:800;color:var(--color-text-primary);margin-bottom:10px}
-.blv-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--color-border-tertiary);font-size:12.5px}
-.blv-row:last-child{border-bottom:none}
-.blv-k{color:var(--color-text-secondary)}
-.blv-v{color:var(--color-text-primary);font-weight:700}
-.blv-v.good{color:var(--color-text-success)}
-.blv-v.warn{color:var(--color-text-warning)}
-.blv-tag{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:700}
-.blv-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
-.blv-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
-@media (max-width:460px){.blv-grid{grid-template-columns:1fr}}
-</style>
-<div class="blv-grid">
-  <div class="blv-card">
-    <div class="blv-label">classic <span class="blv-tag blv-tag-b">B-Tree</span></div><div class="blv-name">B-Tree</div>
-    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v warn">random I/O</span></div>
-    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v good">O(log n), fast</span></div>
-    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">excellent</span></div>
-    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">moderate</span></div>
-    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v good">low</span></div>
-    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">in-place</span></div>
-    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Postgres, MySQL</span></div>
-  </div>
-  <div class="blv-card">
-    <div class="blv-label">write-optimized <span class="blv-tag blv-tag-l">LSM</span></div><div class="blv-name">LSM-Tree + SSTables</div>
-    <div class="blv-row"><span class="blv-k">writes</span><span class="blv-v good">sequential, fast</span></div>
-    <div class="blv-row"><span class="blv-k">reads</span><span class="blv-v warn">check many levels</span></div>
-    <div class="blv-row"><span class="blv-k">range scans</span><span class="blv-v good">good (sorted)</span></div>
-    <div class="blv-row"><span class="blv-k">write amp</span><span class="blv-v warn">high (compaction)</span></div>
-    <div class="blv-row"><span class="blv-k">space</span><span class="blv-v warn">higher</span></div>
-    <div class="blv-row"><span class="blv-k">updates</span><span class="blv-v">append-only</span></div>
-    <div class="blv-row"><span class="blv-k">used by</span><span class="blv-v">Cassandra, RocksDB</span></div>
-  </div>
-</div>`},
-   {t:'mcq',q:'A write-heavy ingest workload (logs, metrics) fits…',o:['B-tree','LSM-tree','a graph DB','a cache only'],a:1,why:'LSM buffers in memory and flushes sequentially → high write throughput; a B-tree does random-I/O in-place updates.'},
-   {t:'recall',q:'B-tree vs LSM — the tradeoff?',model:['B-tree updates in place: random-I/O writes, excellent reads and range scans → read-optimized (Postgres, MySQL).','LSM buffers writes and flushes sequential SSTables with background compaction: high write throughput, reads check multiple levels (Bloom filters mitigate) → write-optimized (Cassandra, RocksDB).','Pick by workload: write-heavy → LSM; read/range-heavy → B-tree.']}
-  ]},
-  {id:'model-4',title:'API design',steps:[
-   {t:'teach',h:'REST vs gRPC vs GraphQL',body:[
-     {k:'point',i:'🌐',t:'<b>REST/JSON</b>: simple, cacheable, universal. Default for public/external APIs. Can over/under-fetch.'},
-     {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
-     {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
-   ]},
-   {t:'teach',h:'Pagination & auth',body:[
-     {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
-     {k:'point',i:'🔑',t:'Derive the user from the <b>auth token</b> (OAuth/JWT), never from the request body. Validate + scope every request; keep servers stateless (state in the token / Redis).'}
-   ]},
-   {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
-     {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
-   ]},
-   {t:'mcq',q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random sampling','no pagination'],a:1,why:'Cursor/keyset pagination is stable when data shifts and stays fast deep in the list, unlike OFFSET.'},
-   {t:'cloze',q:'Fill the API blanks.',distract:['SOAP','UDP'],text:[
-     {blank:'REST',alt:['rest']},' is the universal default; ',{blank:'gRPC',alt:['grpc']},' (protobuf/HTTP2) suits fast internal RPC; ',{blank:'GraphQL',alt:['graphql']},
-     ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
-   ]},
-   {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
-  ]}
- ],
- boss:{title:'Data Models Boss',time:90,q:[
-   {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
-   {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
-   {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
-   {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
-   {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
-   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
-   {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
-   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1}
- ]}
-},
-{
- id:'batch',title:'Batch & Stream',icon:'🌊',color:'#EA580C',colorD:'#C2410C',
- blurb:'MapReduce, dataflow, windows, and exactly-once.',
- lessons:[
-  {id:'batch-1',title:'Batch processing',steps:[
-   {t:'teach',h:'MapReduce',body:[
-     {k:'cause',a:'Map (transform each record) → shuffle by key',b:'Reduce (aggregate per key) → output'},
-     {k:'point',i:'🗺️',t:'<b>Map</b> emits key→value; <b>Reduce</b> folds all values for a key.'}
-   ]},
-   {t:'teach',h:'Beyond MapReduce',body:[
-     {k:'vs',a:{h:'MapReduce',t:'materializes every intermediate step to disk. Robust but slow.'},b:{h:'Dataflow (Spark/Flink)',t:'keeps intermediates in memory, pipelines stages. Much faster.'}},
-     {k:'point',i:'🔗',t:'Joins: sort-merge, broadcast-hash (small side), partitioned-hash.'}
-   ]},
-   {t:'mcq',q:'Why do Spark/Flink beat classic MapReduce?',o:['they use SQL','they don’t materialize every intermediate step to disk','they avoid the shuffle','they need no cluster'],a:1,why:'Dataflow engines pipeline stages in memory instead of writing each step to disk.'},
-   {t:'recall',q:'Describe map and reduce in one line each.',model:['Map: transform each input record into key→value pairs (embarrassingly parallel).','Reduce: gather all values for a key (after a shuffle) and aggregate them into output.']}
-  ]},
-  {id:'batch-2',title:'Stream processing',steps:[
-   {t:'teach',h:'Time & windows',body:[
-     {k:'point',i:'⏰',t:'<b>Event time</b> (when it happened) vs <b>processing time</b> (when seen). Prefer event time.'},
-     {k:'point',i:'🪟',t:'Windows: tumbling (fixed, non-overlap), hopping (overlap), session (by activity gap).'},
-     {k:'point',i:'🌊',t:'<b>Watermarks</b> bound how long to wait for late events.'}
-   ]},
-   {t:'teach',h:'Correctness',body:[
-     {k:'point',i:'💾',t:'Stateful operators checkpoint their state for fault tolerance.'},
-     {k:'point',i:'🎯',t:'Exactly-once = checkpoints + idempotent/transactional sinks.'}
-   ]},
-   {t:'cloze',q:'Fill the streaming blanks.',distract:['offset','partition'],text:[
-     'Group by ',{blank:'event time',alt:['event-time']},', not processing time. ',{blank:'Watermarks',alt:['watermark']},
-     ' bound lateness, and ',{blank:'tumbling'},' windows are fixed and non-overlapping. Checkpoints give ',{blank:'exactly-once'},' processing.'
-   ]},
-   {t:'match',q:'Match the window to its shape.',pairs:[['Tumbling','Fixed, non-overlapping'],['Hopping','Fixed, overlapping'],['Session','Bounded by an activity gap']]},
-   {t:'mcq',q:'Which window groups events by gaps of inactivity?',o:['tumbling','hopping','session','global'],a:2,why:'A session window closes after a period of no events for that key.'},
-   {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
-  ]},
-  {id:'batch-3',title:'Architectures & tiering',steps:[
-   {t:'teach',h:'Lambda vs Kappa',body:[
-     {k:'vs',a:{h:'Lambda',t:'two paths — a batch layer for accurate, reprocessable results + a speed layer for fresh approximate ones; serving merges them. Powerful, but you maintain TWO codebases.'},b:{h:'Kappa',t:'one streaming path; reprocess by replaying the log. Simpler — one codebase — if streaming alone meets accuracy needs.'}},
-     {k:'note',t:'Kappa is the modern default when your stream processor can replay; Lambda lingers where batch tools are much cheaper/more accurate for the bulk path.'}
-   ]},
-   {t:'teach',h:'Data lifecycle tiering',body:[
-     {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD/in-memory/standard object).'},
-     {k:'point',i:'🌤️',t:'<b>Warm</b>: occasional access — cheaper, slower (infrequent-access tiers).'},
-     {k:'point',i:'🧊',t:'<b>Cold</b>: rarely read, keep for compliance — cheapest, slow retrieval (Glacier/archive).'},
-     {k:'note',t:'Lifecycle policies age data hot → warm → cold automatically; time-series/logs are the classic case.'}
-   ]},
-   {t:'mcq',q:'Kappa architecture differs from Lambda by…',o:['using two code paths','using one streaming path and replaying to reprocess','dropping streaming','requiring a warehouse'],a:1,why:'Kappa keeps a single streaming codebase and reprocesses by replaying the log; Lambda maintains separate batch + speed layers.'},
-   {t:'cloze',q:'Fill the tiering blanks.',distract:['shard','quorum'],text:[
-     {blank:'Lambda',alt:['lambda']},' runs batch + speed layers; ',{blank:'Kappa',alt:['kappa']},' uses one stream and ',{blank:'replays',alt:['replay']},' to reprocess. Aging data flows ',{blank:'hot',alt:['hot-warm-cold']},' → warm → cold to cut cost.'
-   ]},
-   {t:'recall',q:'Lambda vs Kappa, and how does data tiering save cost?',model:['Lambda: a batch layer (accurate, reprocessable) plus a speed layer (fresh, approximate), merged at serving — but two codebases.','Kappa: one streaming pipeline; reprocess by replaying the log — simpler when streaming meets accuracy needs.','Tiering ages data hot → warm → cold (e.g. SSD → infrequent-access → Glacier) via lifecycle policies, paying less for rarely-read data.']}
-  ]}
- ],
- boss:{title:'Batch & Stream Boss',time:80,q:[
-   {q:'Reduce runs after…',o:['the map + shuffle','the output','nothing','a window'],a:0},
-   {q:'Dataflow engines beat MapReduce by…',o:['using SQL','not materializing every step','skipping reduce','avoiding joins'],a:1},
-   {q:'Prefer which clock for stream windows?',o:['processing time','event time','wall clock','NTP'],a:1},
-   {q:'A tumbling window is…',o:['overlapping','fixed + non-overlapping','gap-based','infinite'],a:1},
-   {q:'Watermarks handle…',o:['hot keys','late events','encryption','sharding'],a:1},
-   {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1},
-   {q:'Kappa architecture uses…',o:['batch + speed layers','one streaming path, replay to reprocess','no streaming','a warehouse only'],a:1},
-   {q:'Rarely-read compliance data belongs in a…',o:['hot tier','cold/archive tier','cache','queue'],a:1}
- ]}
-},
-{
- id:'trouble',title:'Distributed Trouble',icon:'⚠️',color:'#BE185D',colorD:'#9D174D',
- blurb:'Networks drop, clocks drift, processes pause.',
- lessons:[
-  {id:'trouble-1',title:'Networks & clocks',steps:[
-   {t:'teach',h:'Unreliable networks',body:[
-     {k:'tldr',t:'You can’t tell a lost request from a slow one — a timeout is just a guess.'},
-     {k:'point',i:'⏳',t:'Too short = false failures; too long = slow detection. There’s no perfect timeout.'}
-   ]},
-   {t:'teach',h:'Unreliable clocks',body:[
-     {k:'vs',a:{h:'Time-of-day clock',t:'wall-clock; can jump backward on NTP sync. Don’t measure durations with it.'},b:{h:'Monotonic clock',t:'only goes forward; use it for elapsed time / timeouts.'}},
-     {k:'callout',c:'warn',t:'Clock skew breaks Last-Write-Wins — a laggy clock can silently drop the newer write.'}
-   ]},
-   {t:'cloze',q:'Fill the clock blanks.',distract:['vector','logical'],text:[
-     'Measure durations with the ',{blank:'monotonic'},' clock, never the ',{blank:'time-of-day',alt:['time of day','wall-clock','wall clock']},
-     ' clock which can jump on NTP sync. Clock ',{blank:'skew'},' makes ',{blank:'LWW',alt:['last-write-wins']},' silently drop writes.'
-   ]},
-   {t:'mcq',q:'To measure how long an operation took, use…',o:['the time-of-day clock','the monotonic clock','a vector clock','NTP directly'],a:1,why:'Monotonic clocks never jump backward; time-of-day can be reset by NTP mid-measurement.'},
-   {t:'recall',q:'Time-of-day vs monotonic clock — when each?',model:['Time-of-day: for timestamps/calendar time, but it can jump (NTP) — bad for durations.','Monotonic: always increases — use it for elapsed time, timeouts, and benchmarks.']}
-  ]},
-  {id:'trouble-2',title:'Pauses & truth',steps:[
-   {t:'teach',h:'Process pauses',body:[
-     {k:'cause',a:'GC stop-the-world / VM migration / paging',b:'A node freezes, then resumes thinking no time passed'},
-     {k:'callout',c:'warn',t:'A paused lock holder can wake up after its lease expired and corrupt data — TTL alone won’t save you.'}
-   ]},
-   {t:'teach',h:'Truth is decided by majority',body:[
-     {k:'point',i:'🗳️',t:'A node can’t trust its own view; a quorum/majority decides what’s true.'},
-     {k:'point',i:'🎟️',t:'<b>Fencing tokens</b>: every lock grant gets an increasing number; storage rejects an older token.'}
-   ]},
-   {t:'mcq',q:'A GC-paused client resumes holding a now-expired lock. What makes writes safe?',o:['a longer TTL','fencing tokens','a faster network','retries'],a:1,why:'Storage rejects writes carrying a token lower than the highest it has seen — the stale holder is fenced out.'},
-   {t:'build',q:'Pick real causes of an unexpected multi-second pause.',options:['GC stop-the-world','VM live migration','Memory paging/swapping','A tight CPU loop','SIGSTOP'],correct:[0,1,2,4]},
-   {t:'recall',q:'Why is a TTL lock unsafe without fencing tokens?',model:['A paused client’s clock doesn’t advance — it can wake after the lease expired, unaware it’s stale.','Fencing tokens (monotonic per grant) let storage reject the old holder’s writes, preventing corruption.']}
-  ]}
- ],
- boss:{title:'Trouble Boss',time:70,q:[
-   {q:'A network timeout is…',o:['exact','a guess','always right','unnecessary'],a:1},
-   {q:'Measure elapsed time with…',o:['time-of-day clock','monotonic clock','vector clock','NTP'],a:1},
-   {q:'Clock skew can break…',o:['hashing','last-write-wins','TCP','compression'],a:1},
-   {q:'A GC pause can make a node…',o:['faster','hold a stale lock','skip writes','rebalance'],a:1},
-   {q:'Stale lock holders are stopped by…',o:['longer TTL','fencing tokens','retries','bigger heap'],a:1},
-   {q:'In a distributed system, truth is decided by…',o:['one node','a quorum/majority','the client','the clock'],a:1}
  ]}
 },
 {
