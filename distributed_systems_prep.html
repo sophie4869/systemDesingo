@@ -2962,7 +2962,12 @@ value(s) = gauge / counter readings</div>
 </div>
 
 <script>
-function toggle(el){el.classList.toggle('expanded')}
+function toggle(el){
+  // don't fold/unfold if the user is selecting text inside the card
+  var sel=window.getSelection&&window.getSelection();
+  if(sel&&!sel.isCollapsed&&String(sel).trim().length>0)return;
+  el.classList.toggle('expanded');
+}
 
 function showSection(id,el){
   const sec=document.getElementById('section-'+id);
