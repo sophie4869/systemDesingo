@@ -1646,9 +1646,9 @@ const UNITS=[
      {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
      {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
    ]},
-   {t:'teach',h:'Pagination & auth',body:[
+   {t:'teach',h:'Pagination',body:[
      {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
-     {k:'point',i:'🔑',t:'Derive the user from the <b>auth token</b> (OAuth/JWT), never from the request body. Validate + scope every request; keep servers stateless (state in the token / Redis).'}
+     {k:'point',i:'📜',t:'Return an opaque <b>next_cursor</b> in each page; the client passes it back. It encodes the last (sort_key, id) seen — never expose raw DB offsets.'}
    ]},
    {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
      {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
@@ -1659,6 +1659,26 @@ const UNITS=[
      ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
    ]},
    {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
+  ]},
+  {id:'model-5',title:'Auth',steps:[
+   {t:'teach',h:'Authn vs Authz',body:[
+     {k:'point',i:'🪪',t:'<b>Authentication</b> = who you are (prove identity). <b>Authorization</b> = what you may do (scopes/roles). Validate <em>and</em> scope <b>every</b> request — both, every time.'},
+     {k:'note',t:'Always derive the current user from the <b>verified token</b>, never from the request body. A <b>user_id</b> in the payload is attacker-controlled — identity must come from a signed JWT or a session lookup.'}
+   ]},
+   {t:'teach',h:'The four auth methods',body:[
+     {k:'vs',a:{h:'Session token',t:'server issues an opaque token, stored in DB/Redis, looked up each request. Instantly revocable; costs a lookup. Best for server-rendered web apps.'},b:{h:'JWT',t:'self-contained signed claims — verify the signature, no DB lookup (stateless). Can\'t revoke before expiry → short TTL + refresh token.'}},
+     {k:'point',i:'🔑',t:'<b>API key</b>: long-lived random string for server-to-server / B2B. No user context. Store only a <b>hash</b>; show the raw key once, revoke by deleting the hash.'},
+     {k:'point',i:'🤝',t:'<b>OAuth 2.0 / OIDC</b>: delegation — let a third-party app act for a user without their password. Auth-Code + PKCE (apps), Client-Credentials (machine). Short access + long refresh tokens.'}
+   ]},
+   {t:'match',q:'Auth method → when to use it.',pairs:[
+     ['Server-rendered web app, instant logout/revoke','Session token (Redis)'],
+     ['Stateless microservices, no per-request DB lookup','JWT'],
+     ['Server-to-server / B2B integration','API key (store hash)'],
+     ['Let a third-party app act for a user','OAuth 2.0']
+   ]},
+   {t:'mcq',q:'A JWT can\'t be revoked before it expires. The standard fix?',o:['store it in Redis','short TTL + a refresh token','make it longer-lived','sign it twice'],a:1,why:'Keep access tokens short-lived (5–15 min) so a leaked one expires fast; a longer-lived refresh token mints new ones and can itself be revoked.'},
+   {t:'mcq',q:'The current user should come from…',o:['the request body','the verified auth token','a path param','client-typed input'],a:1,why:'Identity must come from something the server verified (a signed JWT or a session lookup) — never a field the client controls.'},
+   {t:'recall',q:'Session vs JWT vs API key vs OAuth — one line each.',model:['Session: opaque token in Redis/DB, looked up each request — instantly revocable, stateful.','JWT: signed self-contained claims — stateless, no lookup, but not revocable before expiry (short TTL + refresh).','API key: long-lived secret for server-to-server / B2B — store only a hash.','OAuth 2.0: delegated, scoped access for third-party apps without sharing the password.']}
   ]}
  ],
  boss:{title:'Data Models Boss',time:90,q:[
@@ -1669,7 +1689,9 @@ const UNITS=[
    {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
    {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
    {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
-   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1}
+   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1},
+   {q:'JWTs are stateless but…',o:['always encrypted','not revocable before expiry','slow to verify','user-specific only'],a:1},
+   {q:'The current user should come from…',o:['the request body','the verified auth token','a query param','client input'],a:1}
  ]}
 },
 {
