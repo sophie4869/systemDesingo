@@ -1595,10 +1595,18 @@ const UNITS=[
      {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
    ]},
    {t:'mcq',q:'The transactional outbox solves…',o:['cache misses','the dual-write problem','leader election','hot keys'],a:1,why:'One local txn writes both the data and the event; a relay/CDC publishes reliably.'},
-   {t:'teach',h:'Backpressure & DLQs',body:[
-     {k:'point',i:'🌊',t:'Pull-based consumers (Kafka) get backpressure for free; bound your buffers.'},
-     {k:'point',i:'☠️',t:'Poison messages → a dead-letter queue after N retries, so the pipeline isn’t blocked.'}
+   {t:'teach',h:'Backpressure',body:[
+     {k:'tldr',t:'Consumers can’t keep up → slow the producer, don’t crash.'},
+     {k:'vs',a:{h:'Pull (Kafka)',t:'consumers fetch at their own pace — lag just builds, nothing falls over. Backpressure for free.'},b:{h:'Push',t:'needs explicit credit / window flow-control (Reactive Streams, gRPC) or the consumer gets overwhelmed.'}},
+     {k:'callout',c:'warn',t:'Never use an <b>unbounded</b> buffer — it just defers the failure to an OOM crash later.'}
    ]},
+   {t:'mcq',q:'An unbounded in-memory queue under sustained overload leads to…',o:['graceful backpressure','an OOM crash — failure just deferred','faster processing','exactly-once'],a:1,why:'Unbounded buffers hide the overload until memory runs out. Bound the buffer and pick a block/drop/shed policy.'},
+   {t:'teach',h:'Bounded buffers & dead-letter queues',body:[
+     {k:'point',i:'🪣',t:'Bound the buffer; when it’s <b>full</b>, choose a policy: <b>block</b> the producer, <b>drop</b> the oldest, or <b>shed</b> load (reject).'},
+     {k:'point',i:'☠️',t:'A <b>poison message</b> (always fails) blocks a partition or loops forever. After N retries <b>with backoff</b>, route it to a <b>dead-letter queue</b> for human inspection.'},
+     {k:'note',t:'Pair the DLQ with a <b>retry topic</b> to reprocess messages later instead of dropping them.'}
+   ]},
+   {t:'mcq',q:'A message fails on every attempt (poison). After a few backed-off retries you should…',o:['retry forever','drop it silently','route it to a dead-letter queue for inspection','restart the broker'],a:2,why:'A DLQ unblocks the partition and keeps the bad message for debugging, instead of looping forever or losing it.'},
    {t:'recall',q:'What is the dual-write problem and how does the outbox fix it?',model:['Writing to the DB and a broker separately has no atomicity — a crash leaves them inconsistent.','The outbox writes the row + an event in ONE DB txn; a relay (or CDC) then publishes, at-least-once.']}
   ]},
   {id:'msg-3',title:'Event sourcing & CQRS',steps:[
