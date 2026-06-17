@@ -414,6 +414,7 @@ const UNITS=[
    ]},
    {t:'order',q:'Drag from WEAKEST to STRONGEST.',items:['Eventual','Read-your-writes','Causal','Linearizable']},
    {t:'mcq',q:'Linearizable vs sequential consistency — the difference?',o:['linearizable allows stale reads','linearizable adds a real-time ordering constraint','they’re identical','sequential is stronger'],a:1,why:'Both give a total order; linearizability also respects wall-clock real-time order.'},
+   {t:'match',q:'Symptom / need → consistency model.',pairs:[['You always see your own updates','Read-your-writes'],['Reads never go backwards in time','Monotonic reads'],['Cause is shown before its effect','Causal'],['Acts like one copy, real-time order','Linearizable'],['Replicas converge eventually','Eventual']]},
    {t:'recall',q:'Name 2 features where EVENTUAL consistency is totally fine, and 1 where it is NOT.',model:['Fine: like counts, view counts, feeds, search indexes.','Not fine: account balance, inventory, "did my payment go through?".','Rule: spend strong consistency only where a wrong answer is unacceptable.']}
   ]}
  ],
@@ -1132,6 +1133,7 @@ const UNITS=[
      {blank:'write skew',alt:['write-skew']},'. ',{blank:'SSI'},' detects conflicts and aborts a txn to fix it.'
    ]},
    {t:'mcq',q:'Which level prevents dirty reads but allows non-repeatable reads?',o:['read uncommitted','read committed','repeatable read','serializable'],a:1,why:'Read committed shows only committed data, but a row can change between two reads.'},
+   {t:'match',q:'Anomaly → the fix that stops it.',pairs:[['Dirty read','Read Committed'],['Non-repeatable read','Snapshot Isolation'],['Lost update','Compare-and-set / row lock'],['Write skew','Serializable / SSI']]},
    {t:'teach',h:'Making a write safe to retry',body:[
      {k:'tldr',t:'A network can drop the <i>ack</i>, not the write — so the client retries and the write lands twice. Safe-retry = the second attempt has no extra effect.'},
      {k:'keyt',term:'Idempotency key',def:'client attaches a unique key per logical operation; the server records it and ignores a repeat with the same key. Applying twice = applying once.'},
@@ -1668,6 +1670,7 @@ const UNITS=[
      {k:'point',i:'🌍',t:'GeoDNS or anycast routes users to the nearest/healthy region.'},
      {k:'note',t:'Prefer stateless servers (state in Redis/JWT) so any node serves any request — no sticky sessions.'}
    ]},
+   {t:'match',q:'Signal → load-balancing mechanism.',pairs:[['Probe /healthz periodically','Active health check'],['Eject a host after repeated 5xx','Passive health check'],['Route users to the nearest region','GeoDNS / anycast'],['Any node can serve any request','Stateless servers']]},
    {t:'recall',q:'Why prefer stateless servers over sticky sessions?',model:['Stateless = any instance can serve any request, so scaling and failover are trivial.','Sticky sessions pin users to a node, breaking even load and losing state on failover. Externalise state instead.']}
   ]}
  ],
@@ -1747,6 +1750,7 @@ const UNITS=[
    {t:'teach',h:'Storage engines',body:[
      {k:'vs',a:{h:'LSM-tree',t:'sequential writes + compaction. Write-optimized (Cassandra, RocksDB).'},b:{h:'B-tree',t:'update-in-place. Read/range-optimized (Postgres, MySQL).'}}
    ]},
+   {t:'match',q:'Need → scaling / storage choice.',pairs:[['One bigger box (simple, has a ceiling)','Vertical scaling'],['More boxes (unbounded, needs coordination)','Horizontal scaling'],['Write-heavy ingest (logs, time-series)','LSM-tree'],['Read + range scans','B-tree']]},
    {t:'cloze',q:'Fill the storage-engine blanks.',distract:['hash','cache'],text:[
      'Write-heavy ingest (logs, time-series) suits an ',{blank:'LSM',alt:['LSM-tree']},'-tree: ',
      {blank:'sequential'},' writes plus background ',{blank:'compaction'},'. Read/range-heavy work suits a ',{blank:'B-tree',alt:['btree','B tree']},'.'
@@ -1877,6 +1881,7 @@ const UNITS=[
      {k:'point',i:'🚦',t:'<b>RED</b> (Rate, Errors, Duration) for services; <b>USE</b> (Utilization, Saturation, Errors) for resources. Alert on SLO burn, not raw CPU.'},
      {k:'point',i:'🧵',t:'Propagate a <b>trace/correlation ID</b> through every hop so you can follow a single request end-to-end.'}
    ]},
+   {t:'match',q:'Observability — what is it?',pairs:[['Aggregate trends, dashboards & alerts','Metrics'],['Discrete events for debugging','Logs'],['One request across services','Traces'],['Rate · Errors · Duration (services)','RED'],['Utilization · Saturation · Errors (resources)','USE']]},
    {t:'mcq',q:'A bulkhead protects you by…',o:['retrying faster','isolating resource pools so one dependency can’t starve the rest','adding caches','sharding data'],a:1,why:'Separate pools per dependency contain failures — a hung dependency exhausts only its own pool.'},
    {t:'mcq',q:'Under overload, load shedding means…',o:['retry everything','drop/reject low-priority work to protect the core','scale to zero','ignore errors'],a:1,why:'Serving a subset cleanly beats collapsing under everything; shed early and by priority.'},
    {t:'teach',h:'Changing schema without downtime',body:[
