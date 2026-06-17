@@ -1715,7 +1715,7 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
         <div class="card-body">
           <p><strong>Active checks:</strong> LB probes <code>/healthz</code> periodically; unhealthy backends are removed from rotation. <strong>Passive checks:</strong> infer health from real traffic (e.g. consecutive 5xx / connection failures eject the host — "outlier detection" in Envoy).</p>
           <p><strong>Shallow vs deep:</strong> a shallow check ("am I up?") can pass while dependencies are down; a deep check (DB reachable, etc.) catches more but risks cascading removal if a shared dependency blips — suddenly <em>every</em> backend fails its check at once.</p>
-          <div class="note warn"><strong>The health-check death spiral:</strong> aggressive deep checks + a shared dependency hiccup can eject all backends simultaneously, taking the whole service down. Mitigate with check hysteresis, "fail open" when too many hosts are unhealthy, and panic thresholds.</div>
+          <div class="note warn"><strong>The health-check death spiral:</strong> aggressive deep checks + a shared dependency hiccup can eject all backends at once, taking the whole service down. The fix worth naming: <strong>fail open</strong> — when "too many" hosts look unhealthy, assume the check is wrong and keep serving.</div>
           <p>For high availability the LB itself must be redundant (active-passive with a floating VIP, or anycast) — it's otherwise a single point of failure.</p>
           <div class="tag-row"><span class="tag">active vs passive</span><span class="tag">outlier detection</span><span class="tag">fail open</span></div>
         </div>

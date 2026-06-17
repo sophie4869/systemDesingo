@@ -680,6 +680,7 @@ const UNITS=[
      {k:'point',i:'⚖️',t:'Keep the consensus group SMALL (3 or 5 nodes) — every decision needs a majority round-trip, so more nodes = slower.'}
    ]},
    {t:'mcq',q:'Why is consensus fault-tolerant where 2PC blocks?',o:['it uses more nodes','it needs only a majority, not every vote','it skips durability','it has no leader'],a:1,why:'A majority quorum still forms when a minority (incl. a failed coordinator) is down; 2PC needs unanimity.'},
+   {t:'match',q:'Consensus landscape → which one?',pairs:[['Original, proven, hard to build right','Paxos'],['Understandable: leader + terms + log','Raft'],['ZooKeeper’s consensus protocol','ZAB'],['Off-the-shelf locks / config / election','ZooKeeper / etcd']]},
    {t:'cloze',q:'Fill the landscape blanks.',distract:['sharding','caching'],text:[
      {blank:'Paxos',alt:['paxos','Raft','raft']},' and ',{blank:'Raft',alt:['raft','Paxos','paxos']},' solve the same problem; both rely on a ',
      {blank:'majority',alt:['quorum']},' quorum. In practice you use a coordination service like ',
@@ -1850,6 +1851,7 @@ const UNITS=[
      {k:'cause',a:'A dependency starts failing/slow',b:'Breaker OPENS → fail fast, stop the cascade'},
      {k:'point',i:'🔁',t:'CLOSED → (too many fails) OPEN → (cooldown) HALF-OPEN → test → CLOSED/OPEN.'}
    ]},
+   {t:'match',q:'Reliability term → meaning.',pairs:[['Measured number (e.g. p99 latency)','SLI'],['Internal target','SLO'],['Customer promise with penalties','SLA'],['100% − SLO (downtime you can spend)','Error budget']]},
    {t:'cloze',q:'Fill the resilience blanks.',distract:['retry','shard'],text:[
      'A circuit breaker ',{blank:'opens',alt:['open']},' after too many failures and ',{blank:'fails fast',alt:['fail fast','fail-fast']},
      ', preventing a ',{blank:'cascading',alt:['cascade']},' failure. Always pair calls with a ',{blank:'timeout'},'.'
@@ -2343,6 +2345,7 @@ const UNITS=[
      {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
      {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
    ]},
+   {t:'match',q:'Encoding / compatibility → which?',pairs:[['Human-readable, verbose','JSON / XML'],['Compact binary + schema','Avro / Protobuf'],['New code reads OLD data','Backward compatible'],['Old code reads NEW data','Forward compatible']]},
    {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
      {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
      ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
