@@ -2352,15 +2352,20 @@ const UNITS=[
 	      .idi-r{background:var(--color-background-warning);color:var(--color-text-warning);border-radius:4px;padding:1px 4px;font-weight:800}
 	      .idi-note{font-size:11.5px;color:var(--color-text-secondary);font-weight:600;line-height:1.5}
 	      .idi-note b{color:var(--color-text-primary)}
+	      .idi-pillrow{display:flex;flex-wrap:wrap;gap:6px}
+	      .idi-pill{border-radius:999px;background:var(--color-background-info);color:var(--color-text-info);padding:3px 8px;font-size:10.5px;font-weight:800}
+	      .idi-pill.bad{background:var(--color-background-warning);color:var(--color-text-warning)}
 	    </style>
 	    <div class="idi-wrap">
 	      <div class="idi-card">
 	        <div class="idi-head"><span class="idi-name">Auto-increment</span><span class="idi-sub">DB counter</span></div>
+	        <div class="idi-pillrow"><span class="idi-pill">sortable</span><span class="idi-pill bad">DB round-trip</span></div>
 	        <div class="idi-row">1042 → 1043 → 1044</div>
 	        <div class="idi-note">Perfectly sequential — but one shared counter every shard must coordinate on.</div>
 	      </div>
 	      <div class="idi-card">
 	        <div class="idi-head"><span class="idi-name">UUID v4</span><span class="idi-sub">128-bit · fully random</span></div>
+	        <div class="idi-pillrow"><span class="idi-pill bad">not sortable</span><span class="idi-pill">no coordination</span></div>
 	        <div class="idi-row"><span class="idi-r">f47ac10b</span>-58cc-4372-a567-0e02b2c3d479<br><span class="idi-r">9b1deb4d</span>-3b7d-4bad-9bdd-2b0d7b3dcb6d</div>
 	        <div class="idi-note">Two IDs minted back-to-back share <b>nothing</b> → they scatter all over a B-tree index.</div>
 	      </div>
@@ -2381,15 +2386,20 @@ const UNITS=[
 	      .idi-r{background:var(--color-background-warning);color:var(--color-text-warning);border-radius:4px;padding:1px 4px;font-weight:800}
 	      .idi-note{font-size:11.5px;color:var(--color-text-secondary);font-weight:600;line-height:1.5}
 	      .idi-note b{color:var(--color-text-primary)}
+	      .idi-pillrow{display:flex;flex-wrap:wrap;gap:6px}
+	      .idi-pill{border-radius:999px;background:var(--color-background-info);color:var(--color-text-info);padding:3px 8px;font-size:10.5px;font-weight:800}
+	      .idi-pill.bad{background:var(--color-background-warning);color:var(--color-text-warning)}
 	    </style>
 	    <div class="idi-wrap">
 	      <div class="idi-card">
 	        <div class="idi-head"><span class="idi-name">UUID v7 / ULID</span><span class="idi-sub">128-bit · time prefix + random</span></div>
+	        <div class="idi-pillrow"><span class="idi-pill">time-ordered</span><span class="idi-pill">no coordination</span></div>
 	        <div class="idi-row"><span class="idi-t">0190b8e4-1c2a</span>-7def-8a3f-1c4d9e2b7a01<br><span class="idi-t">0190b8e4-1c2b</span>-7a90-b1c2-9f8e7d6c5b4a</div>
 	        <div class="idi-note">First 48 bits = a <b>millisecond timestamp</b>. Consecutive IDs share a prefix → they land next to each other in the index.</div>
 	      </div>
 	      <div class="idi-card">
 	        <div class="idi-head"><span class="idi-name">Snowflake</span><span class="idi-sub">64-bit int · time + worker + seq</span></div>
+	        <div class="idi-pillrow"><span class="idi-pill">sortable</span><span class="idi-pill bad">worker ID config</span></div>
 	        <div class="idi-row"><span class="idi-t">174148150360</span>6036480<br><span class="idi-t">174148150360</span>6036481</div>
 	        <div class="idi-note">Leading bits are the timestamp, so IDs sort by creation time. The bit layout is up next.</div>
 	      </div>
@@ -2399,7 +2409,7 @@ const UNITS=[
 	     {k:'point',i:'📌',t:'Random IDs like UUID v4 distribute uniqueness well but insert all over a B-tree index.'},
 	     {k:'point',i:'⏱️',t:'Time-ordered IDs like Snowflake or UUID v7 preserve index locality and are usually better for high-write databases.'}
 	   ]},
-	   {t:'htmlviz',h:'Unique ID trade-offs',
+	   {t:'htmlviz',h:'Snowflake bits & content hashing',
 	    html:`<style>
 	      .idv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 	      .idv-card{border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary);padding:11px;display:grid;gap:7px;min-width:0}
@@ -2416,26 +2426,6 @@ const UNITS=[
 	      @media(max-width:720px){.idv-grid{grid-template-columns:1fr}}
 	    </style>
 	    <div class="idv-grid">
-	      <div class="idv-card">
-	        <h4>Auto-increment DB</h4>
-	        <div class="idv-pillrow"><span class="idv-pill">sortable</span><span class="idv-pill bad">DB round-trip</span></div>
-	        <p>Sequential and great for index locality, but a single counter becomes awkward across shards.</p>
-	      </div>
-	      <div class="idv-card">
-	        <h4>UUID v4</h4>
-	        <div class="idv-pillrow"><span class="idv-pill bad">not sortable</span><span class="idv-pill">no coordination</span></div>
-	        <p>Random 128-bit universal IDs. Fine for many apps, but poor B-tree locality at high write volume.</p>
-	      </div>
-	      <div class="idv-card">
-	        <h4>UUID v7 / ULID</h4>
-	        <div class="idv-pillrow"><span class="idv-pill">time-ordered</span><span class="idv-pill">no coordination</span></div>
-	        <p>Client-generated, roughly chronological IDs. UUID v7 is the modern default when DB index locality matters.</p>
-	      </div>
-	      <div class="idv-card">
-	        <h4>Snowflake</h4>
-	        <div class="idv-pillrow"><span class="idv-pill">sortable</span><span class="idv-pill bad">worker ID config</span></div>
-	        <p>Great at scale after assigning machine IDs once. Common for distributed records, events, and timelines.</p>
-	      </div>
 	      <div class="idv-card">
 	        <h4>Hash of content</h4>
 	        <div class="idv-pillrow"><span class="idv-pill bad">not time-sortable</span><span class="idv-pill">deterministic</span></div>
