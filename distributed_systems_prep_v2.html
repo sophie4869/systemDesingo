@@ -2336,12 +2336,11 @@ const UNITS=[
 		  ]},
 	  {id:'scale-3',title:'Unique IDs',steps:[
 	   {t:'teach',h:'Meet the ID schemes',body:[
-	     {k:'tldr',t:'Every row, event, and message needs a unique ID. <b>How</b> you mint it shapes sorting, sharding, and write speed — so meet the candidates first.'},
+	     {k:'tldr',t:'Every row, event, and message needs a unique ID. <b>How</b> you mint it shapes sorting, sharding, and write speed. Meet the two simplest first, then the time-ordered pair.'},
 	     {k:'point',i:'🔢',t:'<b>Auto-increment</b>: the database hands out 1, 2, 3… Simple and sortable, but it\'s one central counter every insert must touch.'},
-	     {k:'point',i:'🎲',t:'<b>UUID</b>: a 128-bit value you generate yourself, no server round-trip. <b>v4</b> is fully random; <b>v7</b> puts a millisecond timestamp in front.'},
-	     {k:'point',i:'❄️',t:'<b>Snowflake</b>: a compact 64-bit integer = timestamp + machine ID + per-ms counter. Sortable and minted locally once worker IDs are assigned.'}
+	     {k:'point',i:'🎲',t:'<b>UUID v4</b>: a random 128-bit value you generate yourself — no server round-trip, but no ordering either.'}
 	   ]},
-	   {t:'htmlviz',h:'What these IDs look like',
+	   {t:'htmlviz',h:'What they look like · counter & random',
 	    html:`<style>
 	      .idi-wrap{display:grid;gap:10px}
 	      .idi-card{border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary);padding:11px 12px;display:grid;gap:7px}
@@ -2365,6 +2364,25 @@ const UNITS=[
 	        <div class="idi-row"><span class="idi-r">f47ac10b</span>-58cc-4372-a567-0e02b2c3d479<br><span class="idi-r">9b1deb4d</span>-3b7d-4bad-9bdd-2b0d7b3dcb6d</div>
 	        <div class="idi-note">Two IDs minted back-to-back share <b>nothing</b> → they scatter all over a B-tree index.</div>
 	      </div>
+	    </div>`},
+	   {t:'teach',h:'Time-ordered IDs',body:[
+	     {k:'point',i:'🕒',t:'<b>UUID v7 / ULID</b>: a 128-bit UUID with a millisecond timestamp in front, then random. Client-generated and sorts by time — the modern default for DB indexes.'},
+	     {k:'point',i:'❄️',t:'<b>Snowflake</b>: a compact 64-bit integer = timestamp + machine ID + per-ms counter. Sortable and minted locally once worker IDs are assigned.'}
+	   ]},
+	   {t:'htmlviz',h:'What they look like · time-ordered',
+	    html:`<style>
+	      .idi-wrap{display:grid;gap:10px}
+	      .idi-card{border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary);padding:11px 12px;display:grid;gap:7px}
+	      .idi-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+	      .idi-name{font-weight:800;color:var(--color-text-primary);font-size:13.5px}
+	      .idi-sub{color:var(--color-text-secondary);font-size:11.5px;font-weight:600}
+	      .idi-row{font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary);word-break:break-all;line-height:1.85}
+	      .idi-t{background:var(--color-background-success);color:var(--color-text-success);border-radius:4px;padding:1px 4px;font-weight:800}
+	      .idi-r{background:var(--color-background-warning);color:var(--color-text-warning);border-radius:4px;padding:1px 4px;font-weight:800}
+	      .idi-note{font-size:11.5px;color:var(--color-text-secondary);font-weight:600;line-height:1.5}
+	      .idi-note b{color:var(--color-text-primary)}
+	    </style>
+	    <div class="idi-wrap">
 	      <div class="idi-card">
 	        <div class="idi-head"><span class="idi-name">UUID v7 / ULID</span><span class="idi-sub">128-bit · time prefix + random</span></div>
 	        <div class="idi-row"><span class="idi-t">0190b8e4-1c2a</span>-7def-8a3f-1c4d9e2b7a01<br><span class="idi-t">0190b8e4-1c2b</span>-7a90-b1c2-9f8e7d6c5b4a</div>
