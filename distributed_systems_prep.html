@@ -208,6 +208,16 @@ a{color:var(--accent);text-decoration:none}
 .tool{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.35rem;margin-bottom:1.25rem;box-shadow:var(--shadow)}
 .tool-title{font-size:15px;font-weight:600;margin-bottom:.5rem}
 .tool>p{font-size:13px;color:var(--text-muted);line-height:1.7;margin-bottom:.9rem}
+.llm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:.85rem 0}
+.llm-panel{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem}
+.llm-panel h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:.55rem}
+.llm-panel ul{margin:0;padding-left:1.1rem}
+.llm-panel li{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:.25rem}
+.llm-prompt{font-size:15px;font-weight:600;line-height:1.55;color:var(--text);background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.9rem 1rem;margin:.75rem 0}
+.llm-answer{width:100%;min-height:120px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:.8rem 1rem;font:inherit;font-size:13px;line-height:1.6;color:var(--text);background:var(--surface);resize:vertical}
+.llm-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:.8rem;align-items:center}
+.llm-status{font-size:12px;color:var(--success);font-weight:600}
+@media(max-width:720px){.llm-grid{grid-template-columns:1fr}}
 .calc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.75rem;margin-bottom:1rem}
 .calc-field{display:flex;flex-direction:column;gap:4px}
 .calc-field label{font-size:11px;color:var(--text-muted);font-weight:500}
@@ -2835,7 +2845,7 @@ each step independently deployable &amp; rollback-safe</div>
                   <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M75 1V149 M1 75H149"/><path d="M37.5 1V75 M1 37.5H75"/><path d="M18.75 1V37.5 M1 18.75H37.5"/></g>
                   <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
                 </svg>
-                <div class="giz-fs">Subdivides only dense areas — great for cities-vs-ocean skew. In-memory tree, must rebuild.</div>
+                <div class="giz-fs">Subdivides only dense areas — great for cities-vs-ocean skew. Fan-out 4 → deep &amp; pointer-heavy → lives in memory (vs a shallow on-disk B-tree); must rebuild.</div>
               </figure>
               <figure class="giz-fig">
                 <div class="giz-ft">S2 / H3</div>
@@ -3020,6 +3030,51 @@ each step independently deployable &amp; rollback-safe</div>
           <p><strong>Decision shortcuts:</strong> Need transactions or complex joins? &rarr; SQL. Write-heavy append workload? &rarr; LSM-based (Cassandra, RocksDB). Simple key lookups at enormous scale? &rarr; KV or wide-column. Full-text search? &rarr; Elasticsearch alongside a primary store. Multi-hop graph traversal? &rarr; graph DB, but only if you actually traverse many hops — most "graph" data fits fine in SQL.</p>
           <div class="note warn"><strong>Common mistake:</strong> choosing a DB by brand recognition ("we'll use MongoDB") rather than access patterns. Always state: "I'm choosing X because the access pattern is Y and we need Z." The <em>justification</em> is what interviewers grade, not the choice itself.</div>
           <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">justify every choice</span><span class="tag">polyglot persistence</span></div>
+        </div>
+      </div>
+
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Failover &amp; fail modes</div><div class="card-sub">Two forks that surface the moment you discuss failure</div></div><span class="badge badge-red">Critical</span></div>
+        <div class="card-body">
+          <p>Once you mention failure or multiple regions, two decisions appear. Each has a single <em>deciding question</em> — say it, commit, justify.</p>
+          <p><strong>Active-active vs active-passive</strong> — how many regions accept writes?</p>
+          <table class="tbl"><tr><th>Choice</th><th>Pick it when…</th><th>The cost you accept</th></tr>
+          <tr><td>Active-passive</td><td>One writer is fine; you want the <em>simplest</em> failover (standby promotes)</td><td>Standby capacity sits idle; failover has a brief RTO gap</td></tr>
+          <tr><td>Active-active</td><td>You need low write latency near users on multiple continents</td><td>Conflict resolution (LWW / CRDTs / home-region-per-key) and split-brain risk</td></tr></table>
+          <div class="note"><strong>Deciding question:</strong> "Does more than one region need to accept writes?" If no → active-passive (no conflicts). If yes → active-active, and immediately name your conflict-resolution strategy. <strong>Home-region per user/key</strong> gives active-active's locality without global conflict resolution, and also respects data-residency rules.</div>
+          <p style="margin-top:1rem"><strong>Fail-open vs fail-closed</strong> — what does a request do when a check/dependency is <em>down</em>?</p>
+          <table class="tbl"><tr><th>Dependency is down</th><th>Fail-open (allow)</th><th>Fail-closed (block)</th></tr>
+          <tr><td>Rate limiter</td><td>Free consumer app — keep it available</td><td>Paid / admin / security endpoint — abuse &amp; cost risk</td></tr>
+          <tr><td>Auth service</td><td>—</td><td>Almost always — never serve unauthenticated</td></tr>
+          <tr><td>Payment fraud check</td><td>—</td><td>Usually closed (or queue for manual review)</td></tr>
+          <tr><td>Recommendations</td><td>Degrade to a generic list — non-critical</td><td>—</td></tr></table>
+          <div class="note warn"><strong>Deciding question:</strong> "If this check is unavailable, is it safer to let the request through or block it?" Stakes decide — the <em>same</em> rate limiter fails open on a free read path and closed on a billing API.</div>
+          <div class="tag-row"><span class="tag">name the deciding question</span><span class="tag">conflict resolution</span><span class="tag">stakes decide</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Shard keys, cost &amp; schema traps</div><div class="card-sub">Pick the key, name the cost, check the reads</div></div><span class="badge badge-blue">Foundational</span></div>
+        <div class="card-body">
+          <p>Three fast reflexes graders reward: choose the shard key by access pattern, name the cost-dominant component, and verify the schema actually serves the reads.</p>
+          <p><strong>Pick the shard key</strong> — the field you query by most. Avoid <em>low-cardinality</em> keys (few values → few shards) and <em>monotonic</em> keys (timestamp / auto-id → one hot shard).</p>
+          <table class="tbl"><tr><th>System</th><th>Shard key</th><th>Watch out</th></tr>
+          <tr><td>Chat messages</td><td>conversation_id</td><td>A 500k-member group is a hot shard — sub-shard or cache it</td></tr>
+          <tr><td>Feed timelines</td><td>user_id</td><td>Celebrities → fanout-on-read for those keys</td></tr>
+          <tr><td>URL shortener</td><td>the short code / hash</td><td>High cardinality, evenly spread — ideal</td></tr>
+          <tr><td>Metrics points</td><td>(series, time_bucket)</td><td>Don't shard on raw time alone — newest bucket goes hot</td></tr>
+          <tr><td>Orders</td><td>merchant_id or user_id</td><td>Pick by the dominant access pattern (seller dashboard vs buyer history)</td></tr></table>
+          <p style="margin-top:1rem"><strong>Cost-dominant component</strong> — where the bill actually concentrates, so you optimize the right thing.</p>
+          <table class="tbl"><tr><th>System</th><th>Cost is dominated by…</th></tr>
+          <tr><td>Video streaming</td><td>Egress / CDN bandwidth</td></tr>
+          <tr><td>Metrics &amp; logs</td><td>Ingest + retention / cardinality</td></tr>
+          <tr><td>Search</td><td>Indexing + memory / cache</td></tr>
+          <tr><td>ML serving</td><td>GPU utilization</td></tr>
+          <tr><td>Social feed</td><td>Fanout / write amplification + cache memory</td></tr>
+          <tr><td>Multi-region</td><td>Duplicated infra + cross-region transfer</td></tr></table>
+          <div class="note warn"><strong>Schema / access traps:</strong> deep <code>OFFSET</code> pagination scans &amp; discards every preceding row (use <strong>cursor / keyset</strong> pagination); querying by a column with no index is a scan trap; an idempotency key belongs on the <em>write request</em>; model a clear status lifecycle (AVAILABLE&rarr;HELD&rarr;BOOKED); publish events via an <strong>outbox</strong> row. Sanity check: "does a PK or secondary index serve every read, or am I forcing a scan?"</div>
+          <div class="tag-row"><span class="tag">high-cardinality key</span><span class="tag">avoid hot shards</span><span class="tag">cursor not offset</span></div>
         </div>
       </div>
 
@@ -3485,6 +3540,70 @@ Processing time = when the stream processor sees the event
       </div>
     </div>
 
+    <!-- LLM-judged mocks -->
+    <div class="tool">
+      <div class="tool-title">🎤 LLM-judged mock packet</div>
+      <p>Use this after warm-ups. Pick a prompt, answer out loud for 35–45 minutes, paste your notes below, then copy the judge packet into an LLM for targeted grading and follow-ups.</p>
+      <div class="llm-grid">
+        <div class="llm-panel">
+          <h4>What the judge should score</h4>
+          <ul>
+            <li>Clarifying scope before drawing boxes.</li>
+            <li>APIs and data model tied to access patterns.</li>
+            <li>Architecture that names the hot path and bottleneck.</li>
+            <li>Tradeoffs, failure modes, and 10× / region-failure follow-ups.</li>
+          </ul>
+        </div>
+        <div class="llm-panel">
+          <h4>How to use it</h4>
+          <ul>
+            <li>Do not look up the model answer first.</li>
+            <li>Write only rough notes; the grader should evaluate your thinking, not polish.</li>
+            <li>Ask the LLM for three interviewer-style follow-up questions after the grade.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="llm-prompt" id="llmPrompt"></div>
+      <textarea class="llm-answer" id="llmAnswer" placeholder="Paste your answer notes here after you finish the mock. Include assumptions, APIs/schema, architecture, bottlenecks, tradeoffs, and failure handling."></textarea>
+      <div class="llm-actions">
+        <button class="btn-mini" onclick="llmRandomPrompt()">Random prompt</button>
+        <button class="btn-mini" onclick="llmCopyPrompt()">Copy prompt only</button>
+        <button class="btn-mini" onclick="llmCopyPacket()">Copy judge packet + my answer</button>
+        <span class="llm-status" id="llmStatus"></span>
+      </div>
+    </div>
+
+    <div class="tool">
+      <div class="tool-title">🧱 LLM-judged API/data drill</div>
+      <p>Use this for the artifact-heavy part of an interview. The prompt gives access patterns and constraints; write the API and data model, then copy the judge packet for grading.</p>
+      <div class="llm-grid">
+        <div class="llm-panel">
+          <h4>Submit this</h4>
+          <ul>
+            <li>Endpoints, request/response shapes, pagination, and auth source.</li>
+            <li>Entities/tables, primary keys, secondary indexes, and constraints.</li>
+            <li>Consistency, idempotency, retries, and failure behavior.</li>
+          </ul>
+        </div>
+        <div class="llm-panel">
+          <h4>Judge should catch</h4>
+          <ul>
+            <li>Missing index or scan traps.</li>
+            <li>Schema that cannot serve a required access pattern.</li>
+            <li>Duplicate writes, stale confirmations, hot partitions, and weak pagination.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="llm-prompt" id="schemaPrompt"></div>
+      <textarea class="llm-answer" id="schemaAnswer" placeholder="Write your API/schema answer here. Include endpoints, entities/tables, keys/indexes, consistency assumptions, idempotency/retry behavior, and known tradeoffs."></textarea>
+      <div class="llm-actions">
+        <button class="btn-mini" onclick="schemaRandomPrompt()">Random drill</button>
+        <button class="btn-mini" onclick="schemaCopyPrompt()">Copy drill only</button>
+        <button class="btn-mini" onclick="schemaCopyPacket()">Copy schema judge packet + my answer</button>
+        <span class="llm-status" id="schemaStatus"></span>
+      </div>
+    </div>
+
     <!-- Back-of-envelope drills -->
     <div class="ex-group-label">Back-of-envelope drills</div>
 
@@ -3810,7 +3929,7 @@ value(s) = gauge / counter readings</div>
   <div id="section-quiz" class="section">
     <div class="section-intro">
       <h2>Quiz</h2>
-      <p>All 35 questions across every topic, combined. Each topic section also has its own short quiz at the bottom. Read the explanations carefully — they contain nuances that come up in interviews.</p>
+      <p>Every question across every topic, combined. Each topic section also has its own short quiz at the bottom. Read the explanations carefully — they contain nuances that come up in interviews.</p>
     </div>
     <div class="quiz-wrap">
       <div class="progress-track"><div class="progress-fill" id="qprog" style="width:0%"></div></div>
@@ -3905,11 +4024,19 @@ const Qs=[
   {q:"Where should large media files and ML model checkpoints live?",o:["A block volume (EBS)","Object storage (S3/GCS)","The relational DB","A shared file mount"],a:1,e:"Object storage is cheap, durable (11 nines), HTTP-accessible, and immutable — ideal for blobs, backups, data lakes, and checkpoints. Block volumes are for low-latency DB/OS disks; file storage is for POSIX sharing across workers."},
   {q:"Decision: the caller needs the result immediately and the work is short. Sync or async?",o:["Async via a queue","Synchronous","Always async","Fire-and-forget"],a:1,e:"Synchronous is simpler, gives the result now, and provides clear back-pressure. Go async only for slow/heavy work, spikes to absorb, or decoupling/fan-out — don't queue short jobs reflexively."},
   {q:"Decision: building the timeline for a celebrity with 50M followers. Fanout on write or on read?",o:["Fanout on write (precompute)","Fanout on read (assemble at read)","Neither","Both equally"],a:1,e:"Fanout-on-write would explode one post into 50M timeline writes. For celebrities, assemble at read time (fanout-on-read) and merge; use fanout-on-write only for normal-sized audiences. The hybrid of both is the standard answer."},
-  {q:"How does a gossip protocol spread membership info across N nodes?",o:["A central registry pushes to all","Each node tells random peers; it spreads in ~O(log N) rounds","Every node broadcasts to every other each second","Only the leader knows who is alive"],a:1,e:"Gossip is decentralised: each node periodically exchanges state with a few random peers, so info propagates epidemically in ~O(log N) rounds — no coordinator, no single point of failure. The tradeoff is eventually-consistent membership (brief disagreement). Used by Cassandra, DynamoDB, Consul."}
+  {q:"How does a gossip protocol spread membership info across N nodes?",o:["A central registry pushes to all","Each node tells random peers; it spreads in ~O(log N) rounds","Every node broadcasts to every other each second","Only the leader knows who is alive"],a:1,e:"Gossip is decentralised: each node periodically exchanges state with a few random peers, so info propagates epidemically in ~O(log N) rounds — no coordinator, no single point of failure. The tradeoff is eventually-consistent membership (brief disagreement). Used by Cassandra, DynamoDB, Consul."},
+  {q:"You move from active-passive to active-active across regions. What new problem must you solve?",o:["DNS propagation delay","Write conflict resolution and split-brain","TLS certificate rotation","Higher storage cost only"],a:1,e:"Active-passive has one writer, so failover is simple and there are no conflicts. Active-active lets multiple regions accept writes to the same key concurrently — you must resolve conflicts (last-write-wins, CRDTs, or home-region-per-key) and prevent split-brain. That complexity is the price of low-latency local writes."},
+  {q:"Each user almost always writes from one region. Cheapest way to get local write latency without global conflict resolution?",o:["Synchronous replication to every region","Home-region per user/key (route their writes to one region)","Disable replication","A bigger primary instance"],a:1,e:"Pinning each user/key to a home region means their writes never race another region, so you avoid global conflict resolution while keeping writes local. It also helps satisfy data-residency requirements. True multi-master is only needed when the same key is written from many regions."},
+  {q:"Your rate limiter becomes unavailable. For a free, read-only consumer feed, the usual choice is to…",o:["Fail-closed — block all traffic","Fail-open — allow requests through","Crash the service","Return cached errors"],a:1,e:"Fail-open trades the protection for availability: a missing rate limiter on a low-stakes consumer path shouldn't take the product down. The opposite holds for paid/admin/security endpoints, where unlimited traffic risks abuse or cost — there you fail closed. Same component, opposite choice by stakes."},
+  {q:"The authentication service is down. The safe default is to…",o:["Fail-open and treat everyone as logged in","Fail-closed and reject requests","Skip auth for GET requests","Serve the admin panel only"],a:1,e:"Auth is a safety control: if you can't verify identity, serving the request risks exposing private or privileged data, so you fail closed. The general rule — fail-open for availability when stakes are low, fail-closed for safety when being wrong is dangerous (auth, payments, security)."},
+  {q:"What's the natural shard key for chat messages, and the catch?",o:["user_id; no catch","conversation_id; a huge group becomes a hot shard","timestamp; perfectly balanced","random; easy to query"],a:1,e:"Messages are read and written per conversation, so conversation_id keeps a conversation together. The catch: a very large group (say 500k members) concentrates load on one shard — mitigate with sub-sharding, a dedicated cache, or fanout-on-read for that hot key."},
+  {q:"Why is a monotonically increasing value (timestamp, auto-increment id) a poor shard key?",o:["It can't be indexed","All new writes land on the newest shard — a hot spot","It uses too much disk","It breaks foreign keys"],a:1,e:"A monotonic key sends every fresh write to the same 'latest' shard, creating a write hot spot while older shards sit idle. Good shard keys are high-cardinality and evenly accessed (a hash, user_id, or conversation_id) so load spreads across all shards."},
+  {q:"For a large video-streaming service, which cost usually dominates?",o:["Database storage","Egress / CDN bandwidth","Application CPU","DNS queries"],a:1,e:"Serving video pushes enormous volumes of bytes to viewers, so egress and CDN bandwidth dominate the bill. Knowing the cost-dominant component focuses the design — metrics/logs are dominated by ingest+retention, ML serving by GPU utilization, feeds by fanout/write amplification."},
+  {q:"A page loads via OFFSET 1000000 LIMIT 20 and is very slow. The fix?",o:["Increase LIMIT","Cursor / keyset pagination (WHERE id < last_seen)","Add more replicas","Remove the index"],a:1,e:"OFFSET must scan and discard every preceding row, so deep pages get linearly slower — a scan trap. Cursor (keyset) pagination uses the index to jump straight to the next page with a WHERE clause on the last-seen key, staying fast no matter how deep you go."},
 ];
 
 // section tag per question, parallel to the Qs array order
-const QSEC=['cap','consensus','caching','replication','transactions','consensus','transactions','time','partitioning','messaging','ratelimiting','reliability','cap','reliability','caching','reliability','messaging','consensus','cap','replication','transactions','partitioning','scalability','ratelimiting','scalability','scalability','time','patterns','patterns','patterns','loadbalancing','loadbalancing','framework','reliability','reliability','framework','partitioning','pipelines','framework','framework','time'];
+const QSEC=['cap','consensus','caching','replication','transactions','consensus','transactions','time','partitioning','messaging','ratelimiting','reliability','cap','reliability','caching','reliability','messaging','consensus','cap','replication','transactions','partitioning','scalability','ratelimiting','scalability','scalability','time','patterns','patterns','patterns','loadbalancing','loadbalancing','framework','reliability','reliability','framework','partitioning','pipelines','framework','framework','time','decisions','decisions','decisions','decisions','decisions','decisions','decisions','decisions'];
 const QUIZ=Qs.map((q,i)=>({q:q.q,o:q.o,a:q.a,e:q.e,s:QSEC[i]||'misc',id:i}));
 
 // Quiz answers persist across reloads, keyed by question id (shared by section + combined quizzes)
@@ -4238,7 +4365,189 @@ function flipFlash(){fFlip=!fFlip;renderFlash();}
 function nextFlash(){fIdx=(fIdx+1)%FLASH.length;fFlip=false;renderFlash();}
 function shuffleFlash(){for(let i=FLASH.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=FLASH[i];FLASH[i]=FLASH[j];FLASH[j]=t;}fIdx=0;fFlip=false;renderFlash();}
 
-document.addEventListener('DOMContentLoaded',()=>{calcEstimate();renderFlash();csInit();});
+// ---- LLM-judged mock packet ----
+const LLM_MOCK_PROMPTS=[
+  'Design a collaborative document editor like Google Docs. Focus on real-time collaboration, conflict handling, document storage, permissions, and offline/reconnect behavior.',
+  'Design a notification system for a large social app. Support push, email, in-app inbox, preferences, deduplication, and delivery tracking.',
+  'Design search autocomplete for a global shopping app. Support low latency prefix suggestions, personalization, trending terms, and safe rollout of new indexes.',
+  'Design a Dropbox/Google Drive style file storage system. Support large uploads, sync across devices, sharing permissions, version history, and conflict resolution.',
+  'Design a web crawler for a search engine. Cover URL frontier management, politeness, deduplication, content extraction, failure handling, and scaling.',
+  'Design a Top-K trending topics service. Support high write volume, time windows, approximate vs exact counts, hot keys, and dashboard queries.',
+  'Design a distributed job scheduler. Support delayed jobs, retries, exactly-once effect, worker leases, priority, and dead-letter handling.',
+  'Design an ad-click aggregation system. Support high ingest rate, deduplication, near-real-time reporting, late events, and fraud/anomaly signals.',
+  'Design a restaurant-near-me service. Support geospatial search, freshness, ranking, map movement, and high read traffic in dense cities.',
+  'Design a checkout/inventory reservation system. Support carts, inventory holds, payment retries, no oversell, and graceful recovery from partial failures.'
+];
+const LLM_JUDGE_INSTRUCTIONS=`You are a strict system design interviewer. Grade the candidate's answer to the prompt below.
+
+Evaluate the answer as an interview performance, not as a polished architecture document.
+
+Use this rubric, scoring each category 1-4:
+1. Requirements and scope: clarified core features, NFRs, assumptions, and avoided solving too much.
+2. API and data model: APIs/entities/schema match the access patterns and consistency needs.
+3. Architecture: clear high-level design, correct hot path, sensible components, and no unjustified heavy tools.
+4. Scale and bottlenecks: estimates or reasoning identify the dominant load, hot keys, fanout, storage, bandwidth, or tail latency.
+5. Consistency and reliability: handles retries, idempotency, data loss, stale reads, failover, backpressure, and disaster cases where relevant.
+6. Tradeoffs and judgment: explains why alternatives were accepted or rejected.
+7. Communication: structured, concise, and easy for an interviewer to steer.
+
+Return:
+- Overall level: weak / borderline / hireable / strong.
+- Scores table with one sentence per category.
+- The 5 highest-leverage missing or weak points.
+- 3 realistic interviewer follow-up questions.
+- A concise improved outline the candidate could use next time.
+
+Do not simply design the system from scratch. Judge the candidate's answer and explain how to improve it.`;
+let llmPromptIdx=0;
+function llmSetPrompt(){
+  const el=document.getElementById('llmPrompt');
+  if(el)el.textContent=LLM_MOCK_PROMPTS[llmPromptIdx];
+}
+function llmRandomPrompt(){
+  llmPromptIdx=Math.floor(Math.random()*LLM_MOCK_PROMPTS.length);
+  llmSetPrompt();
+  llmStatus('New prompt selected.');
+}
+function llmPacket(includeAnswer){
+  const prompt=LLM_MOCK_PROMPTS[llmPromptIdx];
+  const answer=(document.getElementById('llmAnswer')?.value||'').trim();
+  return LLM_JUDGE_INSTRUCTIONS+'\n\nPROMPT:\n'+prompt+'\n\nCANDIDATE ANSWER:\n'+(includeAnswer?(answer||'[Paste candidate answer here]'):'[Paste candidate answer here]');
+}
+function llmStatus(msg){
+  const el=document.getElementById('llmStatus');
+  if(!el)return;
+  el.textContent=msg;
+  clearTimeout(llmStatus.t);
+  llmStatus.t=setTimeout(()=>{el.textContent='';},1800);
+}
+function llmCopy(text,msg){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>llmStatus(msg)).catch(()=>llmFallback(text));
+  }else llmFallback(text);
+}
+function llmFallback(text){
+  const ta=document.createElement('textarea');
+  ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');llmStatus('Copied.');}catch(e){llmStatus('Select and copy manually.');}
+  document.body.removeChild(ta);
+}
+function llmCopyPrompt(){llmCopy(LLM_MOCK_PROMPTS[llmPromptIdx],'Prompt copied.');}
+function llmCopyPacket(){llmCopy(llmPacket(true),'Judge packet copied.');}
+
+// ---- LLM-judged API/data/schema drills ----
+const SCHEMA_DRILLS=[
+  {
+    title:'Chat history + send API',
+    prompt:'Design the API and data model for chat conversations. Support sending idempotent messages, fetching recent history, read receipts, unread counts, group membership, and reconnect catch-up.',
+    access:['Fetch most recent N messages in a conversation, newest last or newest first.','Send a message safely when the client retries after timeout.','Show unread count per conversation for one user.','List members and permissions for a group conversation.']
+  },
+  {
+    title:'Orders, payments, refunds',
+    prompt:'Design APIs and relational tables for an ecommerce checkout system with orders, payments, refunds, and inventory reservation. Prevent double-charge and oversell.',
+    access:['Create an order with an idempotency key.','Reserve inventory before charging.','Fetch order detail with line items and payment state.','Issue a refund exactly once and preserve an audit trail.']
+  },
+  {
+    title:'Notification inbox',
+    prompt:'Design APIs and data model for an in-app notification inbox plus push delivery. Support preferences, deduplication, unread counts, and coalescing bursts.',
+    access:['List a user inbox by recency with cursor pagination.','Mark one notification or all notifications as read.','Deduplicate the same source event across retries.','Check user/channel preferences before fanout.']
+  },
+  {
+    title:'DynamoDB single-table ecommerce',
+    prompt:'Design DynamoDB PK/SK and GSIs for ecommerce users, orders, order items, and product-order lookup. Avoid full table scans.',
+    access:['Get a user profile.','List a user orders newest-first.','Fetch an order with all line items.','Admin: list all orders containing a product.','Support order status lookup if you choose to add it.']
+  },
+  {
+    title:'URL shortener API/data',
+    prompt:'Design APIs and storage schema for URL shortening, redirects, expiration, custom aliases, and analytics without putting analytics on the hot redirect path.',
+    access:['Create a short link with optional custom alias and expiration.','Redirect by code with low latency.','Fetch owner analytics for a code.','Record click events asynchronously and tolerate duplicate events.']
+  },
+  {
+    title:'Feature store schema',
+    prompt:'Design APIs and data model for a feature store with offline training data and online low-latency serving. Avoid train/serve skew and future leakage.',
+    access:['Register a versioned feature definition.','Fetch online features for entity IDs in <10ms.','Build a point-in-time correct training dataset.','Materialize batch and streaming features into the online store.']
+  },
+  {
+    title:'Outbox + event publishing',
+    prompt:'Design the outbox table, relay behavior, and consumer contract for reliable order-created and payment-captured events.',
+    access:['Write business row and outbox row atomically.','Relay unpublished events to a log/broker.','Handle relay crash after publish but before marking sent.','Let consumers dedupe and replay safely.']
+  },
+  {
+    title:'Metrics/time-series API',
+    prompt:'Design ingest/query APIs and storage schema for a metrics system ingesting millions of points/sec with rollups and retention.',
+    access:['Batch ingest metric points with tags.','Query one series over a time range.','Query aggregate dashboard panels over long ranges.','Expire raw data while keeping rollups.','Avoid high-cardinality hot partitions.']
+  },
+  {
+    title:'File sharing permissions',
+    prompt:'Design APIs and schema for file/folder sharing like Google Drive. Support owners, editors, viewers, inherited folder permissions, share links, and audit logs.',
+    access:['Check whether user U can read/write file F.','List files shared with a user.','Create/revoke a share link.','Propagate or resolve inherited permissions from parent folders.','Write an audit event for permission changes.']
+  },
+  {
+    title:'Restaurant search API/data',
+    prompt:'Design APIs and indexes for restaurants-near-me search. Support map bounds, filters, ranking, freshness, and high read traffic in dense cities.',
+    access:['Find restaurants within a radius or map viewport.','Filter by cuisine/open-now/rating.','Update restaurant availability and location metadata.','Paginate stable results while the map moves.']
+  }
+];
+const SCHEMA_JUDGE_INSTRUCTIONS=`You are a strict system design interviewer grading an API and data-model artifact.
+
+Grade whether the candidate's API/schema can actually satisfy the listed access patterns and constraints.
+
+Use this rubric, scoring each category 1-4:
+1. API contract: clear resources/actions, request and response shape, pagination, errors, and auth/user source.
+2. Data model: entities/tables/items map cleanly to the domain and avoid hidden many-to-many mistakes.
+3. Keys and indexes: primary keys, sort keys, secondary indexes, uniqueness constraints, and query direction serve every access pattern without accidental full scans.
+4. Consistency and transactions: strong vs eventual choices are explicit; invariants use transactions, CAS, constraints, or version/fencing where needed.
+5. Idempotency and retries: retry-safe writes, dedupe keys, outbox/consumer idempotency, and duplicate delivery handling are correct.
+6. Scale and hot spots: design avoids hot partitions, unbounded rows, expensive counts, offset pagination at scale, and read/write amplification surprises.
+7. Evolution and operations: schema/API can evolve safely; includes auditability, backfill/migration, TTL/retention, or repair where relevant.
+
+Return:
+- Overall level: weak / borderline / hireable / strong.
+- Scores table with one sentence per category.
+- Which required access patterns are fully supported, partially supported, or unsupported.
+- The 5 highest-leverage fixes.
+- 3 interviewer follow-up questions about edge cases.
+
+Do not redesign from scratch. Judge the submitted artifact and give concrete corrections.`;
+let schemaPromptIdx=0;
+function schemaText(d){
+  return d.title+'\n\n'+d.prompt+'\n\nAccess patterns:\n- '+d.access.join('\n- ');
+}
+function schemaSetPrompt(){
+  const el=document.getElementById('schemaPrompt');
+  if(el)el.textContent=schemaText(SCHEMA_DRILLS[schemaPromptIdx]);
+}
+function schemaRandomPrompt(){
+  schemaPromptIdx=Math.floor(Math.random()*SCHEMA_DRILLS.length);
+  schemaSetPrompt();
+  schemaStatus('New drill selected.');
+}
+function schemaStatus(msg){
+  const el=document.getElementById('schemaStatus');
+  if(!el)return;
+  el.textContent=msg;
+  clearTimeout(schemaStatus.t);
+  schemaStatus.t=setTimeout(()=>{el.textContent='';},1800);
+}
+function schemaPacket(includeAnswer){
+  const answer=(document.getElementById('schemaAnswer')?.value||'').trim();
+  return SCHEMA_JUDGE_INSTRUCTIONS+'\n\nDRILL:\n'+schemaText(SCHEMA_DRILLS[schemaPromptIdx])+'\n\nCANDIDATE API / DATA MODEL:\n'+(includeAnswer?(answer||'[Paste candidate answer here]'):'[Paste candidate answer here]');
+}
+function schemaCopy(text,msg){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>schemaStatus(msg)).catch(()=>schemaFallback(text));
+  }else schemaFallback(text);
+}
+function schemaFallback(text){
+  const ta=document.createElement('textarea');
+  ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');schemaStatus('Copied.');}catch(e){schemaStatus('Select and copy manually.');}
+  document.body.removeChild(ta);
+}
+function schemaCopyPrompt(){schemaCopy(schemaText(SCHEMA_DRILLS[schemaPromptIdx]),'Drill copied.');}
+function schemaCopyPacket(){schemaCopy(schemaPacket(true),'Schema judge packet copied.');}
+
+document.addEventListener('DOMContentLoaded',()=>{calcEstimate();renderFlash();csInit();llmSetPrompt();schemaSetPrompt();});
 
 // ---- Progress tracking (persisted in localStorage) ----
 const PROG_KEY='dsprep_progress_v1';
