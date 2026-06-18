@@ -2549,7 +2549,7 @@ each step independently deployable &amp; rollback-safe</div>
 </style>
             <div class="vidv-flow"><div class="vidv-node"><div class="vidv-t">Client</div><div class="vidv-s">requests upload</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">App API</div><div class="vidv-s">metadata + presigned URL</div></div><div class="vidv-arr">→</div><div class="vidv-node good"><div class="vidv-t">Object store</div><div class="vidv-s">direct bytes</div></div></div>
             <div class="vidv-flow"><div class="vidv-node good"><div class="vidv-t">Storage event</div><div class="vidv-s">upload complete</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Queue</div><div class="vidv-s">async jobs</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Transcoders</div><div class="vidv-s">240p..4K renditions</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">CDN</div><div class="vidv-s">serve segments</div></div></div>
-            <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback egress.</div>
+            <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback <b>egress</b> — the bytes streamed out to viewers.</div>
           </div>
           <div class="tag-row"><span class="tag">presigned URLs</span><span class="tag">direct-to-S3 + CDN</span><span class="tag">storage events</span></div>
         </div>
@@ -2673,8 +2673,86 @@ each step independently deployable &amp; rollback-safe</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Proximity-based services</div><div class="card-sub">"Find things near me"</div></div><span class="badge badge-purple">Pattern</span></div>
         <div class="card-body">
           <p>Location search (Uber, Yelp, food delivery) needs a <strong>geospatial index</strong>. Divide the map into regions so the system can exclude vast empty areas and shrink the search space. Implementations: PostgreSQL + PostGIS, Redis geospatial type, or Elasticsearch geo-queries; algorithms like geohash, quadtrees, or S2/H3 cells.</p>
+          <p><strong>The trick (geohash):</strong> encode (lat, lng) into a short string where a <em>shared prefix means physical closeness</em> — <code>9q8yy</code> and <code>9q8yz</code> are adjacent cells, <code>9q8</code> is the bigger block containing both. That collapses 2D proximity into a 1D <strong>prefix range</strong>, so a plain B-tree or a Redis sorted set can answer "near me" with an ordinary range scan — no special index engine required. Longer prefix = smaller, more precise cell.</p>
+          <div class="geo" onclick="event.stopPropagation()">
+<style>
+.geo{display:grid;gap:10px;margin:.75rem 0}
+.geo-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:8px;align-items:center}
+.geo-box{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.geo-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.geo-s{font-size:11px;font-weight:700;line-height:1.35;margin-top:4px;color:var(--color-text-secondary)}
+.geo-arr{text-align:center;font-size:20px;font-weight:800;color:var(--color-text-tertiary)}
+.geo-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.geo-cap b{color:var(--color-text-primary)}
+.geo-cmp{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:560px){.geo-flow{grid-template-columns:1fr}.geo-arr{transform:rotate(90deg)}}
+</style>
+          <div class="geo-flow">
+            <div class="geo-box"><div class="geo-t">① Narrow by cell</div><div class="geo-s">my cell + its 8 neighbors — a prefix range scan</div></div>
+            <div class="geo-arr">→</div>
+            <div class="geo-box"><div class="geo-t">② Fetch candidates</div><div class="geo-s">the few hundred points inside those cells</div></div>
+            <div class="geo-arr">→</div>
+            <div class="geo-box"><div class="geo-t">③ Exact distance</div><div class="geo-s">compute real distance, sort, keep within radius</div></div>
+          </div>
+          <div class="geo-cap"><b>Coarse filter, then precise.</b> The index isn't exact — it cheaply throws away the 99.9% of the world that's far, leaving a tiny candidate set to measure precisely. <b>Why the 8 neighbors:</b> a point right at your cell's edge may be closer than anything inside your own cell, so you always scan the surrounding ring too.</div>
+          </div>
+          <p><strong>geohash vs quadtree vs S2/H3 — pick by data shape:</strong></p>
+          <div class="giz" onclick="event.stopPropagation()">
+<style>
+.giz{display:grid;gap:10px;margin:.75rem 0}
+.giz-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.giz-fig{margin:0;display:grid;gap:5px;padding:9px;border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary)}
+.giz-fig svg{width:100%;height:auto;display:block;border-radius:6px}
+.giz-ft{font-size:12px;font-weight:800;color:var(--color-text-primary);line-height:1.2}
+.giz-fs{font-size:10.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.35}
+.giz-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.giz-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.giz-grid{grid-template-columns:1fr}}
+</style>
+            <div class="giz-grid">
+              <figure class="giz-fig">
+                <div class="giz-ft">Geohash</div>
+                <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+                  <rect x="1.5" y="1.5" width="36" height="36" fill="var(--color-background-warning)" opacity=".55"/>
+                  <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M37.5 1V149 M75 1V149 M112.5 1V149"/><path d="M1 37.5H149 M1 75H149 M1 112.5H149"/></g>
+                  <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
+                </svg>
+                <div class="giz-fs">Fixed grid, dead simple, lives in any sorted store. Weak when density is very uneven (one cell overloads).</div>
+              </figure>
+              <figure class="giz-fig">
+                <div class="giz-ft">Quadtree</div>
+                <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+                  <rect x="1.5" y="1.5" width="17.25" height="17.25" fill="var(--color-background-info)" opacity=".5"/>
+                  <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M75 1V149 M1 75H149"/><path d="M37.5 1V75 M1 37.5H75"/><path d="M18.75 1V37.5 M1 18.75H37.5"/></g>
+                  <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
+                </svg>
+                <div class="giz-fs">Subdivides only dense areas — great for cities-vs-ocean skew. In-memory tree, must rebuild.</div>
+              </figure>
+              <figure class="giz-fig">
+                <div class="giz-ft">S2 / H3</div>
+                <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+                  <defs><polygon id="hx" points="0,-20 17.3,-10 17.3,10 0,20 -17.3,10 -17.3,-10"/></defs>
+                  <g stroke="var(--color-border-info)" stroke-width="1.1" fill="var(--color-background-secondary)">
+                    <use href="#hx" x="20" y="30"/><use href="#hx" x="54.6" y="30"/><use href="#hx" x="89.2" y="30"/><use href="#hx" x="123.8" y="30"/>
+                    <use href="#hx" x="37.3" y="60"/><use href="#hx" x="71.9" y="60"/><use href="#hx" x="106.5" y="60"/>
+                    <use href="#hx" x="20" y="90"/><use href="#hx" x="89.2" y="90"/><use href="#hx" x="123.8" y="90"/>
+                    <use href="#hx" x="37.3" y="120"/><use href="#hx" x="71.9" y="120"/><use href="#hx" x="106.5" y="120"/>
+                  </g>
+                  <g stroke="var(--color-border-info)" stroke-width="1.1" fill="var(--color-background-info)">
+                    <use href="#hx" x="20" y="90"/><use href="#hx" x="89.2" y="90"/><use href="#hx" x="37.3" y="60"/><use href="#hx" x="71.9" y="60"/><use href="#hx" x="37.3" y="120"/><use href="#hx" x="71.9" y="120"/>
+                  </g>
+                  <use href="#hx" x="54.6" y="90" fill="var(--color-background-success)" stroke="var(--color-border-success)" stroke-width="1.5"/>
+                  <circle cx="54.6" cy="90" r="2.8" fill="var(--color-text-success)"/>
+                </svg>
+                <div class="giz-fs">Hierarchical cells; H3's hexagons give every neighbor equal distance (highlighted) — why Uber uses it for matching.</div>
+              </figure>
+            </div>
+            <div class="giz-cap"><b>How the cells actually look.</b> Geohash lays a uniform grid — simple, but a dense city overloads one cell. Quadtree subdivides only where points cluster, adapting to skew. H3 tiles with hexagons so all six neighbors sit at an equal distance — handy for matching &amp; coverage.</div>
+          </div>
           <div class="note"><strong>Right-size it:</strong> a geo index only pays off at hundreds of thousands–millions of items. For ~1,000 items, just scan them — the index overhead isn't worth it. And queries are usually local, not global.</div>
-          <div class="tag-row"><span class="tag">geohash / quadtree / S2</span><span class="tag">PostGIS, Redis geo</span><span class="tag">Uber, Yelp</span></div>
+          <div class="tag-row"><span class="tag">prefix = proximity</span><span class="tag">cell + 8 neighbors</span><span class="tag">coarse filter → exact distance</span><span class="tag">geohash / quadtree / H3</span><span class="tag">PostGIS, Redis geo</span></div>
         </div>
       </div>
 
@@ -2682,9 +2760,7 @@ each step independently deployable &amp; rollback-safe</div>
         <div class="card-header"><div class="card-meta"><div class="card-title">Selecting &amp; combining patterns</div><div class="card-sub">They compose</div></div><span class="badge badge-gray">Reference</span></div>
         <div class="card-body">
           <p>Real designs stack patterns. A video platform might use <strong>Large Blobs</strong> for upload, <strong>Long-Running Tasks</strong> for transcoding, <strong>Real-time Updates</strong> for progress, and <strong>Multi-Step Processes</strong> to coordinate the whole flow.</p>
-          <p>The skill is naming which patterns a problem needs and why — then starting simple (polling, single-server orchestration, single DB) and adding complexity only when a stated requirement demands it. Proactively calling out the pattern signals architectural maturity.</p>
-          <div class="note"><strong>Credit:</strong> these patterns are adapted from <em>Hello Interview — System Design in a Hurry</em> (hellointerview.com), restated here in brief. Their site has full worked deep-dives for each.</div>
-          <div class="tag-row"><span class="tag">compose patterns</span><span class="tag">simple first</span><span class="tag">name the pattern out loud</span></div>
+          <p>The skill is naming which patterns a problem needs and why — then starting simple (polling, single-server orchestration, single DB) and adding complexity only when a stated requirement demands it. Proactively calling out the pattern signals architectural maturity.</p>          <div class="tag-row"><span class="tag">compose patterns</span><span class="tag">simple first</span><span class="tag">name the pattern out loud</span></div>
         </div>
       </div>
 
