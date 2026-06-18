@@ -2518,6 +2518,20 @@ const UNITS=[
    ]},
    {t:'order',q:'Order these latencies FASTEST → SLOWEST.',items:['Memory read (~100ns)','SSD read (~16µs)','Datacenter round trip (~0.5ms)','Cross-continent round trip (~150ms)']},
    {t:'mcq',q:'Roughly, 1 day in seconds is…',o:['~3,600','~86,400','~1,000,000','~604,800'],a:1,why:'86,400 ≈ 10^5 — the handiest estimation constant.'},
+   {t:'teach',h:'Round numbers that make the math easy',body:[
+     {k:'tldr',t:'You want the right power of 10, not a precise figure. Round hard and lean on a couple of constants.'},
+     {k:'point',i:'🔟',t:'<b>1M/day ≈ ~12 QPS</b> (1,000,000 ÷ 86,400). So 1B/day ≈ ~12k QPS — just carry the zeros.'},
+     {k:'point',i:'📏',t:'<b>Byte sizes</b>: 1 KB≈10³, 1 MB≈10⁶, 1 GB≈10⁹, 1 TB≈10¹², 1 PB≈10¹⁵. And 2¹⁰≈1K, 2²⁰≈1M, 2³⁰≈1B.'},
+     {k:'point',i:'📈',t:'<b>Peak ≈ 2–10× average</b> · <b>replication ×3</b> · <b>cache the hot ~20%</b>. Plug the rules in, don’t agonize.'}
+   ]},
+   {t:'mcq',q:'1 million requests per day is roughly how many QPS?',o:['~1','~12','~120','~1,000'],a:1,why:'1,000,000 ÷ 86,400 ≈ 11.6 → ~12 QPS. Memorize it: a million a day is only ~12/sec, so 1B/day ≈ ~12k QPS.'},
+   {t:'mcq',q:'100M DAU each make ~10 requests/day. Average QPS?',o:['~1k','~12k','~120k','~1M'],a:1,why:'100M × 10 = 1B requests/day; ÷ 86,400 ≈ 11,574 → ~12k QPS average.'},
+   {t:'mcq',q:'Average load is ~12k QPS. What should you provision for?',o:['~12k — the average is enough','a peak of ~2–10× → ~25k–120k','half, ~6k','exactly 2×, 24k'],a:1,why:'Traffic spikes, so size for peak = a few × average (2–10×), not the daily mean.'},
+   {t:'mcq',q:'500M writes/day, 1 KB each, kept 1 year, 3× replication. Rough storage?',o:['~5 TB','~50 TB','~0.5 PB','~50 PB'],a:2,why:'500M × 1KB = 500 GB/day; × 365 ≈ 180 TB/year; × 3 replicas ≈ ~0.5 PB. Round to the nearest power of 10.'},
+   {t:'mcq',q:'1M users each streaming video at 5 Mbps. Aggregate egress bandwidth?',o:['~5 Gbps','~50 Gbps','~5 Tbps','~5 Pbps'],a:2,why:'1,000,000 × 5 Mbps = 5,000,000 Mbps = 5 Tbps. That Tbps wall is why video must be served from a CDN.'},
+   {t:'cloze',q:'Fill the estimation shortcuts.',distract:['3,600','42'],text:[
+     'Divide a daily count by ',{blank:'86,400',alt:['86400','~10^5']},' to get QPS — so 1M/day ≈ ',{blank:'12',alt:['~12']},' QPS. Provision for the ',{blank:'peak',alt:['peak load']},' (≈2–10× average), and multiply raw storage by ',{blank:'3',alt:['×3','3x']},' for replication.'
+   ]},
    {t:'recall',q:'Give the 3-step recipe for capacity estimation.',model:['Traffic: DAU × actions ÷ 86,400 → QPS; peak = 2–10×.','Storage: writes/day × bytes × retention × replication.','Cache: 80/20 — size the hot working set, not total reads.']}
   ]},
   {id:'scale-2',title:'Scale out',steps:[
@@ -3615,9 +3629,7 @@ const UNITS=[
    {t:'sort',q:'SQL or NoSQL?',buckets:['SQL','NoSQL'],items:[
      {text:'transactions + joins (orders, payments)',b:0},{text:'huge scale, simple access, flexible schema',b:1},{text:'strong consistency on money',b:0},{text:'write-heavy event firehose',b:1}
    ]},
-   {t:'sort',q:'Message queue or log (Kafka)?',buckets:['Queue','Log'],items:[
-     {text:'one consumer per message, no replay',b:0},{text:'multiple subscribers + replay',b:1},{text:'ordered event stream',b:1},{text:'work distribution',b:0}
-   ]},
+   {t:'match',q:'Queue, Pub/Sub, or Log — match the need.',pairs:[['Distribute work: one consumer per message','Queue (SQS/RabbitMQ)'],['Broadcast each event to every subscriber','Pub/Sub (SNS/Redis)'],['Durable, replayable, ordered event stream','Log (Kafka)']]},
    {t:'sort',q:'Cache or read replica?',buckets:['Cache','Read replica'],items:[
      {text:'hot keys, sub-ms reads',b:0},{text:'scale ALL reads incl. cold',b:1},{text:'offload the primary / analytics',b:1},{text:'cut repeated lookups',b:0}
    ]},
