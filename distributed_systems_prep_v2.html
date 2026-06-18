@@ -107,6 +107,11 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .lenpill{min-width:36px;padding:8px 0;border:none;border-radius:10px;background:transparent;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit}
 .lenpill.on{background:#A560E8;color:#fff}
 .bonusline{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:-10px 0 22px;font-size:13px;font-weight:800;color:var(--purple-d)}
+.chapsummrow{margin:3px 18px 0}
+.chapsumm{border:none;background:transparent;font-weight:800;font-size:12.5px;color:var(--muted);cursor:pointer;font-family:inherit;padding:2px 0}
+.chapgrid{display:flex;flex-wrap:wrap;gap:6px;margin:4px 18px 4px}
+.chapchip{padding:6px 11px;border:2px solid var(--line);border-radius:999px;background:#fff;font-weight:800;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit}
+.chapchip.on{background:#F5ECFD;border-color:#A560E8;color:#7C3AED}
 .optrow input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
 
 .unit{margin:8px 0 4px;scroll-margin-top:118px}
@@ -1947,11 +1952,14 @@ const UNITS=[
  blurb:'Decouple services and absorb spikes with queues & logs.',
  lessons:[
   {id:'msg-1',title:'Queues vs logs',steps:[
-   {t:'teach',h:'Two shapes',body:[
-     {k:'vs',a:{h:'Queue (SQS/Rabbit)',t:'message goes to ONE consumer, then gone. No replay.'},b:{h:'Log (Kafka)',t:'append-only + retained; many consumers, replay by offset.'}},
-     {k:'point',i:'🔢',t:'Kafka splits a topic into <b>partitions</b>. Ordering is guaranteed <b>only within a partition</b>, not across — so pick a partition key (e.g. user_id) to keep one key’s events in order.'},
+   {t:'teach',h:'Three shapes',body:[
+     {k:'tldr',t:'Three ways to move messages — they differ in <b>who receives each message</b> and <b>whether it’s kept</b>.'},
+     {k:'point',i:'📨',t:'<b>Queue</b> (SQS/RabbitMQ): each message → <b>one</b> consumer, then it’s gone. Work distribution; no replay.'},
+     {k:'point',i:'📣',t:'<b>Pub/Sub</b> (SNS, Redis, Google Pub/Sub): each message is <b>broadcast to every subscriber</b> of a topic — fan-out. Usually ephemeral: a subscriber that’s offline misses it.'},
+     {k:'point',i:'🪵',t:'<b>Log</b> (Kafka): append-only + retained; <b>consumer groups</b> give pub/sub <i>and</i> replay by offset. Ordered within a partition (key by user_id). The durable superset.'},
      {k:'callout',c:'warn',t:'<b>A queue isn’t free latency-wise.</b> It adds a hop (enqueue + poll) and decouples timing — perfect for spikes, fan-out, and slow work, but it <b>blows a tight synchronous latency budget</b>. Don’t drop one into a &lt;500ms request path just to "decouple" — the caller now waits on a queue it can’t see.'}
    ]},
+   {t:'mcq',q:'Every interested service must receive each event (not split the work between them). Which model?',o:['a queue — one consumer per message','pub/sub (or a log with one consumer group per service) — broadcast to all','a synchronous call to each','a shared database row'],a:1,why:'A queue distributes work (one consumer per message). Pub/Sub broadcasts each message to every subscriber; a Kafka log does the same via one consumer group per service, and adds replay.'},
    {t:'mcq',q:'A request must respond in <500ms. Should you put a queue in its synchronous path?',o:['yes — queues are always faster','no — a queue adds a hop and decouples timing, breaking the latency budget','yes — to add backpressure','only if it’s Kafka'],a:1,why:'Queues shine for spikes / slow work / fan-out (async). In a tight synchronous path they just add latency and hide the wait from the caller.'},
    {t:'teach',h:'Kafka: partitions & offsets',body:[
      {k:'point',i:'👥',t:'<b>Consumer group</b>: each partition → exactly ONE consumer. Parallelism caps at the partition count; extra consumers sit idle. Add partitions to scale out.'},
@@ -4049,6 +4057,15 @@ function renderHome(scrollToNext){
     +'<button class="act speedbtn" id="speedBtn">🎲 Speed run</button>'
     +'<div class="lenpicker">'+[10,15,20].map(n=>'<button class="lenpill'+(speedN===n?' on':'')+'" data-speedn="'+n+'">'+n+'</button>').join('')+'</div>'
     +'</div>';
+  const allUnitIds=UNITS.map(u=>u.id);
+  const speedSel=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits.filter(id=>allUnitIds.includes(id)):null; // null = all chapters
+  h+='<div class="chapsummrow"><button class="chapsumm" id="chapToggle">🗂 Chapters: '+(speedSel?speedSel.length+' selected':'All')+' '+(S.speedPickerOpen?'▾':'▸')+'</button></div>';
+  if(S.speedPickerOpen){
+    h+='<div class="chapgrid">'
+      +'<button class="chapchip'+(!speedSel?' on':'')+'" data-chap="__all">All</button>'
+      +UNITS.map(u=>'<button class="chapchip'+((!speedSel||speedSel.includes(u.id))?' on':'')+'" data-chap="'+u.id+'">'+u.icon+' '+(SHORT[u.id]||u.title)+'</button>').join('')
+      +'</div>';
+  }
   h+='<div class="actions">'
     +'<button class="act'+(nMist?' hot':'')+'" id="reviewBtn">🩹 Review mistakes'+(nMist?' ('+nMist+')':'')+'</button>'
     +'<button class="act" id="recallBtn">🗣️ Explain-it drills'+(nRecall?' ('+nRecall+')':'')+'</button>'
@@ -4108,6 +4125,18 @@ function renderHome(scrollToNext){
   APP().querySelectorAll('[data-boss]').forEach(n=>n.onclick=()=>startBoss(n.dataset.boss));
   document.getElementById('speedBtn').onclick=()=>startRandomMix(S.speedN||15);
   APP().querySelectorAll('[data-speedn]').forEach(b=>b.onclick=()=>{S.speedN=+b.dataset.speedn;save();renderHome();});
+  const chapT=document.getElementById('chapToggle');if(chapT)chapT.onclick=()=>{S.speedPickerOpen=!S.speedPickerOpen;save();renderHome();};
+  APP().querySelectorAll('[data-chap]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.chap, ids=UNITS.map(u=>u.id);
+    if(id==='__all'){S.speedUnits=null;}
+    else{
+      let cur=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits.slice():ids.slice(); // null(all) → start from every chapter
+      const next=cur.includes(id)?cur.filter(x=>x!==id):cur.concat(id);
+      if(next.length===0){toast('Keep at least one chapter.');return;}            // never zero
+      S.speedUnits=(next.length===ids.length)?null:next;                          // every chapter → "All"
+    }
+    save();renderHome();
+  });
   document.getElementById('reviewBtn').onclick=startReview;
   document.getElementById('recallBtn').onclick=startRecallReview;
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
@@ -4151,8 +4180,10 @@ function startBoss(uid){
    Bonus: +50 for all-correct, +1 XP per leftover second. */
 function startRandomMix(n){
   n=n||15;
-  const pool=UNITS.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>isQuizStep(s.t)&&s.t!=='recall');
-  if(pool.length<3){toast('Not enough questions to mix yet.');return;}
+  const sel=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits:null; // null = all chapters
+  const units=sel?UNITS.filter(u=>sel.includes(u.id)):UNITS;
+  const pool=units.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>isQuizStep(s.t)&&s.t!=='recall');
+  if(pool.length<3){toast(sel?'Not enough questions in the chosen chapters — pick more.':'Not enough questions to mix yet.');return;}
   const steps=shuffle(pool).slice(0,Math.min(n,pool.length));
   const time=steps.length*12; // ~12s/question, pooled across the whole run
   R={mode:'speed',source:'mix',unit:{id:'speed'},steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time,timeLeft:time};
