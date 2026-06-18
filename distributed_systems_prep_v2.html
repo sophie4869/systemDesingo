@@ -2486,10 +2486,18 @@ const UNITS=[
   {id:'rel-2',title:'Retries & multi-region',steps:[
    {t:'teach',h:'Retries done right',body:[
      {k:'point',i:'📈',t:'Exponential backoff: 1s, 2s, 4s…'},
-     {k:'point',i:'🎲',t:'<b>Jitter</b> so clients don’t retry in sync (retry storm).'},
+     {k:'point',i:'🎲',t:'<b>Jitter</b> so clients don’t retry in sync (retry storm). Full jitter: sleep = random(0, base × 2^attempt).'},
+     {k:'point',i:'✅',t:'Only retry <b>idempotent + retryable</b> errors (timeout, 503 — never a 400), and cap them with a <b>retry budget</b> (≤10% of requests).'},
      {k:'callout',c:'warn',t:'Retry at ONE layer only — 3 layers × 3 retries = 27× amplification in an incident.'}
    ]},
    {t:'mcq',q:'Why add jitter to backoff?',o:['retry faster','prevent synchronized retry storms','make idempotent','cut latency'],a:1,why:'Randomness spreads retries so a recovering service isn’t re-stampeded.'},
+   {t:'match',q:'Retry failure mode → the fix.',pairs:[
+     ['Clients that failed together all retry at the same instant','Jitter — randomize each delay'],
+     ['3 layers each retry 3× → 27 backend calls in an incident','Retry at one layer; fail fast at the rest'],
+     ['Retries pile onto an already-overloaded service','Retry budget (cap at ~10% of requests)'],
+     ['The failure is a 400 or a non-idempotent charge','Don’t retry — only idempotent, retryable errors']
+   ]},
+   {t:'mcq',q:'Which failure is safe to retry automatically?',o:['a 400 Bad Request','a timeout on an idempotent GET','a 403 Forbidden','a duplicate-charge POST with no idempotency key'],a:1,why:'Retry only idempotent, transient failures. A 400/403 will just fail again, and re-sending a non-idempotent write without an idempotency key risks a double charge.'},
    {t:'teach',h:'Multi-region & DR',body:[
      {k:'vs',a:{h:'Active-passive',t:'standby takes over on failure. Simple; failover delay.'},b:{h:'Active-active',t:'all regions serve; needs conflict resolution.'}},
      {k:'point',i:'⏱️',t:'RPO ≈ data you can lose (replication lag); RTO ≈ time to recover.'}
