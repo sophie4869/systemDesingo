@@ -2244,7 +2244,7 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
               </div>
               <div class="db-opt">
                 <div class="db-opt-head"><span style="font-size:16px">📊</span><span class="db-opt-title">Column (OLAP)</span></div>
-                <div class="db-opt-desc">Scan billions of rows but only a few columns. Compression-friendly. Built for aggregates, not point lookups.</div>
+                <div class="db-opt-desc">Scan billions of rows, few columns. Compresses hard — a column is one repetitive type, so run-length &amp; dictionary encoding shrink it. Built for aggregates, not point lookups.</div>
                 <div class="db-examples"><span class="db-ex">ClickHouse</span><span class="db-ex">BigQuery</span><span class="db-ex">Redshift</span></div>
                 <div class="db-use">analytics, dashboards, data warehouse</div>
               </div>
@@ -3326,22 +3326,11 @@ Processing time = when the stream processor sees the event
   <div id="section-exercises" class="section">
     <div class="section-intro">
       <h2>Mock designs</h2>
-      <p>Active practice beats re-reading. Drill estimation and key numbers with the interactive tools, then work the open-ended prompts — attempt each yourself out loud before revealing the worked solution.</p>
+      <p>Active practice beats re-reading. Run each problem end to end with the framework — requirements, entities, API, high-level design, deep dives — out loud, time-boxed to 35–45 min, <em>then</em> compare against a worked breakdown (Hello Interview publishes free ones for most).</p>
+      <p style="font-size:13px;line-height:1.95"><strong>Warm-ups:</strong> URL shortener (Bitly), distributed rate limiter, distributed cache, key-value store.<br><strong>Product design:</strong> Twitter / news feed, WhatsApp / chat, Instagram, Dropbox / Drive, Ticketmaster, Uber, YouTube, Google Docs, Yelp.<br><strong>Infra &amp; data:</strong> web crawler, ad-click aggregator, metrics monitoring, job scheduler, Top-K / trending, payment system.</p>
     </div>
 
     <div class="cards">
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Canonical practice problems</div><div class="card-sub">Work these end to end</div></div><span class="badge badge-purple">Practice</span></div>
-        <div class="card-body">
-          <p>Knowledge only sticks once you apply it. Run each with the framework — requirements, entities, API, high-level design, deep dives — then compare against a worked breakdown.</p>
-          <p><strong>Warm-ups:</strong> URL shortener (Bitly), distributed rate limiter, distributed cache, key-value store.</p>
-          <p><strong>Product design:</strong> Twitter / news feed, WhatsApp / chat, Instagram, Dropbox / Drive, Ticketmaster, Uber, YouTube, Google Docs, Yelp.</p>
-          <p><strong>Infra &amp; data:</strong> web crawler, ad-click aggregator, metrics monitoring, job scheduler, Top-K / trending, payment system.</p>
-          <div class="note"><strong>Method:</strong> attempt first, time-boxed to 35–45 min, <em>then</em> read the answer key. Hello Interview publishes free worked breakdowns for most of these.</div>
-          <div class="tag-row"><span class="tag">attempt before reading</span><span class="tag">time-box 35–45m</span></div>
-        </div>
-      </div>
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Common building blocks</div><div class="card-sub">Your reusable toolbox</div></div><span class="badge badge-purple">Toolbox</span></div>
