@@ -3550,7 +3550,11 @@ const UNITS=[
    {t:'order',q:'Order the interview steps.',items:['Clarify requirements','Define core entities + API','High-level design','Deep dives','Wrap up: bottlenecks & SPOFs']},
    {t:'mcq',q:'Per the delivery framework, do upfront capacity math when…',o:['always, in detail','only when a number changes the design','never','at the end'],a:1,why:'Estimate only when it drives a decision (e.g. does the heap fit on one node?).'},
    {t:'teach',h:'Common mistakes',body:[
-     {k:'callout',c:'warn',t:'Designing before clarifying; over-engineering for 1K users; hand-waving the hard part; ignoring failure.'}
+     {k:'tldr',t:'Four ways candidates lose the room — each with what it sounds like.'},
+     {k:'point',i:'🏗️',t:'<b>Designing before clarifying</b> — "I’ll use Kafka + Cassandra" before asking what the system does or its scale.'},
+     {k:'point',i:'🎈',t:'<b>Over-engineering for 1K users</b> — reaching for sharding, multi-region, and a queue for an app with a thousand users.'},
+     {k:'point',i:'🫥',t:'<b>Hand-waving the hard part</b> — "…and then the feed appears," skipping the fan-out / ranking the question is really testing.'},
+     {k:'point',i:'💥',t:'<b>Ignoring failure</b> — never saying what happens when the cache, a node, or the leader dies.'}
    ]},
    {t:'recall',q:'Name the non-functional requirements you should always probe.',model:['Consistency vs availability, scale (DAU/QPS/read:write), latency targets.','Durability, security/compliance, fault tolerance — quantify the top 3–5 that matter here.']}
   ]},
