@@ -3683,8 +3683,11 @@ const UNITS=[
   {id:'decide-3',title:'Signal → strategy',steps:[
    {t:'teach',h:'Train the reflex',body:[
      {k:'tldr',t:'Interviews reward a fast, justified jump from a constraint to a strategy. Learn the trigger → tool reflexes.'},
-     {k:'point',i:'🌍',t:'Users worldwide + static/media → <b>CDN / edge cache</b>. Read-heavy → <b>replicas + cache</b>. Hot key → <b>dedicated cache / fanout-on-read</b>.'},
-     {k:'point',i:'🌊',t:'Spiky or slow work → <b>queue (async buffer)</b>. Wrong/stale answer unacceptable → <b>CP / strong consistency</b>.'}
+     {k:'point',i:'🌍',t:'Users worldwide + static/media → <b>CDN / edge cache</b>.'},
+     {k:'point',i:'📖',t:'Read-heavy, staleness OK → <b>replicas + cache</b>.'},
+     {k:'point',i:'🔥',t:'Hot key → <b>dedicated cache / fanout-on-read</b>.'},
+     {k:'point',i:'🌊',t:'Spiky or slow work → <b>queue (async buffer)</b>.'},
+     {k:'point',i:'🔒',t:'Wrong/stale answer unacceptable → <b>CP / strong consistency</b>.'}
    ]},
    {t:'match',q:'Signal → first-reach strategy.',pairs:[['Users across continents, static assets','CDN / edge cache'],['Read:write ≈ 100:1, staleness OK','Cache + read replicas'],['10× launch-day traffic spike','Queue + autoscale (async)'],['Must never double-charge on retry','Idempotency key'],['Celebrity key — 90% of reads','Fanout-on-read / dedicated cache']]},
    {t:'sort',q:'Strong consistency (CP) or availability-first (AP)?',buckets:['CP (strong)','AP (available)'],items:[
@@ -4042,6 +4045,11 @@ function renderHome(scrollToNext){
   const allMist=Object.values(S.mistakes);
   const nMist=(S.reviewSkipRecall?allMist.filter(s=>s.t!=='recall'):allMist).length;
   const nRecall=UNITS.reduce((a,u)=>a+u.lessons.reduce((b,l)=>b+l.steps.filter(s=>s.t==='recall').length,0),0);
+  const speedN=S.speedN||15;
+  h+='<div class="speedrow">'
+    +'<button class="act speedbtn" id="speedBtn">🎲 Speed run</button>'
+    +'<div class="lenpicker">'+[10,15,20].map(n=>'<button class="lenpill'+(speedN===n?' on':'')+'" data-speedn="'+n+'">'+n+'</button>').join('')+'</div>'
+    +'</div>';
   h+='<div class="actions">'
     +'<button class="act'+(nMist?' hot':'')+'" id="reviewBtn">🩹 Review mistakes'+(nMist?' ('+nMist+')':'')+'</button>'
     +'<button class="act" id="recallBtn">🗣️ Explain-it drills'+(nRecall?' ('+nRecall+')':'')+'</button>'
@@ -4099,6 +4107,8 @@ function renderHome(scrollToNext){
   APP().innerHTML=h;
   APP().querySelectorAll('[data-lesson]').forEach(n=>n.onclick=()=>startLesson(n.dataset.lesson));
   APP().querySelectorAll('[data-boss]').forEach(n=>n.onclick=()=>startBoss(n.dataset.boss));
+  document.getElementById('speedBtn').onclick=()=>startRandomMix(S.speedN||15);
+  APP().querySelectorAll('[data-speedn]').forEach(b=>b.onclick=()=>{S.speedN=+b.dataset.speedn;save();renderHome();});
   document.getElementById('reviewBtn').onclick=startReview;
   document.getElementById('recallBtn').onclick=startRecallReview;
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
@@ -4127,7 +4137,7 @@ function startLesson(id){
 function manageTimer(){
   if(R.timeLeft==null){return;}
   const step=R.steps[R.idx];
-  const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+  const active=(R.mode==='boss'||R.mode==='speed')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
   if(active){startTimer();}else{stopTimer();}
 }
 function startBoss(uid){
@@ -4136,6 +4146,18 @@ function startBoss(uid){
   R={mode:'boss',unit:u,bossTitle:u.boss.title,steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:u.boss.time,timeLeft:u.boss.time};
   startTimer();
   renderStep();
+}
+/* 🎲 Random-mix SPEED RUN: N random AUTO-GRADED questions of any type from any lesson, on one
+   shared countdown. Recall is excluded (it self-grades + pauses the clock → can't be a timed sweep).
+   Bonus: +50 for all-correct, +1 XP per leftover second. */
+function startRandomMix(n){
+  n=n||15;
+  const pool=UNITS.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>isQuizStep(s.t)&&s.t!=='recall');
+  if(pool.length<3){toast('Not enough questions to mix yet.');return;}
+  const steps=shuffle(pool).slice(0,Math.min(n,pool.length));
+  const time=steps.length*12; // ~12s/question, pooled across the whole run
+  R={mode:'speed',source:'mix',unit:{id:'speed'},steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time,timeLeft:time};
+  renderStep(); // manageTimer() starts the clock (speed mode keeps it active)
 }
 function startReview(){
   let pool=Object.values(S.mistakes);
@@ -4174,11 +4196,11 @@ function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
 function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
   const curStep=R.steps[R.idx];
-  const canSkip=(R.idx>=R.frontier)&&curStep&&isQuizStep(curStep.t);
+  const canSkip=(R.idx>=R.frontier)&&curStep&&isQuizStep(curStep.t)&&R.mode!=='speed';
   let right='';
   if(R.timeLeft!=null){
     const step=R.steps[R.idx];
-    const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+    const active=(R.mode==='boss'||R.mode==='speed')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
     right=active
       ?'<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>'
       :'<div class="timer paused" title="Timer pauses while you learn — runs during quiz steps"><span>⏸</span><span>'+R.timeLeft+'s</span></div>';
@@ -4627,6 +4649,18 @@ function clearFoot(){const f=document.getElementById('footbar');if(f)f.remove();
 /* ============================ RESULTS ============================ */
 function finishRun(timedOut){
   stopTimer();
+  if(R.mode==='speed'){
+    const finished = !timedOut && R.hearts>0;          // got through all N in time, hearts intact
+    R.finished=finished;
+    R.allCorrect = finished && R.mistakes===0;
+    if(finished){
+      if(R.allCorrect)R.xp+=50;                         // all-correct bonus
+      R.speedBonus=Math.max(0,R.timeLeft);              // +1 XP per leftover second
+      R.xp+=R.speedBonus;
+    }else{R.speedBonus=0;}
+    commitRun(false);                                   // bank R.xp, no extra completion/flawless bonus
+    return resultsScreen(finished);
+  }
   if(R.mode==='review'){commitRun(true);return resultsScreen(true);}
   if(R.mode==='boss'){
     const ok = !timedOut && R.hearts>0 && acc()>=0.6;
@@ -4653,6 +4687,32 @@ function commitRun(success){
 }
 function resultsScreen(success){
   stopTimer();
+  if(R.mode==='speed'){
+    let sh;
+    if(R.finished){
+      const a=Math.round(acc()*100);
+      sh='<div class="center"><div class="big">🏁</div><h2>'+(R.allCorrect?'Perfect speed run!':'Speed run done!')+'</h2>'
+        +'<p>'+(R.allCorrect?'Every answer correct — full bonus banked.':'Good pace — go for a clean sweep next time.')+'</p>'
+        +'<div class="statrow">'
+        +'<div class="statbox xp"><div class="v">+'+R.xp+'</div><div class="l">XP</div></div>'
+        +'<div class="statbox combo"><div class="v">'+R.maxCombo+'</div><div class="l">Max combo</div></div>'
+        +'<div class="statbox acc"><div class="v">'+a+'%</div><div class="l">Accuracy</div></div>'
+        +'</div>'
+        +'<div class="bonusline">'+(R.allCorrect?'<span>🎯 All-correct +50</span>':'')+(R.speedBonus?'<span>⚡ Speed +'+R.speedBonus+'</span>':'')+'</div>'
+        +'<button class="btn blue" id="retryBtn">Run again</button><div style="height:10px"></div><button class="btn grey" id="homeBtn">Done</button></div>';
+    }else{
+      const ranOut=R.hearts<=0;
+      sh='<div class="center"><div class="big">'+(ranOut?'💔':'⏱️')+'</div><h2>'+(ranOut?'Out of hearts':'Time’s up!')+'</h2>'
+        +'<p>Answered '+R.graded+' of '+R.steps.length+' — '+Math.round(acc()*100)+'% correct.</p>'
+        +'<div class="statrow"><div class="statbox xp"><div class="v">+'+R.xp+'</div><div class="l">XP earned</div></div></div>'
+        +'<button class="btn blue" id="retryBtn">Try again</button><div style="height:10px"></div><button class="btn grey" id="homeBtn">Done</button></div>';
+    }
+    clearFoot();APP().innerHTML=sh;
+    const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(true);
+    const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>startRandomMix(R.steps.length);
+    if(R.finished)burst();
+    return;
+  }
   let h;
   if(success){
     const a=Math.round(acc()*100);
