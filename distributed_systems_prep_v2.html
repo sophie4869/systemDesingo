@@ -3059,9 +3059,41 @@ const UNITS=[
   ]},
   {id:'data-2',title:'Serving ML',steps:[
    {t:'teach',h:'Feature stores & serving',body:[
-     {k:'keyt',term:'Feature store',def:'serve the SAME features at train and inference time (offline + online) to avoid skew.'},
+     {k:'keyt',term:'Feature store',def:'one feature definition, materialised two ways — an <b>offline</b> store for training and an <b>online</b> store for inference. Serving the SAME values in both places prevents <b>train/serve skew</b>.'},
      {k:'point',i:'⚡',t:'Online serving: low-latency KV (Redis/DynamoDB); batch features precomputed.'}
    ]},
+   {t:'htmlviz',h:'Feature store — one definition, two stores',
+    html:`<style>
+.fsv{display:grid;gap:10px}
+.fsv-top{display:grid;grid-template-columns:1fr 32px 1.1fr;gap:8px;align-items:center}
+.fsv-split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fsv-box{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.fsv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.fsv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.fsv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.fsv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.fsv-s{font-size:11px;font-weight:800;line-height:1.35;margin-top:4px}
+.fsv-arr{text-align:center;font-size:22px;font-weight:900;color:var(--color-text-tertiary)}
+.fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.fsv-cap b{color:var(--color-text-primary)}
+.fsv-pit{border:2px solid var(--color-border-warning);background:var(--color-background-warning);border-radius:14px;padding:10px;display:grid;gap:8px;color:var(--color-text-warning)}
+.fsv-line{position:relative;height:30px;background:var(--color-background-primary);border-radius:999px;border:1px solid var(--color-border-warning);margin-top:20px}
+.fsv-dot{position:absolute;top:7px;width:16px;height:16px;border-radius:50%;background:var(--color-text-success)}
+.fsv-dot.pick{box-shadow:0 0 0 2px var(--color-background-primary),0 0 0 4px var(--color-text-success)}
+.fsv-dot.future{background:transparent;border:2px dashed var(--color-text-danger);opacity:.85}
+.fsv-cut{position:absolute;top:-5px;bottom:-5px;border-left:3px dashed var(--color-text-warning)}
+.fsv-tlbl{position:absolute;top:-17px;transform:translateX(-50%);font-size:10px;font-weight:900;white-space:nowrap;color:var(--color-text-warning)}
+.fsv-reg{display:flex;justify-content:space-between;font-size:9.5px;font-weight:800;margin-top:3px}
+.fsv-reg .u{color:var(--color-text-success)}
+.fsv-reg .i{color:var(--color-text-danger)}
+@media(max-width:460px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
+</style>
+<div class="fsv">
+  <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
+  <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
+  <div class="fsv-pit"><div class="fsv-t">Point-in-time training lookup</div><div class="fsv-line"><span class="fsv-tlbl" style="left:60%">label time T</span><span class="fsv-dot" style="left:12%"></span><span class="fsv-dot pick" style="left:40%"></span><span class="fsv-cut" style="left:60%"></span><span class="fsv-dot future" style="left:80%"></span></div><div class="fsv-reg"><span class="u">● used — latest event_time ≤ T</span><span class="i">○ ignored — event_time &gt; T</span></div><div class="fsv-s">For each training row, read <b>feature X for user Y as of T</b>: take the <b>latest value with event_time ≤ T</b> (the ringed dot) and skip later ones — otherwise offline metrics leak data production won't have.</div></div>
+  <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
+</div>`},
    {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
    {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
   ]},
@@ -3466,38 +3498,6 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: feature definitions, an offline store (warehouse) for training, an online store (KV) for inference.','API: get_online_features(entity_ids); materialize batch features; register a feature definition.']},
    {t:'mcq',q:'Avoid train/serve skew with…',o:['separate code for each','a feature store serving the SAME definitions offline + online','retraining nightly','a bigger model'],a:1,why:'One source of feature definitions for both training and serving prevents the values from diverging.'},
-   {t:'htmlviz',h:'Feature store — one definition, two stores',
-    html:`<style>
-.fsv{display:grid;gap:10px}
-.fsv-top{display:grid;grid-template-columns:1fr 32px 1.1fr;gap:8px;align-items:center}
-.fsv-split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.fsv-box{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
-.fsv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
-.fsv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
-.fsv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
-.fsv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
-.fsv-s{font-size:11px;font-weight:800;line-height:1.35;margin-top:4px}
-.fsv-arr{text-align:center;font-size:22px;font-weight:900;color:var(--color-text-tertiary)}
-.fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
-.fsv-cap b{color:var(--color-text-primary)}
-.fsv-pit{border:2px solid var(--color-border-warning);background:var(--color-background-warning);border-radius:14px;padding:10px;display:grid;gap:8px;color:var(--color-text-warning)}
-.fsv-line{position:relative;height:30px;background:var(--color-background-primary);border-radius:999px;border:1px solid var(--color-border-warning);margin-top:20px}
-.fsv-dot{position:absolute;top:7px;width:16px;height:16px;border-radius:50%;background:var(--color-text-success)}
-.fsv-dot.pick{box-shadow:0 0 0 2px var(--color-background-primary),0 0 0 4px var(--color-text-success)}
-.fsv-dot.future{background:transparent;border:2px dashed var(--color-text-danger);opacity:.85}
-.fsv-cut{position:absolute;top:-5px;bottom:-5px;border-left:3px dashed var(--color-text-warning)}
-.fsv-tlbl{position:absolute;top:-17px;transform:translateX(-50%);font-size:10px;font-weight:900;white-space:nowrap;color:var(--color-text-warning)}
-.fsv-reg{display:flex;justify-content:space-between;font-size:9.5px;font-weight:800;margin-top:3px}
-.fsv-reg .u{color:var(--color-text-success)}
-.fsv-reg .i{color:var(--color-text-danger)}
-@media(max-width:460px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
-</style>
-<div class="fsv">
-  <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
-  <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
-  <div class="fsv-pit"><div class="fsv-t">Point-in-time training lookup</div><div class="fsv-line"><span class="fsv-tlbl" style="left:60%">label time T</span><span class="fsv-dot" style="left:12%"></span><span class="fsv-dot pick" style="left:40%"></span><span class="fsv-cut" style="left:60%"></span><span class="fsv-dot future" style="left:80%"></span></div><div class="fsv-reg"><span class="u">● used — latest event_time ≤ T</span><span class="i">○ ignored — event_time &gt; T</span></div><div class="fsv-s">For each training row, read <b>feature X for user Y as of T</b>: take the <b>latest value with event_time ≤ T</b> (the ringed dot) and skip later ones — otherwise offline metrics leak data production won't have.</div></div>
-  <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
-</div>`},
    {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
    {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
