@@ -970,7 +970,7 @@ const UNITS=[
    ]},
    {t:'teach',h:'The 3f+1 bound',body:[
      {k:'keyt',term:'3f+1',def:'to tolerate f Byzantine nodes you need 3f+1 total — vs 2f+1 for crash faults. Liars can actively mislead, so you need a big enough honest majority to outvote them even when some honest nodes are unreachable.'},
-     {k:'point',i:'📜',t:'<b>PBFT</b> made it practical with a three-phase protocol: pre-prepare → prepare → commit.'},
+     {k:'point',i:'📜',t:'<b>PBFT</b>-style protocols make BFT practical, at the cost of extra message rounds.'},
      {k:'point',i:'⛓️',t:'Blockchains go further — Nakamoto consensus (PoW) and BFT chains (Tendermint, HotStuff) tolerate Byzantine actors at internet scale by making lying prohibitively expensive.'},
      {k:'callout',c:'mem',t:'<b>Interview reality:</b> inside one trusted datacenter you almost never need BFT — crash-fault consensus is enough and far cheaper. Reach for BFT only across trust boundaries (blockchains, multi-org systems).'}
    ]},
@@ -978,7 +978,7 @@ const UNITS=[
    {t:'mcq',q:'When do you actually reach for BFT in an interview design?',o:['always','inside one trusted datacenter','across trust boundaries (blockchains, multi-org)','for any replication'],a:2,why:'Within a single trusted datacenter, cheaper crash-fault consensus (Raft/Paxos) suffices. BFT is for when participants may be adversarial.'},
    {t:'cloze',q:'Fill the Byzantine blanks.',distract:['2f','stop'],text:[
      'Crash faults need ',{blank:'2f+1',alt:['2f + 1']},' nodes; Byzantine faults need ',{blank:'3f+1',alt:['3f + 1']},
-     ' so liars get ',{blank:'outvoted',alt:['out-voted','outvote']},'. ',{blank:'PBFT',alt:['pbft']},' made BFT practical with a three-phase protocol.'
+     ' so liars get ',{blank:'outvoted',alt:['out-voted','outvote']},'. ',{blank:'PBFT',alt:['pbft']},' made BFT practical.'
    ]},
    {t:'recall',q:'Crash vs Byzantine faults — and when do you need BFT?',model:['Crash fault: a node simply stops responding — Raft/Paxos handle this with a 2f+1 majority.','Byzantine fault: a node behaves arbitrarily (lies, sends conflicting messages, is compromised), needing 3f+1 so honest nodes outvote the liars; PBFT and blockchain protocols (Tendermint, HotStuff, PoW) make it workable.','In practice you rarely need BFT inside a trusted datacenter — reach for it only across trust boundaries (blockchains, multi-org systems).']}
   ]},
@@ -1035,7 +1035,7 @@ const UNITS=[
    {t:'mcq',q:'In Paxos Phase 2, which value does the proposer send?',o:['always its own','the highest-ballot value any acceptor already accepted, if one exists','a random value','the lowest ballot'],a:1,why:'If Phase 1 surfaced an already-accepted value, the proposer must reuse it — that’s what preserves agreement across rounds.'},
    {t:'teach',h:'ZAB & zxid',body:[
      {k:'point',i:'📡',t:'<b>ZAB</b> (ZooKeeper Atomic Broadcast): leader-based total-order broadcast, designed to recover a consistent log <b>prefix</b> after a leader change.'},
-     {k:'keyt',term:'zxid',def:'a 64-bit transaction id = epoch:counter. Epoch bumps on each new leader; counter bumps per write. Gives a global total order and doubles as a fencing token.'}
+     {k:'keyt',term:'zxid',def:'ZooKeeper stamps every write with a monotonic transaction id — a global total order that also doubles as a fencing token.'}
    ]},
    {t:'teach',h:'Building with ZooKeeper',body:[
      {k:'point',i:'🌳',t:'Exposes a hierarchical KV of <b>znodes</b> with <b>watches</b> (notify on change), <b>ephemeral</b> nodes (auto-deleted when the session dies), and <b>sequential</b> nodes.'},
@@ -1045,9 +1045,9 @@ const UNITS=[
    {t:'mcq',q:'Which ZooKeeper primitive best fits leader election?',o:['a durable znode','an ephemeral + sequential znode','a watch alone','a range scan'],a:1,why:'Ephemeral sequential znodes vanish when a node’s session dies and carry an order — lowest sequence number wins, and watches notify the next in line.'},
    {t:'cloze',q:'Fill the ZooKeeper blanks.',distract:['durable','range'],text:[
      {blank:'Ephemeral',alt:['ephemeral']},' znodes vanish when the session dies (great for leader election); ',{blank:'watches',alt:['watch']},
-     ' notify you on change. A zxid is ',{blank:'epoch',alt:['epoch:counter']},':counter and doubles as a fencing token.'
+     ' notify you on change. A <b>zxid</b> gives a global ',{blank:'total order',alt:['order','total-order']},' and doubles as a fencing token.'
    ]},
-   {t:'recall',q:'Sketch Paxos, and how ZooKeeper turns consensus into a toolkit.',model:['Paxos: Phase 1 Prepare(n) gets a majority to promise + report any accepted value; Phase 2 Accept(n,v) commits a value, reusing an already-accepted one if it exists. Multi-Paxos keeps a stable leader and skips Phase 1 per entry.','ZooKeeper runs ZAB (atomic broadcast) underneath; zxid (epoch:counter) gives total order plus a fencing token.','It exposes znodes + watches + ephemeral/sequential nodes; from those you build locks, leader election, config, and discovery. Reads can be stale — sync() before a read for freshness.']}
+   {t:'recall',q:'Sketch Paxos, and how ZooKeeper turns consensus into a toolkit.',model:['Paxos: Phase 1 Prepare(n) gets a majority to promise + report any accepted value; Phase 2 Accept(n,v) commits a value, reusing an already-accepted one if it exists. Multi-Paxos keeps a stable leader and skips Phase 1 per entry.','ZooKeeper runs ZAB (atomic broadcast) underneath; the zxid gives a global total order plus a fencing token.','It exposes znodes + watches + ephemeral/sequential nodes; from those you build locks, leader election, config, and discovery. Reads can be stale — sync() before a read for freshness.']}
   ]}
  ],
  boss:{title:'Consensus Boss',time:105,q:[
@@ -1066,7 +1066,7 @@ const UNITS=[
    {q:'You actually need BFT…',o:['always','inside one datacenter','across trust boundaries','for any cache'],a:2},
    {q:'Paxos Phase 2 must reuse…',o:['its own value always','any already-accepted value','the lowest ballot','nothing'],a:1},
    {q:'ZooKeeper leader election uses…',o:['durable znodes','ephemeral sequential znodes','watches only','a range scan'],a:1},
-   {q:'A ZooKeeper zxid is structured as…',o:['a random UUID','epoch:counter','a timestamp','a hash'],a:1},
+   {q:'A ZooKeeper zxid provides…',o:['a random id','a global total order + fencing token','a cache key','a content hash'],a:1},
    {q:'Raft Election Safety guarantees…',o:['fast elections','at most one leader per term','no timeouts','strong reads'],a:1},
    {q:'Committed entries survive future terms because…',o:['leaders copy them','voters reject less up-to-date candidates','of timeouts','of bigger quorums'],a:1},
    {q:'A leader safely commits an entry when it’s on a majority AND…',o:['acked twice','from its current term','older than 1s','hashed'],a:1}
@@ -1192,15 +1192,9 @@ const UNITS=[
     setup:function(root,stepper){stepper(root,2,{panelClass:'sga-panel',labels:['Forward — a step fails','Compensate in reverse']});}},
    {t:'mcq',q:'In a Saga, step 3 of 5 fails. What happens?',o:['atomic rollback of all','compensating txns undo steps 1–2','wait for step 3','retry forever'],a:1,why:'Sagas undo completed steps in reverse with compensations — there’s no atomic rollback.'},
    {t:'recall',q:'Explain the 2PC blocking problem in 2 sentences.',model:['After voting "ready", a participant must wait for the coordinator’s decision and can’t abort on its own.','If the coordinator crashes then, participants block (holding locks) until it recovers. That’s the coordinator SPOF.']},
-   {t:'teach',h:'TCC (Try-Confirm-Cancel)',body:[
-     {k:'tldr',t:'A reservation-based distributed txn — a more structured saga.'},
-     {k:'point',i:'1️⃣',t:'<b>Try</b>: reserve resources without committing (hold inventory, freeze funds).'},
-     {k:'point',i:'2️⃣',t:'<b>Confirm</b>: commit using the reservation — must be idempotent and must not fail.'},
-     {k:'point',i:'3️⃣',t:'<b>Cancel</b>: release the reservation (or let its TTL auto-expire).'},
-     {k:'note',t:'Reservations are app-level holds, not blocking DB locks — so resources aren’t pinned by a stuck protocol like 2PC. Cost: every service must implement all three phases.'}
-   ]},
-   {t:'mcq',q:'TCC’s "Try" phase does what?',o:['commits immediately','reserves resources without committing','rolls everything back','locks the whole DB'],a:1,why:'Try reserves (hold inventory / freeze funds); Confirm later commits the reservation, Cancel releases it.'},
-   {t:'recall',q:'How does TCC differ from a raw saga and from 2PC?',model:['TCC = Try (reserve) → Confirm (commit reservation, idempotent, must not fail) → Cancel (release).','vs Saga: the Try phase verifies feasibility up front, reducing the chance of needing compensation.','vs 2PC: holds are application-level reservations with a TTL, not blocking DB locks, so a dead coordinator doesn’t pin resources.']}
+   {t:'teach',h:'Variant: TCC',body:[
+     {k:'note',t:'<b>TCC (Try-Confirm-Cancel)</b> is a more structured saga: <b>Try</b> reserves resources (app-level holds, not DB locks), then <b>Confirm</b> commits or <b>Cancel</b> releases — handy when you want to check feasibility up front.'}
+   ]}
   ]},
   {id:'txn-2',title:'Isolation & retries',steps:[
    {t:'teach',h:'Isolation levels',body:[
@@ -1884,7 +1878,7 @@ const UNITS=[
      {k:'tldr',t:'No central registry: each node tells a few RANDOM peers, and news spreads like a rumour.'},
      {k:'point',i:'📈',t:'Reaches all N nodes in ~<b>O(log N)</b> rounds — decentralised, no single point of failure.'},
      {k:'vs',a:{h:'Anti-entropy',t:'compare full state + reconcile (Merkle diff). Thorough, always converges.'},b:{h:'Rumour-mongering',t:'gossip a fresh change for a while, then stop. Fast + cheap.'}},
-     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul (SWIM). Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
+     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul. Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
    ]},
    {t:'mcq',q:'How does a gossip protocol spread state across the cluster?',o:['a leader pushes to everyone','each node tells random peers; spreads in ~O(log N) rounds','every node broadcasts to all each second','only via ZooKeeper'],a:1,why:'Decentralised epidemic spread — random peer exchange, O(log N) convergence, no coordinator or SPOF.'},
    {t:'recall',q:'What does TrueTime do differently from a normal clock?',model:['It exposes uncertainty as an interval [earliest, latest] instead of a single point.','Spanner waits out that interval (commit wait) so timestamps never disagree on order — external consistency.']}
@@ -2904,7 +2898,7 @@ const UNITS=[
    ]},
    {t:'teach',h:'Recovering stateful operators',body:[
      {k:'point',i:'📸',t:'A <b>checkpoint</b> is a consistent snapshot of every operator\'s state <b>plus the source offsets</b>, taken periodically.'},
-     {k:'point',i:'🚧',t:'The engine injects a <b>barrier</b> into the stream; each operator snapshots as the barrier passes (Flink / Chandy-Lamport) — async, no global pause.'},
+     {k:'point',i:'🚧',t:'The engine injects a <b>barrier</b> into the stream; each operator snapshots as the barrier passes (Flink-style) — async, no global pause.'},
      {k:'point',i:'♻️',t:'On crash: <b>restore</b> the last snapshot, <b>rewind</b> the source to its offset, and <b>replay</b>. No state lost.'}
    ]},
    {t:'htmlviz',h:'Checkpoint → crash → replay',
@@ -3264,6 +3258,27 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · core API. Say them out loud.',model:['Entities: urls(code PK, long_url, owner, created_at, click_count).','API: POST /urls {long_url} → {code}; GET /{code} → 301/302 redirect; GET /urls/{code} → analytics.','Current user from the auth token.']},
    {t:'mcq',q:'Best way to generate unique short codes?',o:['hash the URL and truncate (collisions)','base62-encode a unique counter/ID','a random string, retry on clash','a UUID v4'],a:1,why:'Base62 of a monotonic ID is collision-free and short (~7 chars covers 3.5e12). Hash-truncate risks collisions.'},
+   {t:'htmlviz',h:'URL shortener — redirect hot path',
+    html:`<style>
+.urlv{display:grid;gap:10px}
+.urlv-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.urlv-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:88px}
+.urlv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.urlv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.urlv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.urlv-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.urlv-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
+.urlv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.urlv-side{display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center}
+.urlv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.urlv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.urlv-side{grid-template-columns:1fr}.urlv-side .urlv-arr{transform:rotate(90deg);text-align:center}}
+</style>
+<div class="urlv">
+  <div class="urlv-main"><div class="urlv-node hot"><div class="urlv-t">GET /abc123</div><div class="urlv-s">100x reads</div></div><div class="urlv-arr">→</div><div class="urlv-node good"><div class="urlv-t">CDN / edge</div><div class="urlv-s">hot redirects</div></div><div class="urlv-arr">→</div><div class="urlv-node info"><div class="urlv-t">Redirect svc</div><div class="urlv-s">cache miss only</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">KV store</div><div class="urlv-s">code to URL</div></div></div>
+  <div class="urlv-side"><div class="urlv-node info"><div class="urlv-t">302 redirect</div><div class="urlv-s">count every click</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">Analytics stream</div><div class="urlv-s">async, not on hot path</div></div></div>
+  <div class="urlv-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when accurate click tracking matters.</div>
+</div>`},
    {t:'build',q:'4 · Pick the high-level components.',options:['ID/counter generator','KV store (code → URL)','CDN / cache for redirects','Async analytics pipeline','A graph database','A relational DB with heavy joins'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Where is the main load / bottleneck?',o:['writing new links','the redirect reads (100:1) — cache/CDN them','analytics','the ID generator'],a:1,why:'Reads dominate ~100:1; serve redirects from cache/CDN + read replicas, never the primary.'},
    {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: cache/CDN hot codes + read replicas; shard the KV store by code.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use a mutex/stale-while-revalidate.']}
@@ -3357,6 +3372,25 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: videos(metadata, status), renditions (per quality).','API: request presigned upload URL; get manifest (HLS/DASH) + stream segments.']},
    {t:'mcq',q:'Large uploads should…',o:['stream bytes through app servers','use a presigned URL direct to object storage (S3)','go into the database','be emailed'],a:1,why:'Presigned URL → client uploads straight to S3, keeping gigabytes off your app tier.'},
+   {t:'htmlviz',h:'Video upload — async transcode pipeline',
+    html:`<style>
+.vidv{display:grid;gap:10px}
+.vidv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.vidv-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:96px}
+.vidv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.vidv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.vidv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.vidv-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.vidv-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
+.vidv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.vidv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.vidv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="vidv">
+  <div class="vidv-flow"><div class="vidv-node"><div class="vidv-t">Client</div><div class="vidv-s">requests upload</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">App API</div><div class="vidv-s">metadata + presigned URL</div></div><div class="vidv-arr">→</div><div class="vidv-node good"><div class="vidv-t">Object store</div><div class="vidv-s">direct bytes</div></div></div>
+  <div class="vidv-flow"><div class="vidv-node good"><div class="vidv-t">Storage event</div><div class="vidv-s">upload complete</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Queue</div><div class="vidv-s">async jobs</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Transcoders</div><div class="vidv-s">240p..4K renditions</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">CDN</div><div class="vidv-s">serve segments</div></div></div>
+  <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback egress.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['Presigned-URL upload to S3','Transcoding worker pool (queue)','CDN for delivery','Metadata DB + object storage','Synchronous transcode in the request'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['metadata writes','serving the bytes — egress bandwidth (Tbps)','transcoding speed','upload size'],a:1,why:'Average egress is enormous; a CDN is mandatory — no origin serves that.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Resumable chunked upload → S3; async transcode pipeline (long-running tasks) into ABR renditions; deliver via CDN.','Failure: a transcode job fails → retry / dead-letter; partial upload resumes; reconcile DB metadata with S3 event notifications.']}
@@ -3368,6 +3402,27 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: time-series points (metric, host/tags, timestamp, value).','API: ingest (batched), query a metric over a time range, define alert rules.']},
    {t:'mcq',q:'How do you partition the storage?',o:['by user id','by (metric/series, time bucket) in a TSDB','randomly','one big table'],a:1,why:'Bucketing by series + time keeps partitions bounded and makes range queries touch only relevant buckets.'},
+   {t:'htmlviz',h:'Metrics pipeline — ingest, roll up, retain',
+    html:`<style>
+.metv{display:grid;gap:10px}
+.metv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.metv-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:94px}
+.metv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.metv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.metv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.metv-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.metv-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
+.metv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.metv-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.metv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.metv-tiers{grid-template-columns:1fr}}
+</style>
+<div class="metv">
+  <div class="metv-flow"><div class="metv-node"><div class="metv-t">Agents</div><div class="metv-s">batched points</div></div><div class="metv-arr">→</div><div class="metv-node hot"><div class="metv-t">Kafka</div><div class="metv-s">spike buffer</div></div><div class="metv-arr">→</div><div class="metv-node info"><div class="metv-t">Stream agg</div><div class="metv-s">rules + rollups</div></div><div class="metv-arr">→</div><div class="metv-node good"><div class="metv-t">TSDB</div><div class="metv-s">series + time bucket</div></div></div>
+  <div class="metv-tiers"><div class="metv-node hot"><div class="metv-t">Raw</div><div class="metv-s">7 days</div></div><div class="metv-node info"><div class="metv-t">1-min</div><div class="metv-s">30 days</div></div><div class="metv-node good"><div class="metv-t">1-hour</div><div class="metv-s">2 years</div></div></div>
+  <div class="metv-cap"><b>Kafka decouples ingest from storage.</b> Rollup tiers keep dashboards fast and make retention a policy instead of an ever-growing bill.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['Ingestion buffer (Kafka)','Stream processor (Flink) for aggregation','Time-series DB','Rollup / downsampling jobs','Object store for cold data','One relational table for every point'],correct:[0,1,2,3,4]},
    {t:'mcq',q:'5 · Bottleneck?',o:['querying','write volume + high cardinality + retention cost','alerting','dashboards'],a:1,why:'Sustained high-cardinality writes and years of retention dominate; fix with rollups + TTL tiers.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Kafka absorbs spikes → stream aggregation → TSDB; downsample raw → 1-min → 1-hour with TTL per tier; long-range queries read coarse rollups.','Failure: ingestion spike → Kafka buffers / backpressure; idempotent writes give exactly-once aggregation.']}
@@ -3390,6 +3445,27 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: feature definitions, an offline store (warehouse) for training, an online store (KV) for inference.','API: get_online_features(entity_ids); materialize batch features; register a feature definition.']},
    {t:'mcq',q:'Avoid train/serve skew with…',o:['separate code for each','a feature store serving the SAME definitions offline + online','retraining nightly','a bigger model'],a:1,why:'One source of feature definitions for both training and serving prevents the values from diverging.'},
+   {t:'htmlviz',h:'Feature store — one definition, two stores',
+    html:`<style>
+.fsv{display:grid;gap:10px}
+.fsv-top{display:grid;grid-template-columns:1fr 32px 1.1fr;gap:8px;align-items:center}
+.fsv-split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fsv-box{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.fsv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.fsv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.fsv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.fsv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.fsv-s{font-size:11px;font-weight:800;line-height:1.35;margin-top:4px}
+.fsv-arr{text-align:center;font-size:22px;font-weight:900;color:var(--color-text-tertiary)}
+.fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.fsv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
+</style>
+<div class="fsv">
+  <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
+  <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
+  <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
    {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
