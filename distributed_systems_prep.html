@@ -2986,10 +2986,49 @@ Processing time = when the stream processor sees the event
         <div class="card-header"><div class="card-meta"><div class="card-title">Storage hierarchy</div><div class="card-sub">Object vs block vs file storage</div></div><span class="badge badge-amber">Building block</span></div>
         <div class="card-body">
           <p>Not all storage is interchangeable. Choosing the wrong tier is a common design mistake — especially conflating "we need to store files" with "attach a disk."</p>
-          <table class="tbl"><tr><th>Type</th><th>Abstraction</th><th>Sharing</th><th>Latency</th><th>Use it for</th></tr>
-          <tr><td>Block (EBS, Azure Disk)</td><td>Raw disk volume, mounted to one VM</td><td>One instance only</td><td>~0.5 ms</td><td>OS disks, database volumes — anything needing low-latency random I/O</td></tr>
-          <tr><td>File (EFS, NFS, Azure Files)</td><td>Mountable POSIX filesystem</td><td>Many instances</td><td>~1–5 ms</td><td>Shared code, ML training data read by many workers, legacy apps expecting a filesystem path</td></tr>
-          <tr><td>Object (S3, GCS, Azure Blob)</td><td>Key &rarr; blob via HTTP</td><td>Unlimited</td><td>~10–100 ms</td><td>Media, backups, data lakes, model checkpoints, any large unstructured binary</td></tr></table>
+          <div class="sth-wrap" onclick="event.stopPropagation()">
+          <style>
+            .sth{display:grid;gap:11px;margin:10px 0}
+            .sth-card{border:1.5px solid var(--bd);background:var(--bg);border-radius:12px;padding:11px 13px}
+            .sth-h{font-weight:800;color:var(--c);font-size:14px;margin-bottom:8px}
+            .sth-prov{font-weight:600;font-size:11px;color:var(--color-text-secondary)}
+            .sth-grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:baseline}
+            .sth-k{font-size:10.5px;font-weight:800;color:var(--c);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+            .sth-v{font-size:12.5px;color:var(--color-text-secondary);font-weight:600;line-height:1.45}
+            .sth-ind{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+            .sth-grn{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+            .sth-amb{--c:#b45309;--bg:#fffbeb;--bd:#fde68a}
+          </style>
+          <div class="sth">
+            <div class="sth-card sth-ind">
+              <div class="sth-h">Block <span class="sth-prov">EBS · Azure Disk</span></div>
+              <div class="sth-grid">
+                <div class="sth-k">Abstraction</div><div class="sth-v">raw disk volume, mounted to one VM</div>
+                <div class="sth-k">Sharing</div><div class="sth-v">one instance only</div>
+                <div class="sth-k">Latency</div><div class="sth-v">~0.5 ms</div>
+                <div class="sth-k">Use for</div><div class="sth-v">OS disks, DB volumes — anything needing low-latency random I/O</div>
+              </div>
+            </div>
+            <div class="sth-card sth-grn">
+              <div class="sth-h">File <span class="sth-prov">EFS · NFS · Azure Files</span></div>
+              <div class="sth-grid">
+                <div class="sth-k">Abstraction</div><div class="sth-v">mountable POSIX filesystem</div>
+                <div class="sth-k">Sharing</div><div class="sth-v">many instances</div>
+                <div class="sth-k">Latency</div><div class="sth-v">~1–5 ms</div>
+                <div class="sth-k">Use for</div><div class="sth-v">shared code, ML training data read by many workers, legacy apps expecting a filesystem path</div>
+              </div>
+            </div>
+            <div class="sth-card sth-amb">
+              <div class="sth-h">Object <span class="sth-prov">S3 · GCS · Azure Blob</span></div>
+              <div class="sth-grid">
+                <div class="sth-k">Abstraction</div><div class="sth-v">key &rarr; blob via HTTP</div>
+                <div class="sth-k">Sharing</div><div class="sth-v">unlimited</div>
+                <div class="sth-k">Latency</div><div class="sth-v">~10–100 ms</div>
+                <div class="sth-k">Use for</div><div class="sth-v">media, backups, data lakes, model checkpoints, any large unstructured binary</div>
+              </div>
+            </div>
+          </div>
+          </div>
           <p><strong>Object storage notes:</strong> 11 nines durability, cheap per-GB, globally accessible via HTTP, immutable objects (no update-in-place — write a new version). Can't seek to byte offset N without a range request. Not a database. Never route object traffic through your app servers — issue presigned URLs and let clients access S3 directly.</p>
           <p><strong>ML context:</strong> training datasets in S3/GCS, model checkpoints in S3/GCS (fault-tolerant, resumable), model weights loaded from object storage into GPU RAM at startup. File storage (EFS) used when multiple training workers need to read a shared dataset via a filesystem path.</p>
           <div class="tag-row"><span class="tag">S3 = 11 nines, HTTP, immutable</span><span class="tag">block = low-latency DB volumes</span><span class="tag">file = shared POSIX across VMs</span></div>
@@ -3031,20 +3070,19 @@ Processing time = when the stream processor sees the event
 .fsv-arr{text-align:center;font-size:22px;font-weight:800;color:var(--color-text-tertiary)}
 .fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
 .fsv-cap b{color:var(--color-text-primary)}
+.fsv-pit{border:2px solid var(--color-border-warning);background:var(--color-background-warning);border-radius:10px;padding:10px;display:grid;gap:8px;color:var(--color-text-warning)}
+.fsv-line{position:relative;height:28px;background:var(--color-background-primary);border-radius:999px;border:1px solid var(--color-border-warning);overflow:hidden}
+.fsv-dot{position:absolute;top:6px;width:16px;height:16px;border-radius:50%;background:var(--color-text-success)}
+.fsv-dot.future{background:var(--color-text-danger);opacity:.35}
+.fsv-cut{position:absolute;top:0;bottom:0;left:64%;border-left:3px solid var(--color-text-warning)}
+.fsv-cut span{position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;white-space:nowrap;color:var(--color-text-warning)}
 @media(max-width:560px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
 </style>
             <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
             <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
+            <div class="fsv-pit"><div class="fsv-t">Point-in-time training lookup</div><div class="fsv-line"><span class="fsv-dot" style="left:14%"></span><span class="fsv-dot" style="left:38%"></span><span class="fsv-cut"><span>label time T</span></span><span class="fsv-dot future" style="left:78%"></span></div><div class="fsv-s">Query offline history for <b>feature X, user Y, as of T</b>. Pick the latest value with event_time ≤ T and ignore future values, or offline metrics leak information production will not have.</div></div>
             <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
           </div>
-          <div class="code">Feature pipeline:
-  source (DB events, streams) &rarr; compute features &rarr; write to:
-    offline store (S3/BigQuery) — batch, historical
-    online  store (Redis)       — latest value, low latency
-
-Point-in-time training lookup:
-  "give me feature X for user Y as of time T"
-  &rarr; range query on offline store with time filter</div>
           <p><strong>Key challenges:</strong> keeping offline and online stores consistent (same logic, same values); feature freshness (some features need real-time computation, others can be precomputed daily); versioning features as engineering logic evolves without breaking existing models.</p>
           <div class="tag-row"><span class="tag">Feast / Tecton / Hopsworks</span><span class="tag">point-in-time correctness</span><span class="tag">offline + online store</span></div>
         </div>
