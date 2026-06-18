@@ -351,7 +351,7 @@ if(!S.answered)S.answered={};  // sigs of graded questions you've actually answe
   }
 })();
 
-const HEARTS=5;
+const HEARTS=3;
 const levelOf=xp=>Math.floor(xp/100)+1;
 const xpInLevel=xp=>xp%100;
 
@@ -4136,7 +4136,7 @@ function startLesson(id){
 function manageTimer(){
   if(R.timeLeft==null){return;}
   const step=R.steps[R.idx];
-  const active=(R.mode==='boss'||R.mode==='speed')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+  const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
   if(active){startTimer();}else{stopTimer();}
 }
 function startBoss(uid){
@@ -4199,9 +4199,9 @@ function topbarHTML(){
   let right='';
   if(R.timeLeft!=null){
     const step=R.steps[R.idx];
-    const active=(R.mode==='boss'||R.mode==='speed')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+    const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
     right=active
-      ?'<div class="timer"><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>'
+      ?'<div class="timer" title="Beat the clock — it ticks on quiz steps. Run out of time and the round ends."><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>'
       :'<div class="timer paused" title="Timer pauses while you learn — runs during quiz steps"><span>⏸</span><span>'+R.timeLeft+'s</span></div>';
   }
   const back=(R.idx>0&&R.mode!=='boss')?'<button class="lback" id="backBtn" title="Previous">←</button>':'';
@@ -4209,7 +4209,7 @@ function topbarHTML(){
     +'<button class="close" id="quitBtn">×</button>'
     +back
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
-    +'<div class="lhearts">❤️ '+R.hearts+'</div>'
+    +'<div class="lhearts" title="Lives — a wrong answer costs one ❤️. Lose them all and the round ends (separate from the timer).">❤️ '+R.hearts+'</div>'
     +right
     +(canSkip?'<button class="lskip" id="skipBtn" title="Skip this question — it won’t count toward your score">Skip →</button>':'')
     +'</div>';
@@ -4221,7 +4221,7 @@ function renderStep(){
   let h=topbarHTML()+'<div class="stage" id="stage"></div>';
   h+='<div class="combo" id="combo"></div>';
   APP().innerHTML=h;
-  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome(true);return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome(true);else startTimer();};
+  document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome(R.mode==='lesson');return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome(true);else startTimer();};
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const sk=document.getElementById('skipBtn');if(sk)sk.onclick=skipStep;
   const stage=document.getElementById('stage');
@@ -4707,7 +4707,7 @@ function resultsScreen(success){
         +'<button class="btn blue" id="retryBtn">Try again</button><div style="height:10px"></div><button class="btn grey" id="homeBtn">Done</button></div>';
     }
     clearFoot();APP().innerHTML=sh;
-    const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(true);
+    const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(false); // speed run doesn't unlock a quest — stay at the top near the drill buttons
     const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>startRandomMix(R.steps.length);
     if(R.finished)burst();
     return;
@@ -4730,7 +4730,7 @@ function resultsScreen(success){
     h+='<button class="btn blue" id="retryBtn">Try again</button><div style="height:12px"></div><button class="btn grey" id="homeBtn">Back to map</button></div>';
   }
   clearFoot();APP().innerHTML=h;
-  const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(true);
+  const hb=document.getElementById('homeBtn');if(hb)hb.onclick=()=>renderHome(R.mode!=='review'); // review/recall drills don't unlock a quest — return to the top, not deep into the map
   const rb=document.getElementById('retryBtn');if(rb)rb.onclick=()=>{R.mode==='boss'?startBoss(R.unit.id):R.mode==='review'?(R.source==='recall'?startRecallReview():R.source==='unitrecall'?startUnitRecall(R.unit.id):startReview()):startLesson(R.lesson.id);};
   if(success){burst();}
 }
