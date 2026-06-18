@@ -2706,8 +2706,54 @@ Kappa:
           <p><strong>Tumbling windows:</strong> fixed-size, non-overlapping. <code>[0s,60s), [60s,120s)…</code>. Each event belongs to exactly one window. Simple, low overhead. Good for per-minute/per-hour aggregations.</p>
           <p><strong>Sliding windows:</strong> fixed size, slides by a step smaller than the window. "Last 60s, computed every 10s." Overlapping — an event appears in multiple windows. More compute but more granular.</p>
           <p><strong>Session windows:</strong> gap-based. A window opens on activity and closes when there's been no activity for N seconds. Adapts to user behavior naturally. Good for clickstreams, session analytics.</p>
+          <div class="winv-wrap" onclick="event.stopPropagation()" style="margin:14px 0;">
+          <style>
+            .winv{display:grid;gap:11px}
+            .winv-card{border:1.5px solid var(--bd);background:var(--bg);border-radius:12px;padding:10px 12px}
+            .winv-t{font-weight:800;color:var(--c);font-size:13px}
+            .winv-d{color:var(--color-text-secondary);font-size:11.5px;font-weight:600;margin:2px 0 8px}
+            .winv svg{width:100%;height:auto;display:block;font-family:inherit}
+            .winv-ind{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+            .winv-grn{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+            .winv-amb{--c:#b45309;--bg:#fffbeb;--bd:#fde68a}
+          </style>
+          <div class="winv">
+            <div class="winv-card winv-ind">
+              <div class="winv-t">Tumbling — fixed, non-overlapping</div>
+              <div class="winv-d">Each event lands in exactly one window. Simple, low overhead — per-minute / per-hour counts.</div>
+              <svg viewBox="0 0 300 50">
+                <g fill="var(--c)" fill-opacity="0.15" stroke="var(--c)" stroke-opacity="0.55" stroke-width="1.4">
+                  <rect x="6" y="8" width="90" height="30" rx="6"/><rect x="104" y="8" width="90" height="30" rx="6"/><rect x="202" y="8" width="92" height="30" rx="6"/>
+                </g>
+                <g fill="var(--c)"><circle cx="34" cy="23" r="3.4"/><circle cx="70" cy="23" r="3.4"/><circle cx="132" cy="23" r="3.4"/><circle cx="168" cy="23" r="3.4"/><circle cx="232" cy="23" r="3.4"/><circle cx="268" cy="23" r="3.4"/></g>
+              </svg>
+            </div>
+            <div class="winv-card winv-grn">
+              <div class="winv-t">Sliding / hopping — fixed size, overlapping</div>
+              <div class="winv-d">Slides by a step smaller than the window, so one event appears in several windows. More compute, more granular.</div>
+              <svg viewBox="0 0 300 54">
+                <g fill="var(--c)" fill-opacity="0.15" stroke="var(--c)" stroke-opacity="0.55" stroke-width="1.4">
+                  <rect x="6" y="6" width="120" height="16" rx="5"/><rect x="70" y="24" width="120" height="16" rx="5"/><rect x="134" y="6" width="120" height="16" rx="5"/>
+                </g>
+                <line x1="6" y1="47" x2="294" y2="47" stroke="var(--color-text-tertiary)" stroke-width="1"/>
+                <g fill="var(--c)"><circle cx="40" cy="47" r="3.4"/><circle cx="95" cy="47" r="3.4"/><circle cx="150" cy="47" r="3.4"/><circle cx="205" cy="47" r="3.4"/><circle cx="255" cy="47" r="3.4"/></g>
+              </svg>
+            </div>
+            <div class="winv-card winv-amb">
+              <div class="winv-t">Session — bounded by an activity gap</div>
+              <div class="winv-d">A window hugs a burst of activity and closes after N seconds of inactivity. Adapts to user behaviour.</div>
+              <svg viewBox="0 0 300 50">
+                <g fill="var(--c)" fill-opacity="0.15" stroke="var(--c)" stroke-opacity="0.55" stroke-width="1.4">
+                  <rect x="14" y="8" width="92" height="30" rx="6"/><rect x="180" y="8" width="74" height="30" rx="6"/>
+                </g>
+                <text x="143" y="26" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--color-text-tertiary)">inactivity gap</text>
+                <g fill="var(--c)"><circle cx="30" cy="23" r="3.4"/><circle cx="54" cy="23" r="3.4"/><circle cx="88" cy="23" r="3.4"/><circle cx="198" cy="23" r="3.4"/><circle cx="234" cy="23" r="3.4"/></g>
+              </svg>
+            </div>
+          </div>
+          </div>
           <p><strong>Late data &amp; watermarks:</strong> events arrive out of order (network delay, mobile clients syncing offline). A <em>watermark</em> is a threshold: "I'll wait up to 10 seconds for late events, then close the window and emit results." Late events after the watermark can be dropped, sent to a side output, or used to retract and update the prior result.</p>
-          <div class="code">Event time  = when the event actually happened (in the data payload)
+          <div class="code wrap">Event time  = when the event actually happened (in the data payload)
 Processing time = when the stream processor sees the event
 
 &rarr; always aggregate by event time for correctness
