@@ -424,7 +424,7 @@ const UNITS=[
      {k:'callout',c:'note',t:'<b>DynamoDB</b> the product is subtler than the Dynamo paper — single-region is closer to PC/EC (serialized writes, optional strong reads); global tables are PA/EL by default (MREC), though strong cross-region reads (MRSC) now exist with constraints.'}
    ]},
    {t:'match',q:'Match the system to its PACELC label.',pairs:[['Cassandra','PA/EL'],['Spanner','PC/EC'],['MongoDB','PA/EC']]},
-   {t:'mcq',q:'MongoDB (default) is usually labelled…',o:['PA/EL','PA/EC','PC/EL','CA'],a:1,why:'Single-primary fails over (PA); reads from primary are strongly consistent (EC).'},
+   {t:'mcq',q:'How strongly consistent a MongoDB read is depends mostly on…',o:['the disk type','the read/write concern you pick','the shard count','the OS page cache'],a:1,why:'MongoDB is tunable. Default <code>local</code> reads can return writes that later roll back; <code>majority</code> read+write gives read-your-writes; <code>linearizable</code> read concern (with majority writes) gives true single-document linearizability — each step costs latency. Treat its PACELC label as "PA/EC by default, dialled by concern," not a fixed gotcha.'},
    {t:'recall',q:'Why is PACELC more useful than CAP in an interview? Say it, then check.',model:['CAP only describes behaviour during a (rare) partition.','PACELC also captures the everyday tradeoff: consistency vs latency when healthy.','It maps better to real choices like "QUORUM reads cost latency".']}
   ]},
   {id:'cap-3',title:'Consistency ladder',steps:[
