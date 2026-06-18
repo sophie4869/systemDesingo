@@ -3557,24 +3557,6 @@ const UNITS=[
      {k:'point',i:'💥',t:'<b>Ignoring failure</b> — never saying what happens when the cache, a node, or the leader dies.'}
    ]},
    {t:'recall',q:'Name the non-functional requirements you should always probe.',model:['Consistency vs availability, scale (DAU/QPS/read:write), latency targets.','Durability, security/compliance, fault tolerance — quantify the top 3–5 that matter here.']}
-  ]},
-  {id:'fw-2',title:'Make the call',steps:[
-   {t:'teach',h:'The recurring forks',body:[
-     {k:'tldr',t:'Most designs hit the same forks. Memorize the deciding QUESTION, not a default answer.'},
-     {k:'vs',a:{h:'SQL',t:'transactions, joins, strong consistency (orders, payments).'},b:{h:'NoSQL',t:'huge scale + simple access, flexible schema, write-heavy.'}},
-     {k:'vs',a:{h:'Strong consistency',t:'balances, uniqueness, "did it commit?"'},b:{h:'Eventual',t:'likes, views, search indexes, analytics.'}}
-   ]},
-   {t:'sort',q:'SQL or NoSQL for this workload?',buckets:['SQL','NoSQL'],items:[
-     {text:'Payments with multi-row transactions',b:0},{text:'10M writes/sec of sensor data',b:1},{text:'Complex joins + ad-hoc queries',b:0},{text:'Flexible schema, simple key access',b:1}
-   ]},
-   {t:'match',q:'Match the use-case to the right datastore.',pairs:[['Cache / sessions','Key-value (Redis)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph DB'],['Append-heavy time-series','Wide-column (Cassandra)']]},
-   {t:'mcq',q:'Correctness is critical (money, inventory, locks). Pick…',o:['AP (availability)','CP (consistency)','eventual','LWW'],a:1,why:'When a wrong answer is unacceptable, choose consistency (CP) even at some availability cost.'},
-   {t:'mcq',q:'Caller needs the result now and the work is short. Sync or async?',o:['async via a queue','synchronous','always async','fire-and-forget'],a:1,why:'Sync is simpler with clear back-pressure; go async only for slow/heavy work, spikes, or decoupling.'},
-   {t:'cloze',q:'Fill the decision blanks.',distract:['offset','vertical'],text:[
-     'Choose ',{blank:'SQL'},' for transactions and joins; ',{blank:'NoSQL'},' for huge scale + simple access. Use ',
-     {blank:'eventual',alt:['eventual consistency']},' consistency for likes/views, but ',{blank:'strong',alt:['strong consistency']},' for balances and "did it commit?".'
-   ]},
-   {t:'recall',q:'Give the deciding question for: SQL vs NoSQL, CP vs AP, sync vs async.',model:['SQL vs NoSQL: "do I need transactions/joins/strong consistency, or huge-scale simple access?"','CP vs AP: "is a wrong/stale answer unacceptable here?" (money → CP; feeds → AP).','Sync vs async: "does the caller need the result now and is the work short?" If yes, sync.']}
   ]}
  ],
  boss:{title:'Framework Boss',time:60,q:[
@@ -3613,7 +3595,7 @@ const UNITS=[
    {t:'teach',h:'Match data to store',body:[
      {k:'tldr',t:'Pick by <b>access pattern + consistency need</b>, never by brand: relational (ACID/joins) · wide-column (write-heavy/time-series) · search (full-text) · graph (multi-hop) · columnar/OLAP (big aggregates over few columns, ≠ wide-column point access). Drill the fit below.'}
    ]},
-   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)']]},
+   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)'],['Cache / sessions','Key-value (Redis)']]},
    {t:'mcq',q:'Dashboards aggregating billions of rows over just a few columns. Which store?',o:['relational (Postgres)','columnar / OLAP (ClickHouse, BigQuery)','key-value (Redis)','graph (Neo4j)'],a:1,why:'Columnar engines read only the needed columns and compress them well — built for big aggregates, unlike row stores or point-lookup KV/graph engines.'},
    {t:'sort',q:'Strong or eventual consistency?',buckets:['Strong','Eventual'],items:[
      {text:'account balance',b:0},{text:'like / view counts',b:1},{text:'inventory',b:0},{text:'search index',b:1}
