@@ -2565,12 +2565,10 @@ each step independently deployable &amp; rollback-safe</div>
       </div>
 
       <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Notification systems &amp; fan-out</div><div class="card-sub">Reaching millions of users from one event</div></div><span class="badge badge-red">Pattern</span></div>
+        <div class="card-header"><div class="card-meta"><div class="card-title">Fan-out</div><div class="card-sub">Write amplification: one post, millions of timelines</div></div><span class="badge badge-red">Pattern</span></div>
         <div class="card-body">
-          <p>A notification system routes one event (a tweet, a payment confirmation) to potentially millions of recipients across multiple channels (push, email, SMS, in-app). The core challenge is <strong>fan-out</strong> — write amplification when one user has millions of followers.</p>
-          <p><strong>Channels and delivery:</strong> Mobile push via APNs (iOS) and FCM (Android) — each user stores device tokens in the DB; Email via SES/SendGrid — batch for deliverability, respect rate limits; SMS via Twilio — expensive, reserve for critical alerts; In-app via WebSocket or polling.</p>
-          <p><strong>Fan-out strategies:</strong></p>
-          <p><strong>Fan-out on write (push model):</strong> when a user posts, immediately write a notification entry to every follower's inbox. Fast reads (inbox is pre-populated). Prohibitive for celebrities — a user with 10M followers triggers 10M writes on a single post.</p>
+          <p>When one user posts, that event may need to reach millions of followers' feeds or inboxes. The core challenge is <strong>fan-out</strong> — write amplification when a single user has millions of followers. The design choice is <em>where</em> you pay the cost: on write or on read.</p>
+          <p><strong>Fan-out on write (push model):</strong> when a user posts, immediately write a feed/inbox entry to every follower's timeline. Fast reads (inbox is pre-populated). Prohibitive for celebrities — a user with 10M followers triggers 10M writes on a single post.</p>
           <p><strong>Fan-out on read (pull model):</strong> store the event once; followers compute their feed/inbox at read time. Cheap writes, expensive reads — and read latency grows with the number of people you follow.</p>
           <p><strong>Hybrid (the standard answer):</strong> fan-out on write for normal users (&lt; some follower threshold); fan-out on read for high-follower "celebrity" accounts. Readers merge their pre-populated inbox with any celebrity events at read time.</p>
           <div class="nfv" onclick="event.stopPropagation()">
@@ -2626,20 +2624,48 @@ each step independently deployable &amp; rollback-safe</div>
               </div>
               <div class="nfv-note">read time → inbox = <b>pre-populated rows + celebrity events</b> merged</div>
             </div>
-            <div class="nfv-sec">
-              <div class="nfv-h">Mobile push delivery</div>
-              <div class="nfv-flow">
-                <div class="nfv-box info"><div class="nfv-t">Notification svc</div><div class="nfv-s">batch device tokens</div></div>
-                <div class="nfv-arr">→</div>
-                <div class="nfv-box"><div class="nfv-t">APNs (iOS)</div><div class="nfv-s">delivery · retries · token refresh</div></div>
-                <div class="nfv-box"><div class="nfv-t">FCM (Android)</div></div>
+            <div class="nfv-cap"><b>Push the many, pull the few.</b> Pre-populate normal inboxes (→ O(1) reads); celebrities store once and merge at read time. Time-sortable IDs (Snowflake) make the read-time merge straightforward.</div>
+          </div>
+          <div class="tag-row"><span class="tag">fan-out on write vs read</span><span class="tag">celebrity = hybrid threshold</span><span class="tag">write amplification</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Notification systems</div><div class="card-sub">Delivering one event across channels, reliably</div></div><span class="badge badge-red">Pattern</span></div>
+        <div class="card-body">
+          <p>A notification system routes one event (a tweet, a payment confirmation) to recipients across multiple channels — push, email, SMS, in-app. Once you've decided <em>who</em> to notify (that's <strong>fan-out</strong>, above), the job is delivering reliably without spamming.</p>
+          <p><strong>Channels and delivery:</strong> Mobile push via APNs (iOS) and FCM (Android) — each user stores device tokens in the DB; Email via SES/SendGrid — batch for deliverability, respect rate limits; SMS via Twilio — expensive, reserve for critical alerts; In-app via WebSocket or polling.</p>
+          <div class="ndv" onclick="event.stopPropagation()">
+<style>
+.ndv{display:grid;gap:11px;margin:.75rem 0}
+.ndv-sec{display:grid;gap:8px;padding:11px;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);background:var(--color-background-primary)}
+.ndv-h{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;font-weight:800;color:var(--color-text-primary)}
+.ndv-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.ndv-box{flex:1 1 110px;min-width:0;display:flex;flex-direction:column;justify-content:center;border:2px solid var(--color-border-primary);border-radius:11px;background:var(--color-background-secondary);padding:8px 9px;text-align:center}
+.ndv-box.info{background:var(--color-background-info);border-color:var(--color-border-info)}
+.ndv-t{font-size:12px;font-weight:800;color:var(--color-text-primary);line-height:1.25}
+.ndv-s{font-size:10.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.3;margin-top:3px}
+.ndv-arr{flex:0 0 auto;align-self:center;font-size:16px;font-weight:900;color:var(--color-text-tertiary)}
+.ndv-note{font-size:11px;font-weight:600;color:var(--color-text-secondary);text-align:center;line-height:1.4}
+.ndv-note b{color:var(--color-text-primary)}
+.ndv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.55;padding:9px 12px;background:var(--color-background-secondary);border-radius:9px}
+.ndv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.ndv-flow{flex-direction:column;align-items:stretch}.ndv-arr{transform:rotate(90deg)}}
+</style>
+            <div class="ndv-sec">
+              <div class="ndv-h">Mobile push delivery</div>
+              <div class="ndv-flow">
+                <div class="ndv-box info"><div class="ndv-t">Notification svc</div><div class="ndv-s">batch device tokens</div></div>
+                <div class="ndv-arr">→</div>
+                <div class="ndv-box"><div class="ndv-t">APNs (iOS)</div><div class="ndv-s">delivery · retries · token refresh</div></div>
+                <div class="ndv-box"><div class="ndv-t">FCM (Android)</div></div>
               </div>
-              <div class="nfv-note"><b>Dedup</b> sent notification_id · <b>Coalesce</b> "5 people liked your post" &gt; 5 separate pushes</div>
+              <div class="ndv-note"><b>Dedup</b> sent notification_id · <b>Coalesce</b> "5 people liked your post" &gt; 5 separate pushes</div>
             </div>
-            <div class="nfv-cap"><b>One event → millions of recipients.</b> Push for the many (pre-populate normal inboxes → O(1) reads), pull for the few (celebrities store once, merge at read time). At-least-once delivery from workers / APNs retries means you must dedup and coalesce before the push.</div>
+            <div class="ndv-cap"><b>Reliable, not spammy.</b> At-least-once delivery from async workers / APNs retries means duplicates are possible — dedup on a stored notification_id and coalesce bursts before the push.</div>
           </div>
           <p><strong>Deduplication:</strong> at-least-once delivery (from async workers or APNs retries) can send duplicate push notifications. Store a sent-notification ID and deduplicate before delivery. Also coalesce bursts: "5 people liked your post" beats 5 separate pushes.</p>
-          <div class="tag-row"><span class="tag">APNs / FCM</span><span class="tag">fan-out on write vs read</span><span class="tag">celebrity = hybrid threshold</span><span class="tag">dedup + coalesce</span></div>
+          <div class="tag-row"><span class="tag">APNs / FCM</span><span class="tag">at-least-once delivery</span><span class="tag">dedup + coalesce</span></div>
         </div>
       </div>
 
