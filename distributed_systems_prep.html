@@ -4632,5 +4632,18 @@ document.addEventListener('DOMContentLoaded',setupExerciseCarousels);
 .ex-nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .ex-nav-btn:disabled{opacity:.4;cursor:not-allowed}
 </style>
+<button id="toTop" aria-label="Scroll to top" title="Back to top">↑</button>
+<style>
+#toTop{position:fixed;bottom:22px;right:22px;z-index:70;width:44px;height:44px;border-radius:50%;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.22);opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s}
+#toTop.show{opacity:1;visibility:visible;transform:translateY(0)}
+#toTop:hover{background:var(--accent-dark)}
+</style>
+<script>(function(){
+  var btn=document.getElementById('toTop');
+  function onScroll(){if((window.scrollY||document.documentElement.scrollTop)>300)btn.classList.add('show');else btn.classList.remove('show');}
+  window.addEventListener('scroll',onScroll,{passive:true});
+  btn.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  onScroll();
+})();</script>
 </body>
 </html>

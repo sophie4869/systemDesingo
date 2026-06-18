@@ -5155,5 +5155,18 @@ document.addEventListener('keydown',keyAction);
 seedAnswered();
 renderHome(true);
 </script>
+<button id="toTop" aria-label="Scroll to top" title="Back to top">↑</button>
+<style>
+#toTop{position:fixed;bottom:80px;right:18px;z-index:40;width:46px;height:46px;border-radius:50%;border:2px solid var(--blue-d);border-bottom-width:4px;background:var(--blue);color:#fff;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s}
+#toTop.show{opacity:1;visibility:visible;transform:translateY(0)}
+#toTop:active{border-bottom-width:2px;transform:translateY(2px)}
+</style>
+<script>(function(){
+  var btn=document.getElementById('toTop');
+  function onScroll(){if((window.scrollY||document.documentElement.scrollTop)>300)btn.classList.add('show');else btn.classList.remove('show');}
+  window.addEventListener('scroll',onScroll,{passive:true});
+  btn.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  onScroll();
+})();</script>
 </body>
 </html>
