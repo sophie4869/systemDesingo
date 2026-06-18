@@ -3480,9 +3480,42 @@ const UNITS=[
       <div class="giz-fs"><b>S2 / H3</b>: hierarchical cells; H3's hexagons make all six neighbors (blue) equidistant — no corner-vs-edge ambiguity, why Uber uses it for matching.</div>
     </figure>
   </div>
-  <div class="giz-cap"><b>Pick by data shape:</b> simplicity &amp; any sorted store → geohash; uneven density (cities vs ocean) → quadtree; equal-distance neighbors for matching/coverage → H3.</div>
 </div>`},
-   {t:'match',q:'Geospatial index → its trait.',pairs:[['Geohash','fixed grid, dead simple, any sorted store'],['Quadtree','subdivides only dense areas (city vs ocean)'],['S2 / H3','hierarchical cells; H3 hexagons = equal-distance neighbors']]},
+   {t:'htmlviz',h:'R-tree — index shapes, not just points',
+    html:`<style>
+.rtv{display:grid;gap:10px}
+.rtv-fig{margin:0;display:grid;gap:6px;padding:11px;border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary)}
+.rtv-fig svg{width:100%;max-width:240px;height:auto;display:block;margin:0 auto;border-radius:6px}
+.rtv-ft{font-size:12.5px;font-weight:800;color:var(--color-text-primary)}
+.rtv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.rtv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="rtv">
+  <figure class="rtv-fig">
+    <div class="rtv-ft">Nested bounding boxes — R1, R2 may overlap</div>
+    <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+      <rect x="8" y="12" width="82" height="70" rx="3" fill="var(--color-background-info)" fill-opacity=".14" stroke="var(--color-border-info)" stroke-width="1.6"/>
+      <rect x="56" y="62" width="86" height="76" rx="3" fill="var(--color-background-warning)" fill-opacity=".16" stroke="var(--color-border-warning)" stroke-width="1.6"/>
+      <g fill="none" stroke="var(--color-text-secondary)" stroke-width="1" stroke-dasharray="3 2">
+        <rect x="14" y="20" width="32" height="22" rx="2"/><rect x="50" y="40" width="34" height="34" rx="2"/>
+        <rect x="64" y="92" width="34" height="22" rx="2"/><rect x="100" y="80" width="36" height="24" rx="2"/>
+      </g>
+      <g fill="var(--color-text-tertiary)" opacity=".85">
+        <rect x="18" y="24" width="10" height="7" rx="1.5"/><rect x="31" y="29" width="9" height="7" rx="1.5"/>
+        <rect x="54" y="46" width="11" height="9" rx="1.5"/><rect x="66" y="58" width="10" height="9" rx="1.5"/>
+        <rect x="68" y="96" width="9" height="7" rx="1.5"/><rect x="82" y="100" width="8" height="7" rx="1.5"/>
+        <rect x="104" y="84" width="10" height="9" rx="1.5"/><rect x="118" y="90" width="9" height="9" rx="1.5"/>
+      </g>
+      <g font-family="ui-monospace,monospace" font-size="9" font-weight="700">
+        <text x="11" y="19" fill="var(--color-text-info)">R1</text><text x="123" y="132" fill="var(--color-text-warning)">R2</text>
+      </g>
+    </svg>
+  </figure>
+  <div class="rtv-cap"><b>Cells drop points in; R-tree wraps shapes.</b> Geohash / quadtree / S2 / H3 assign each <b>point</b> to a cell. An R-tree wraps objects in nested <b>bounding boxes</b> (dashed leaves → parents R1/R2) that may <b>overlap</b>, so it indexes things with <b>extent</b> — polygons, roads, delivery zones — and search descends only into boxes that intersect your query. It's the index behind relational spatial DBs (PostGIS / GiST).</div>
+</div>`},
+   {t:'mcq',q:'You must index delivery-zone polygons and ask "which zone contains this point?" Best fit?',o:['a geohash prefix scan','an R-tree (bounding-box index, e.g. PostGIS)','a hash index on zone name','a plain B-tree on latitude'],a:1,why:'Cell systems (geohash/S2/H3) index points into cells; an R-tree indexes shapes by their bounding boxes, so it directly handles containment/overlap of objects with extent.'},
+   {t:'match',q:'Geospatial index → its trait.',pairs:[['Geohash','fixed grid, dead simple, any sorted store'],['Quadtree','subdivides only dense areas (city vs ocean)'],['S2 / H3','hierarchical cells; H3 hexagons = equal-distance neighbors'],['R-tree','bounding-box tree; indexes shapes with extent (PostGIS)']]},
    {t:'sort',q:'Worth a geo index, or just scan?',buckets:['Geo index','Just scan'],items:[
      {text:'10M restaurants nationwide',b:0},{text:'~1,000 store locations',b:1},{text:'millions of live drivers',b:0},{text:'a single small city’s list',b:1}
    ]},
@@ -3511,7 +3544,7 @@ const UNITS=[
   {id:'fw-1',title:'The flow',steps:[
    {t:'teach',h:'A repeatable structure',body:[
      {k:'tldr',t:'Five phases: requirements (top-3 functional + quantified NFRs) → entities + API → high-level design → deep dives → wrap-up. Drill the order below.'},
-     {k:'point',i:'🔑',t:'API tips: derive the user from the <b>auth token</b> (never the request body); paginate with a <b>cursor (keyset)</b>, not offset.'},
+     {k:'point',i:'🔑',t:'API tip: keep the contract resource-oriented and paginate feeds with a <b>cursor (keyset)</b>, not offset.'},
      {k:'point',i:'🧮',t:'Back-of-envelope math <b>only when a number changes the design</b> — not as ritual.'}
    ]},
    {t:'order',q:'Order the interview steps.',items:['Clarify requirements','Define core entities + API','High-level design','Deep dives','Wrap up: bottlenecks & SPOFs']},
