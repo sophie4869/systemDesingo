@@ -3232,6 +3232,9 @@ function makeQuiz(mount,questions){
     return 0;
   }
   let cur=firstUnanswered();
+  // shuffle display order per question (cached so it's stable across re-renders); stored/scored value stays the original index
+  const ORD={};
+  function orderFor(q){if(!ORD[q.id]){const a=q.o.map((_,i)=>i);for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}ORD[q.id]=a;}return ORD[q.id];}
   function render(){
     const q=questions[cur];
     const store=loadQz();
@@ -3244,15 +3247,15 @@ function makeQuiz(mount,questions){
     fill.style.width=(s.ans/questions.length*100)+'%';
     qreset.style.display=s.ans?'inline-block':'none';
     qo.innerHTML='';
-    q.o.forEach((o,i)=>{
+    orderFor(q).forEach(orig=>{
       const b=document.createElement('button');
-      b.className='q-opt';b.textContent=o;
+      b.className='q-opt';b.textContent=q.o[orig];
       if(isAns){
         b.disabled=true;
-        if(i===q.a)b.classList.add('correct');
-        else if(i===chosen)b.classList.add('wrong');
+        if(orig===q.a)b.classList.add('correct');
+        else if(orig===chosen)b.classList.add('wrong');
       }else{
-        b.onclick=()=>answer(i);
+        b.onclick=()=>answer(orig);
       }
       qo.appendChild(b);
     });

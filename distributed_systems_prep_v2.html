@@ -3442,14 +3442,16 @@ function stVecViz(stage,step){
 
 /* ---------- step: mcq ---------- */
 function stMcq(stage,step){
+  // shuffle option order so the correct answer isn't always in the same slot
+  const order=shuffle(step.o.map((_,i)=>i)), aIdx=order.indexOf(step.a);
   let h='<div class="q-sub">'+(step.boss?'⚡ Speed round':'🧩 Quick check')+'</div><div class="q-title">'+step.q+'</div><div class="opts">';
-  step.o.forEach((o,i)=>h+='<button class="opt" data-i="'+i+'">'+o+'</button>');
+  order.forEach((orig,i)=>h+='<button class="opt" data-i="'+i+'">'+step.o[orig]+'</button>');
   h+='</div>';stage.innerHTML=h;
   let locked=false;
   stage.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
     if(locked)return;locked=true;
-    const i=+b.dataset.i, ok=i===step.a;
-    stage.querySelectorAll('.opt').forEach((x,j)=>{x.classList.add('dim');if(j===step.a)x.classList.add('correct');});
+    const i=+b.dataset.i, ok=i===aIdx;
+    stage.querySelectorAll('.opt').forEach((x,j)=>{x.classList.add('dim');if(j===aIdx)x.classList.add('correct');});
     b.classList.remove('dim');b.classList.add(ok?'correct':'wrong');
     grade(ok,10);finishGraded(step,ok);
     if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),650);return;}
