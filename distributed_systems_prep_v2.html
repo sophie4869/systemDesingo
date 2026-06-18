@@ -2621,6 +2621,45 @@ const UNITS=[
      {k:'point',i:'🪟',t:'Windows: tumbling (fixed, non-overlap), hopping (overlap), session (by activity gap).'},
      {k:'point',i:'🌊',t:'<b>Watermarks</b> bound how long to wait for late events.'}
    ]},
+   {t:'htmlviz',h:'Watermarks: when is a window done?',
+    html:`<style>
+      .wm-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;font-weight:700;margin-top:6px}
+      .wm-leg span{display:inline-flex;align-items:center;gap:5px;color:var(--color-text-secondary)}
+      .wm-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+      .wm-cap{font-size:11.5px;color:var(--color-text-secondary);line-height:1.55;font-weight:600;margin-top:9px}
+      .wm-cap b{color:var(--color-text-primary)}
+    </style>
+    <svg viewBox="0 0 460 168" style="width:100%;height:auto;font-family:inherit">
+      <rect x="55" y="56" width="279" height="70" rx="7" fill="var(--color-background-success)" opacity="0.45"/>
+      <rect x="334" y="56" width="93" height="70" rx="7" fill="var(--color-background-secondary)"/>
+      <text x="63" y="72" font-size="9.5" font-weight="800" fill="var(--color-text-success)">complete — windows here can fire</text>
+      <text x="340" y="72" font-size="9.5" font-weight="800" fill="var(--color-text-secondary)">still waiting…</text>
+      <line x1="48" y1="120" x2="434" y2="120" stroke="var(--color-text-secondary)" stroke-width="1.4"/>
+      <g font-size="9" fill="var(--color-text-secondary)" text-anchor="middle">
+        <text x="55" y="138">0s</text><text x="148" y="138">3s</text><text x="241" y="138">6s</text><text x="334" y="138">9s</text><text x="427" y="138">12s</text>
+        <text x="427" y="152" text-anchor="end" font-weight="700">event time →</text>
+      </g>
+      <!-- on-time events: x = 55 + t*31, number = arrival order -->
+      <g text-anchor="middle">
+        <circle cx="86" cy="120" r="6" fill="var(--color-text-info)"/><text x="86" y="106" font-size="9" font-weight="800" fill="var(--color-text-secondary)">1</text>
+        <circle cx="179" cy="120" r="6" fill="var(--color-text-info)"/><text x="179" y="106" font-size="9" font-weight="800" fill="var(--color-text-secondary)">2</text>
+        <circle cx="148" cy="120" r="6" fill="var(--color-text-info)"/><text x="148" y="106" font-size="9" font-weight="800" fill="var(--color-text-secondary)">3</text>
+        <circle cx="303" cy="120" r="6" fill="var(--color-text-info)"/><text x="303" y="106" font-size="9" font-weight="800" fill="var(--color-text-secondary)">4</text>
+        <circle cx="241" cy="120" r="6" fill="var(--color-text-info)"/><text x="241" y="106" font-size="9" font-weight="800" fill="var(--color-text-secondary)">5</text>
+        <circle cx="117" cy="120" r="6" fill="var(--color-text-danger)"/><text x="117" y="106" font-size="9" font-weight="800" fill="var(--color-text-danger)">6</text>
+        <text x="117" y="152" font-size="9" font-weight="800" fill="var(--color-text-danger)">late!</text>
+      </g>
+      <!-- watermark -->
+      <line x1="334" y1="46" x2="334" y2="128" stroke="var(--color-text-warning)" stroke-width="2.2" stroke-dasharray="5 4"/>
+      <text x="334" y="40" text-anchor="middle" font-size="10.5" font-weight="800" fill="var(--color-text-warning)">watermark = 9s</text>
+    </svg>
+    <div class="wm-leg">
+      <span><i class="wm-dot" style="background:var(--color-text-info)"></i>on-time</span>
+      <span><i class="wm-dot" style="background:var(--color-text-danger)"></i>late</span>
+      <span>number = arrival order</span>
+    </div>
+    <div class="wm-cap">Events stream in <b>out of order</b> (see the arrival numbers). The <b>watermark</b> is the engine's promise: “I’ve seen everything with event-time ≤ 9s.” Any window ending ≤ 9s can now safely fire. Event #6 has event-time 2s but arrived <b>after</b> the watermark passed it → it's <b>late</b> (dropped, or sent to a side-output). Bigger lateness allowance = more correct, but more delay.</div>
+    `},
    {t:'teach',h:'Correctness',body:[
      {k:'point',i:'💾',t:'Stateful operators checkpoint their state for fault tolerance.'},
      {k:'point',i:'🎯',t:'Exactly-once = checkpoints + idempotent/transactional sinks.'}
