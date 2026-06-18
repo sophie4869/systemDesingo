@@ -2672,7 +2672,7 @@ each step independently deployable &amp; rollback-safe</div>
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Proximity-based services</div><div class="card-sub">"Find things near me"</div></div><span class="badge badge-purple">Pattern</span></div>
         <div class="card-body">
-          <p>Location search (Uber, Yelp, food delivery) needs a <strong>geospatial index</strong>. Divide the map into regions so the system can exclude vast empty areas and shrink the search space. Implementations: PostgreSQL + PostGIS, Redis geospatial type, or Elasticsearch geo-queries; algorithms like geohash, quadtrees, or S2/H3 cells.</p>
+          <p>Location search (Uber, Yelp, food delivery) needs a <strong>geospatial index</strong>. Divide the map into regions so the system can exclude vast empty areas and shrink the search space. Implementations: PostgreSQL + PostGIS, Redis geospatial type, or Elasticsearch geo-queries; algorithms like geohash, quadtrees, S2/H3 cells, or R-trees (the bounding-box index behind PostGIS).</p>
           <p><strong>The trick (geohash):</strong> encode (lat, lng) into a short string where a <em>shared prefix means physical closeness</em> — <code>9q8yy</code> and <code>9q8yz</code> are adjacent cells, <code>9q8</code> is the bigger block containing both. That collapses 2D proximity into a 1D <strong>prefix range</strong>, so a plain B-tree or a Redis sorted set can answer "near me" with an ordinary range scan — no special index engine required. Longer prefix = smaller, more precise cell.</p>
           <div class="geo" onclick="event.stopPropagation()">
 <style>
@@ -2749,10 +2749,42 @@ each step independently deployable &amp; rollback-safe</div>
                 <div class="giz-fs">Hierarchical cells; H3's hexagons give every neighbor equal distance (highlighted) — why Uber uses it for matching.</div>
               </figure>
             </div>
-            <div class="giz-cap"><b>How the cells actually look.</b> Geohash lays a uniform grid — simple, but a dense city overloads one cell. Quadtree subdivides only where points cluster, adapting to skew. H3 tiles with hexagons so all six neighbors sit at an equal distance — handy for matching &amp; coverage.</div>
+          </div>
+          <p><strong>A different shape: R-tree.</strong> Those three drop each <em>point</em> into a cell. An R-tree instead wraps objects in nested <strong>bounding boxes</strong> — so it indexes things with <em>extent</em> (polygons, roads, delivery zones), not just points.</p>
+          <div class="rtv" onclick="event.stopPropagation()">
+<style>
+.rtv{display:grid;gap:10px;margin:.75rem 0}
+.rtv-fig{margin:0;display:grid;gap:6px;padding:11px;border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary)}
+.rtv-fig svg{width:100%;max-width:230px;height:auto;display:block;margin:0 auto;border-radius:6px}
+.rtv-ft{font-size:12.5px;font-weight:800;color:var(--color-text-primary)}
+.rtv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.rtv-cap b{color:var(--color-text-primary)}
+</style>
+            <figure class="rtv-fig">
+              <div class="rtv-ft">R-tree — nested bounding boxes</div>
+              <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+                <rect x="8" y="12" width="82" height="70" rx="3" fill="var(--color-background-info)" fill-opacity=".14" stroke="var(--color-border-info)" stroke-width="1.6"/>
+                <rect x="56" y="62" width="86" height="76" rx="3" fill="var(--color-background-warning)" fill-opacity=".16" stroke="var(--color-border-warning)" stroke-width="1.6"/>
+                <g fill="none" stroke="var(--color-text-secondary)" stroke-width="1" stroke-dasharray="3 2">
+                  <rect x="14" y="20" width="32" height="22" rx="2"/><rect x="50" y="40" width="34" height="34" rx="2"/>
+                  <rect x="64" y="92" width="34" height="22" rx="2"/><rect x="100" y="80" width="36" height="24" rx="2"/>
+                </g>
+                <g fill="var(--color-text-tertiary)" opacity=".85">
+                  <rect x="18" y="24" width="10" height="7" rx="1.5"/><rect x="31" y="29" width="9" height="7" rx="1.5"/>
+                  <rect x="54" y="46" width="11" height="9" rx="1.5"/><rect x="66" y="58" width="10" height="9" rx="1.5"/>
+                  <rect x="68" y="96" width="9" height="7" rx="1.5"/><rect x="82" y="100" width="8" height="7" rx="1.5"/>
+                  <rect x="104" y="84" width="10" height="9" rx="1.5"/><rect x="118" y="90" width="9" height="9" rx="1.5"/>
+                </g>
+                <g font-family="ui-monospace,monospace" font-size="9" font-weight="700">
+                  <text x="11" y="19" fill="var(--color-text-info)">R1</text><text x="123" y="132" fill="var(--color-text-warning)">R2</text>
+                </g>
+              </svg>
+            </figure>
+            <div class="rtv-cap"><b>A tree of bounding boxes.</b> Leaf boxes (dashed) wrap nearby objects; parent boxes (R1, R2) wrap the leaves — and unlike grid cells, they're allowed to <b>overlap</b>. Search descends only into boxes whose rectangle intersects your query. It's what relational spatial indexes (PostGIS / GiST) use under the hood, and it shines for <b>shape-vs-shape</b> queries ("which zones contain this point?"), where cell IDs are weaker.</div>
           </div>
           <div class="note"><strong>Right-size it:</strong> a geo index only pays off at hundreds of thousands–millions of items. For ~1,000 items, just scan them — the index overhead isn't worth it. And queries are usually local, not global.</div>
-          <div class="tag-row"><span class="tag">prefix = proximity</span><span class="tag">cell + 8 neighbors</span><span class="tag">coarse filter → exact distance</span><span class="tag">geohash / quadtree / H3</span><span class="tag">PostGIS, Redis geo</span></div>
+          <div class="tag-row"><span class="tag">prefix = proximity</span><span class="tag">cell + 8 neighbors</span><span class="tag">coarse filter → exact distance</span><span class="tag">geohash / quadtree / H3</span><span class="tag">R-tree = shapes, not points</span><span class="tag">PostGIS, Redis geo</span></div>
         </div>
       </div>
 
@@ -2779,30 +2811,16 @@ each step independently deployable &amp; rollback-safe</div>
     <div class="cards">
 
       <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">A 45-minute structure</div><div class="card-sub">Where to spend your time</div></div><span class="badge badge-blue">Method</span></div>
+        <div class="card-header"><div class="card-meta"><div class="card-title">A delivery framework</div><div class="card-sub">A repeatable ~45-minute structure</div></div><span class="badge badge-blue">Method</span></div>
         <div class="card-body">
-          <p><strong>1. Requirements (~5 min):</strong> clarify functional ("what does it do?") and non-functional (scale, latency, consistency, availability) requirements. Pin down scope explicitly — you can't design everything, so agree on what's in.</p>
-          <p><strong>2. Estimation (~5 min):</strong> back-of-envelope QPS, storage, bandwidth. This justifies later choices.</p>
-          <p><strong>3. API + data model (~5 min):</strong> define the key endpoints and the core entities/schema. Concrete and grounding.</p>
-          <p><strong>4. High-level design (~10 min):</strong> draw the boxes — clients, LB, services, DB, cache, queue. Walk one request end to end.</p>
-          <p><strong>5. Deep dive (~15 min):</strong> the interviewer steers here. Go deep on 1–2 components: sharding scheme, consistency model, the hot path, a failure mode.</p>
-          <p><strong>6. Wrap-up (~5 min):</strong> bottlenecks, single points of failure, and what you'd do with more time.</p>
-          <div class="tag-row"><span class="tag">clarify before designing</span><span class="tag">drive the conversation</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Hello Interview Delivery Framework</div><div class="card-sub">A widely-used 6-step structure</div></div><span class="badge badge-blue">Battle-tested</span></div>
-        <div class="card-body">
-          <p>A popular FAANG-tuned variant of the structure above — same spirit, sharper opinions:</p>
-          <p><strong>1. Requirements (~5m):</strong> functional ("users should be able to…") — prioritize the <em>top 3</em>; a long list hurts you. Then non-functional ("the system should be…"), quantified: e.g. "feed &lt;200ms", "100M DAU", "availability over consistency".</p>
+          <p><strong>1. Requirements (~5m):</strong> functional ("users should be able to…") — prioritize the <em>top 3</em>; a long list hurts you. Then non-functional, quantified: "feed &lt;200ms", "100M DAU", "availability over consistency". Pin scope explicitly — you can't design everything.</p>
           <p><strong>2. Core entities (~2m):</strong> jot the key nouns/resources (User, Tweet, Follow) before schemas — flesh out fields later as the design reveals them.</p>
           <p><strong>3. API / interface (~5m):</strong> define the contract. Default to <em>REST</em> with plural resource nouns; GraphQL for diverse clients; gRPC for internal perf. Derive the current user from the auth token, never from the request body.</p>
           <p><strong>4. [Optional] Data flow (~5m):</strong> for data-processing systems, list the pipeline (fetch → parse → extract → store).</p>
-          <p><strong>5. High-level design (~10–15m):</strong> draw boxes that satisfy each API endpoint one by one; resist adding complexity early — note it and move on.</p>
-          <p><strong>6. Deep dives (~10m):</strong> harden against the non-functional requirements, edge cases, bottlenecks. Your seniority shows in how proactively you lead this.</p>
-          <div class="note"><strong>Contrarian take worth knowing:</strong> Hello Interview recommends <em>skipping</em> upfront back-of-envelope estimation unless a number will actually change the design (e.g. "does the Top-K heap fit on one node?"). Do the math inline when it matters, not as ritual.</div>
-          <div class="tag-row"><span class="tag">top-3 functional reqs</span><span class="tag">auth token = current user</span><span class="tag">estimate only when it matters</span></div>
+          <p><strong>5. High-level design (~10–15m):</strong> draw boxes that satisfy each API endpoint one by one — clients, LB, services, DB, cache, queue. Walk one request end to end; resist adding complexity early — note it and move on.</p>
+          <p><strong>6. Deep dives (~15m):</strong> the interviewer steers here. Harden against the non-functional requirements: go deep on 1–2 components (sharding scheme, consistency model, the hot path, a failure mode), edge cases, and bottlenecks. Your seniority shows in how proactively you lead this.</p>
+          <div class="note"><strong>Estimation — inline, not upfront:</strong> skip ritual back-of-envelope math; do it only when a number will actually change the design (e.g. "does the Top-K heap fit on one node?").</div>
+          <div class="tag-row"><span class="tag">top-3 functional reqs</span><span class="tag">auth token = current user</span><span class="tag">estimate only when it matters</span><span class="tag">drive the conversation</span></div>
         </div>
       </div>
 
