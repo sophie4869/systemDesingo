@@ -2226,8 +2226,8 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
             <div class="db-opts">
               <div class="db-opt">
                 <div class="db-opt-head"><span style="font-size:16px">🗃️</span><span class="db-opt-title">Relational (SQL)</span></div>
-                <div class="db-opt-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default when you don't have a reason not to use it.</div>
-                <div class="db-examples"><span class="db-ex">PostgreSQL</span><span class="db-ex">MySQL</span></div>
+                <div class="db-opt-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default when you don't have a reason not to use it — and it scales globally now (Spanner, CockroachDB) when one box isn't enough.</div>
+                <div class="db-examples"><span class="db-ex">PostgreSQL</span><span class="db-ex">MySQL</span><span class="db-ex">Spanner</span></div>
                 <div class="db-use">users, orders, payments, anything with foreign keys</div>
               </div>
               <div class="db-opt">
@@ -2241,6 +2241,12 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
                 <div class="db-opt-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — just get/set.</div>
                 <div class="db-examples"><span class="db-ex">Redis</span><span class="db-ex">Memcached</span><span class="db-ex">DynamoDB</span></div>
                 <div class="db-use">sessions, cache, rate limiting, leaderboards</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🧱</span><span class="db-opt-title">Wide-column</span></div>
+                <div class="db-opt-desc">Row-oriented per partition, massive write throughput, append-heavy. Model for your queries with composite keys; no joins. LSM-based, scales horizontally.</div>
+                <div class="db-examples"><span class="db-ex">Cassandra</span><span class="db-ex">HBase</span><span class="db-ex">Bigtable</span></div>
+                <div class="db-use">feeds, messaging, event logs, time-series at scale</div>
               </div>
               <div class="db-opt">
                 <div class="db-opt-head"><span style="font-size:16px">📊</span><span class="db-opt-title">Column (OLAP)</span></div>
@@ -4232,6 +4238,38 @@ function resetProgress(){
 }
 
 document.addEventListener('DOMContentLoaded',initProgress);
+
+/* ---- Mock-designs drills: show one card per group at a time ---- */
+function setupExerciseCarousels(){
+  const sec=document.getElementById('section-exercises');
+  if(!sec)return;
+  sec.querySelectorAll('.ex-group-label').forEach(label=>{
+    const items=[]; let n=label.nextElementSibling;
+    while(n&&n.classList&&n.classList.contains('exercise')){const c=n;n=n.nextElementSibling;items.push(c);}
+    if(items.length<2)return;
+    const wrap=document.createElement('div');wrap.className='ex-carousel';
+    const nav=document.createElement('div');nav.className='ex-nav';
+    nav.innerHTML='<span class="ex-counter"></span><button class="ex-nav-btn" data-d="-1">‹ Prev</button><button class="ex-nav-btn" data-d="1">Next ›</button>';
+    label.after(wrap);
+    wrap.appendChild(nav);
+    items.forEach(it=>wrap.appendChild(it));
+    let cur=0;
+    const prev=nav.querySelector('[data-d="-1"]'),next=nav.querySelector('[data-d="1"]'),counter=nav.querySelector('.ex-counter');
+    function render(){items.forEach((it,i)=>it.classList.toggle('ex-on',i===cur));counter.textContent=(cur+1)+' / '+items.length;prev.disabled=cur===0;next.disabled=cur===items.length-1;}
+    nav.querySelectorAll('.ex-nav-btn').forEach(b=>b.onclick=()=>{cur=Math.max(0,Math.min(items.length-1,cur+ +b.dataset.d));render();});
+    render();
+  });
+}
+document.addEventListener('DOMContentLoaded',setupExerciseCarousels);
 </script>
+<style>
+.ex-carousel .exercise{display:none}
+.ex-carousel .exercise.ex-on{display:block}
+.ex-nav{display:flex;align-items:center;gap:10px;margin:.25rem 0 .85rem}
+.ex-nav .ex-counter{font-size:12.5px;font-weight:600;color:var(--text-muted);margin-right:auto}
+.ex-nav-btn{font:inherit;font-size:13px;font-weight:500;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:6px 14px;cursor:pointer;transition:all .15s}
+.ex-nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.ex-nav-btn:disabled{opacity:.4;cursor:not-allowed}
+</style>
 </body>
 </html>
