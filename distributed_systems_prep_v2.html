@@ -608,10 +608,10 @@ const UNITS=[
      {k:'callout',c:'warn',t:'Two leaders = conflicting writes / corruption. The classic failure of naive failover.'}
    ]},
    {t:'teach',h:'How to prevent it',body:[
-     {k:'point',i:'✅',t:'<b>Majority election</b> (Raft/Paxos): only the side with a quorum can elect — a partitioned minority can’t make a 2nd leader.'},
-     {k:'point',i:'🎟️',t:'<b>Fencing tokens / epoch numbers</b>: each new term gets a higher number; storage rejects writes from an older term (fences out the stale leader).'},
-     {k:'point',i:'⏳',t:'<b>Leader lease</b>: leadership expires after X seconds — the leader must keep <b>renewing</b> it. Can’t renew (partitioned) → it stops acting. <i>No renew, no power.</i> A new leader waits out the old lease before serving. First line of defence — but it assumes bounded clock skew (a GC pause can fool a leader into thinking the lease still holds), so still pair it with fencing.'},
-     {k:'point',i:'🎲',t:'<b>Randomised election timeouts</b> avoid split votes (two candidates tying forever).'}
+     {k:'point',i:'✅',t:'<b>Majority election</b>: only a quorum side can elect — a partitioned minority can’t make a 2nd leader.'},
+     {k:'point',i:'🎟️',t:'<b>Fencing tokens / epochs</b>: each new term gets a higher number; storage rejects an older term’s writes.'},
+     {k:'point',i:'⏳',t:'<b>Leader lease</b>: leadership expires unless renewed — but only safe under bounded clock skew (a GC pause can fool it), so pair it with fencing.'},
+     {k:'point',i:'🎲',t:'<b>Randomised election timeouts</b>: avoid split votes.'}
    ]},
    {t:'sort',q:'Causes split brain, or prevents it?',buckets:['Causes it','Prevents it'],items:[
      {text:'electing on the minority side',b:0},{text:'majority-quorum election',b:1},{text:'fencing tokens / epochs',b:1},{text:'two leaders both accept writes',b:0}
@@ -1081,16 +1081,16 @@ const UNITS=[
  lessons:[
   {id:'txn-1',title:'Atomic commit',steps:[
    {t:'teach',h:'ACID: what a transaction guarantees',body:[
-     {k:'tldr',t:'Four promises a transaction makes — the bar a distributed system struggles to keep.'},
-     {k:'point',i:'⚛️',t:'<b>Atomicity</b>: all-or-nothing. Either every write lands or none do — no half-applied transaction after a crash. Implemented via a <b>write-ahead log</b>: changes hit the log before being applied, so recovery can roll incomplete work back.'},
-     {k:'point',i:'✅',t:'<b>Consistency</b>: it moves the DB from one valid state to another, never violating invariants/constraints.'},
-     {k:'point',i:'🪟',t:'<b>Isolation</b>: concurrent txns don’t step on each other — the result is <i>as if</i> they ran one at a time.'},
-     {k:'point',i:'💾',t:'<b>Durability</b>: once committed, it survives crashes (on disk / replicated), not just in memory.'},
-     {k:'callout',c:'warn',t:'<b>Two different "atomicities" — don’t conflate them.</b> The <b>A</b> in ACID = a transaction is all-or-nothing. <b>Atomic/linearizable consistency</b> = single-copy, real-time ordering of operations. Same word, unrelated property — interviewers poke at this on purpose.'},
-     {k:'callout',c:'warn',t:'Across nodes the hard letters are <b>A</b> (need atomic commit → 2PC/saga) and <b>I</b> (need isolation levels / concurrency control). The rest of this unit is how you keep them.'}
+     {k:'tldr',t:'Four promises a transaction makes; across nodes the hard letters are <b>A</b> (atomic commit → 2PC/saga) and <b>I</b> (isolation / concurrency control).'},
+     {k:'point',i:'⚛️',t:'<b>A</b>tomicity: all-or-nothing (a write-ahead log rolls back a crash mid-txn).'},
+     {k:'point',i:'✅',t:'<b>C</b>onsistency: moves the DB from one valid state to another (invariants hold).'},
+     {k:'point',i:'🪟',t:'<b>I</b>solation: concurrent txns act <i>as if</i> run one at a time.'},
+     {k:'point',i:'💾',t:'<b>D</b>urability: once committed, survives crashes.'},
+     {k:'callout',c:'warn',t:'Trap: ACID’s <b>A</b> (all-or-nothing) ≠ atomic/linearizable <b>consistency</b> (single-copy, real-time ordering). Same word, unrelated property — interviewers poke at this.'}
    ]},
    {t:'mcq',q:'A transaction commits, then the server loses power. The write is still there on restart. Which letter is that?',o:['Atomicity','Consistency','Isolation','Durability'],a:3,why:'Durability = once committed, it survives crashes (persisted to disk / replicated).'},
    {t:'mcq',q:'The "A" in ACID refers to…',o:['linearizable single-copy ordering','a transaction being all-or-nothing','atomic CPU instructions','atomic broadcast'],a:1,why:'ACID’s A = all-or-nothing per transaction. It’s unrelated to atomic/linearizable consistency, which is about real-time operation ordering — a classic interview trap.'},
+   {t:'match',q:'ACID letter → guarantee.',pairs:[['Atomicity','all-or-nothing'],['Consistency','invariants stay valid'],['Isolation','as if run one at a time'],['Durability','survives a crash']]},
    {t:'teach',h:'Two-phase commit (2PC)',body:[
      {k:'tldr',t:'Get many nodes to commit together — or none at all.'},
      {k:'cause',a:'Phase 1: coordinator asks "ready?" — all vote',b:'Phase 2: all yes → commit, else abort'},
@@ -1201,11 +1201,11 @@ const UNITS=[
   ]},
   {id:'txn-2',title:'Isolation & retries',steps:[
    {t:'teach',h:'Isolation levels',body:[
-     {k:'point',i:'🩹',t:'<b>Read committed</b>: no dirty reads OR dirty writes (only committed data; you can’t overwrite an uncommitted write).'},
+     {k:'tldr',t:'Higher levels kill more anomalies at more cost — know what each one stops.'},
+     {k:'point',i:'🩹',t:'<b>Read committed</b>: only committed data (no dirty reads/writes).'},
      {k:'point',i:'🔁',t:'<b>Repeatable read</b>: re-reading a row gives the same value.'},
-     {k:'point',i:'📸',t:'<b>Snapshot Isolation</b> (MVCC): each txn reads a consistent snapshot as of its start — no dirty/non-repeatable reads, readers never block writers, and a query won’t see <b>phantom rows</b> appear mid-txn. Its gap: <b>write skew</b> — including the phantom-driven kind (double-booking), which only Serializable/SSI stops.'},
-     {k:'point',i:'🔒',t:'<b>Serializable</b>: as if txns ran one at a time — the only level that also stops write skew & phantoms.'},
-     {k:'note',t:'<b>SSI</b> = optimistic serializable: it lets txns run, then aborts one when it detects a write-skew conflict (that’s what PostgreSQL’s Serializable does).'}
+     {k:'point',i:'📸',t:'<b>Snapshot (MVCC)</b>: consistent snapshot as of txn start; readers never block writers. Gap: <b>write skew</b>.'},
+     {k:'point',i:'🔒',t:'<b>Serializable</b>: as if one-at-a-time — the only level that stops write skew & phantoms. <b>SSI</b> = optimistic version (PostgreSQL).'}
    ]},
    {t:'cloze',q:'Fill the isolation blanks.',distract:['phantom','linearizable'],text:[
      'Snapshot Isolation prevents ',{blank:'dirty'},' and ',{blank:'non-repeatable'},' reads but still allows ',
@@ -1744,10 +1744,7 @@ const UNITS=[
      {k:'note',t:'Always derive the current user from the <b>verified token</b>, never from the request body. A <b>user_id</b> in the payload is attacker-controlled — identity must come from a signed JWT or a session lookup.'}
    ]},
    {t:'teach',h:'The four auth methods',body:[
-     {k:'point',i:'🍪',t:'<b>Session token</b>: server issues an opaque token, stored in DB/Redis, looked up each request. Instantly revocable; costs a lookup. Best for server-rendered web apps.'},
-     {k:'point',i:'🎫',t:'<b>JWT</b>: self-contained signed claims — verify the signature, no DB lookup (stateless). Can\'t revoke before expiry → short TTL + refresh token.'},
-     {k:'point',i:'🔑',t:'<b>API key</b>: long-lived random string for server-to-server / B2B. No user context. Store only a <b>hash</b>; show the raw key once, revoke by deleting the hash.'},
-     {k:'point',i:'🤝',t:'<b>OAuth 2.0 / OIDC</b>: delegation — let a third-party app act for a user with <b>scoped</b> access, without their password. Issues short-lived access tokens + a long-lived refresh token.'}
+     {k:'tldr',t:'Pick by statefulness and who’s calling: <b>Session</b> (opaque token in Redis — revocable, server-rendered) · <b>JWT</b> (signed claims — stateless, short TTL + refresh) · <b>API key</b> (server-to-server/B2B — store only a hash) · <b>OAuth 2.0 / OIDC</b> (delegated, scoped third-party access). Drill the fit below.'}
    ]},
    {t:'match',q:'Auth method → when to use it.',pairs:[
      ['Server-rendered web app, instant logout/revoke','Session token (Redis)'],
@@ -3191,8 +3188,8 @@ const UNITS=[
    {t:'teach',h:'More playbooks',body:[
      {k:'point',i:'📖',t:'<b>Scaling reads</b>: index → replicas → cache/CDN.'},
      {k:'point',i:'✍️',t:'<b>Scaling writes</b>: shard by a good key; batch; buffer bursts.'},
-     {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3 (multipart / resumable for huge files), serve via CDN — keep the bytes off the app tier.'},
-     {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index. Geohash encodes (lat,lng) into a string where a shared prefix = physical closeness, so 2D "near me" becomes a 1D prefix scan a plain index can serve.'}
+     {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3, serve via CDN — keep the bytes off the app tier.'},
+     {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index — a shared geohash prefix = closeness, so "near me" is a 1D prefix scan.'}
    ]},
    {t:'mcq',q:'Large file uploads should…',o:['stream through app servers','use presigned URLs direct to blob storage','go in the DB','be base64'],a:1,why:'Keep gigabytes off the app tier; serve via CDN.'},
    {t:'teach',h:'Three more to recognise',body:[
@@ -3224,10 +3221,8 @@ const UNITS=[
    {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']},
    {t:'teach',h:'"Find near me" — how a geo index actually works',body:[
      {k:'tldr',t:'Don\'t stop at "use geohash." The interview point is WHY it lets a normal database answer "near me" fast.'},
-     {k:'point',i:'🧬',t:'<b>Geohash</b> encodes (lat,lng) into a string where a <b>shared prefix = physical closeness</b> — so 2D proximity collapses into a 1D prefix range a plain B-tree / Redis sorted set can scan. No special engine needed.'},
-     {k:'point',i:'🔁',t:'<b>Two phases</b>: ① cheaply narrow to candidate cells with the index, ② compute exact distance on that handful and keep what\'s within radius. The index filters; it doesn\'t measure.'},
-     {k:'point',i:'⭕',t:'<b>Always query your cell + its 8 neighbors</b>: a point at your cell\'s edge can be nearer than anything inside it.'},
-     {k:'point',i:'🗺️',t:'<b>Pick by data shape</b>: geohash = simple fixed grid; <b>quadtree</b> adapts to density (cities vs ocean); <b>H3</b> hexagons give equal neighbor distance — why Uber uses it.'}
+     {k:'point',i:'🧬',t:'<b>Geohash</b> encodes (lat,lng) so a <b>shared prefix = physical closeness</b> — 2D proximity collapses into a 1D prefix range a plain B-tree / Redis sorted set can scan. No special engine.'},
+     {k:'point',i:'🔁',t:'<b>Two phases</b>: ① index narrows to candidate cells (your cell + its 8 neighbors), ② compute exact distance on that handful, keep what\'s in radius. The index filters; it doesn\'t measure.'}
    ]},
    {t:'mcq',nu:true,q:'Why can a plain B-tree (no special geo engine) serve "drivers near me" once you geohash points?',o:['B-trees store 2D coordinates natively','shared geohash prefix = closeness, so proximity becomes a 1D prefix range scan','it sorts by raw latitude only','it computes great-circle distance internally'],a:1,why:'Geohash maps (lat,lng) to a string where nearby points share a prefix — turning 2D proximity into a 1D range a normal index already does well.'},
    {t:'mcq',nu:true,q:'Your geohash lookup returns points in the user\'s cell only and sometimes misses a closer one. Fix?',o:['use a longer geohash','also scan the 8 neighboring cells, then rank by exact distance','switch to a SQL LIKE scan','store everything in one cell'],a:1,why:'A point at the cell boundary can be closer than anything inside the cell. Query the cell + its 8 neighbors (coarse filter), then compute exact distance to rank.'}
@@ -3329,8 +3324,9 @@ const UNITS=[
   ]},
   {id:'pat-5',title:'Scaling reads & writes',steps:[
    {t:'teach',h:'Reads copy · writes split',body:[
-     {k:'tldr',t:'One mental model: reads are the easy half (copy the data, accept staleness); writes are the hard half (one source of truth — split it or shape the stream). The map below is your menu; the quizzes drill it.'},
-     {k:'vs',a:{h:'Scale READS — copy freely',t:'index → replicas → cache → CDN. Cost: staleness.'},b:{h:'Scale WRITES — one authority',t:'shard, batch/queue, denormalize, LSM. Cost: complexity.'}}
+     {k:'tldr',t:'One mental model: reads are the easy half (copy the data or precompute it ahead of time, accept staleness); writes are the hard half (one source of truth — split it or shape the stream). The map below is your menu; the quizzes drill it.'},
+     {k:'vs',a:{h:'Scale READS — copy & precompute',t:'index → replicas → cache → CDN; denormalize/precompute. Cost: staleness.'},b:{h:'Scale WRITES — one authority',t:'shard, batch/queue, LSM. Cost: complexity.'}},
+     {k:'note',t:'<b>Common trap:</b> denormalize / precompute scales <b>reads</b>, not writes — you do the work ahead of time so reads are cheap. The bill lands on the write path (more copies to keep in sync), which is exactly why it costs writes but counts as read scaling.'}
    ]},
    {t:'htmlviz',h:'Reads scale by copying · writes scale by splitting',
     html:`<style>
@@ -3356,43 +3352,41 @@ const UNITS=[
       <div class="srw-step"><div class="srw-st">2 · Read replicas</div><div class="srw-sd">route reads to followers; cost = lag</div></div>
       <div class="srw-step"><div class="srw-st">3 · Cache</div><div class="srw-sd">hot keys in memory, sub-ms</div></div>
       <div class="srw-step"><div class="srw-st">4 · CDN / edge</div><div class="srw-sd">static near users; kills cross-region RTT</div></div>
+      <div class="srw-step"><div class="srw-st">5 · Precompute / denormalize</div><div class="srw-sd">do read work at write time; cost = heavier writes</div></div>
     </div>
     <div class="srw-col w">
       <div class="srw-ch">✍️ Scale WRITES <span class="srw-cs">one source of truth</span></div>
       <div class="srw-step"><div class="srw-st">Shard by key</div><div class="srw-sd">spread writes; high-cardinality key</div></div>
       <div class="srw-step"><div class="srw-st">Batch + queue</div><div class="srw-sd">absorb bursts, smooth the rate</div></div>
-      <div class="srw-step"><div class="srw-st">Denormalize</div><div class="srw-sd">write in the shape reads want</div></div>
       <div class="srw-step"><div class="srw-st">LSM-tree store</div><div class="srw-sd">random writes → sequential</div></div>
     </div>
   </div>
-  <div class="srw-cap"><b>Reads are easy — copy the data</b> (replicas, caches, CDN) and accept some staleness. <b>Writes are hard — there is one authority</b>, so you either split it (shard) or smooth/shape the stream (batch, denormalize, write-optimized store).</div>
+  <div class="srw-cap"><b>Reads are easy — copy or precompute the data</b> (replicas, caches, CDN, denormalized/materialized views) and accept some staleness. <b>Writes are hard — there is one authority</b>, so you either split it (shard) or smooth the stream (batch/queue, write-optimized store).</div>
 </div>`},
    {t:'order',q:'Climb the read-scaling ladder: cheapest → heaviest.',items:['Add an index','Read replicas','Cache hot keys','CDN / edge']},
    {t:'mcq',q:'A query on one table is slow. First move?',o:['add read replicas','add an index for that query','put it behind a CDN','shard the table'],a:1,why:'Most slow reads are a missing index — turn the scan into a lookup before adding hardware or replicas.'},
    {t:'mcq',q:'Read replicas multiply read throughput. The main cost?',o:['writes get slower for everyone','replication lag → possibly stale reads','replicas can’t serve reads','guaranteed data loss'],a:1,why:'Followers lag the leader, so a read can be stale; route a user’s own reads to a fresh source (read-your-writes).'},
    {t:'mcq',q:'A cache gives sub-ms reads. Its main hazard?',o:['it slows every write','invalidation + stampedes on hot keys','it can only store numbers','it forces strong consistency'],a:1,why:'Stale entries and thundering-herd on a hot key — mitigate with TTLs, stale-while-revalidate, or a mutex / single-flight.'},
-   {t:'build',q:'Pick the tactics that scale WRITES (not reads).',options:['Shard by a good key','Add read replicas','Batch + queue writes','Add a cache','Denormalize / precompute','LSM-tree storage'],correct:[0,2,4,5]},
-   {t:'cloze',q:'Unmask the write-scaling toolkit.',distract:['cache','replica'],text:[
+   {t:'build',q:'Pick the tactics that scale WRITES (not reads).',options:['Shard by a good key','Add read replicas','Batch + queue writes','Add a cache','Denormalize / precompute','LSM-tree storage'],correct:[0,2,5]},
+   {t:'cloze',q:'Unmask the write-scaling toolkit.',distract:['cache','denormalize'],text:[
      'You can’t copy your way out of writes, so either split the authority — ',{blank:'shard',alt:['shard by key','partition']},' on a high-cardinality key — or shape the stream: ',
-     {blank:'batch',alt:['batch + queue','buffer']},' bursts behind a queue, ',{blank:'denormalize',alt:['precompute']},' into the shape reads want, and use an ',{blank:'LSM',alt:['LSM-tree']},'-tree engine for high ingest.'
+     {blank:'batch',alt:['batch + queue','buffer']},' bursts behind a queue, and use an ',{blank:'LSM',alt:['LSM-tree']},'-tree engine for high ingest. (Denormalize/precompute belongs to read scaling, not here.)'
    ]},
-   {t:'mcq',q:'Why can’t you scale writes just by copying the data?',o:['copies cost too much disk','every write must reach the single source of truth','reads block all writes','replicas are read-only by law'],a:1,why:'You can copy data for reads, but each write must hit the authority — so you split it (shard) or shape the stream (batch, denormalize).'},
+   {t:'mcq',q:'Why can’t you scale writes just by copying the data?',o:['copies cost too much disk','every write must reach the single source of truth','reads block all writes','replicas are read-only by law'],a:1,why:'You can copy data for reads, but each write must hit the authority — so you split it (shard) or shape the stream (batch/queue, write-optimized store).'},
    {t:'sort',q:'Scales READS or WRITES?',buckets:['Scale reads','Scale writes'],items:[
-     {text:'add an index',b:0},{text:'denormalize / precompute',b:1},{text:'cache hot keys',b:0},{text:'LSM-tree storage engine',b:1}
+     {text:'add an index',b:0},{text:'denormalize / precompute',b:0},{text:'cache hot keys',b:0},{text:'shard by a good key',b:1},{text:'batch + queue writes',b:1},{text:'LSM-tree storage engine',b:1}
    ]},
    {t:'cloze',q:'Fill the scaling rule.',distract:['lock','index'],text:[
      'Scale reads by ',{blank:'copying',alt:['copy']},' the data — replicas, ',{blank:'cache',alt:['caches']},', CDN — at the cost of staleness. Scale writes by ',
      {blank:'sharding',alt:['shard','partitioning']},' on a good key, or by ',{blank:'batching',alt:['batch','buffering']},' / shaping the write stream.'
    ]},
-   {t:'recall',q:'Why are reads easier to scale than writes?',model:['Reads: data can be copied freely → add replicas, caches, and CDNs and serve from the nearest copy; the only cost is staleness.','Writes: there is one source of truth every write must reach → you can’t copy your way out.','So writes scale by splitting the authority (shard by key) or shaping the stream (batch/buffer, denormalize, write-optimized store).']}
+   {t:'recall',q:'Why are reads easier to scale than writes?',model:['Reads: data can be copied freely → add replicas, caches, and CDNs and serve from the nearest copy; you can also precompute/denormalize the read shape ahead of time. Cost: staleness (and heavier writes for the precompute).','Writes: there is one source of truth every write must reach → you can’t copy your way out.','So writes scale by splitting the authority (shard by key) or shaping the stream (batch/buffer, write-optimized store).']}
   ]},
   {id:'pat-6',title:'Proximity & geospatial',steps:[
    {t:'teach',h:'"Find things near me"',body:[
-     {k:'tldr',t:'Proximity search (Uber, Yelp, delivery) needs a geospatial index — divide the map into cells so you can ignore the 99.9% of the world that’s far before measuring anything precisely.'},
-     {k:'point',i:'🧭',t:'<b>The geohash trick</b>: encode (lat, lng) into a short string where a <em>shared prefix means physical closeness</em>. That collapses 2D proximity into a 1-D <b>prefix range</b> — a plain B-tree or a Redis sorted set answers "near me" with an ordinary range scan, no special engine.'},
-     {k:'point',i:'🔍',t:'<b>Longer prefix = smaller, more precise cell.</b> Shorten the prefix to widen the search, lengthen it to zoom in.'},
-     {k:'point',i:'📐',t:'<b>Query = coarse then exact</b>: scan your cell + its 8 neighbors (one prefix range) → fetch the few hundred candidates → compute real distance, sort, keep within the radius.'},
-     {k:'point',i:'🧱',t:'<b>Why the 8 neighbors</b>: a point just over your cell’s edge can be closer than anything inside your own cell, so you always scan the surrounding ring too.'}
+     {k:'tldr',t:'Proximity search (Uber, Yelp) needs a geospatial index — divide the map into cells so you ignore the 99.9% that’s far before measuring precisely.'},
+     {k:'point',i:'🧭',t:'<b>The geohash trick</b>: encode (lat, lng) so a <em>shared prefix = physical closeness</em> → 2D "near me" becomes a 1-D <b>prefix range scan</b> on a plain index, no special engine.'},
+     {k:'point',i:'🔍',t:'<b>Longer prefix = smaller, more precise cell.</b>'}
    ]},
    {t:'htmlviz',h:'Geohash — prefix = proximity, scan the ring, then measure',
     html:`<style>
@@ -3527,11 +3521,9 @@ const UNITS=[
  lessons:[
   {id:'fw-1',title:'The flow',steps:[
    {t:'teach',h:'A repeatable structure',body:[
-     {k:'point',i:'1️⃣',t:'Requirements: functional (top 3!) + non-functional (quantified).'},
-     {k:'point',i:'2️⃣',t:'Core entities → API → high-level design (boxes that satisfy the API).'},
-     {k:'point',i:'3️⃣',t:'Deep dives: harden against NFRs, bottlenecks, failure.'},
-     {k:'point',i:'🔑',t:'API tips: derive the current user from the <b>auth token</b> (never the request body); paginate feeds with a <b>cursor (keyset)</b>, not offset.'},
-     {k:'point',i:'🧮',t:'Do back-of-envelope math <b>only when a number changes the design</b> (e.g. does the heap fit on one node?) — not as ritual.'}
+     {k:'tldr',t:'Five phases: requirements (top-3 functional + quantified NFRs) → entities + API → high-level design → deep dives → wrap-up. Drill the order below.'},
+     {k:'point',i:'🔑',t:'API tips: derive the user from the <b>auth token</b> (never the request body); paginate with a <b>cursor (keyset)</b>, not offset.'},
+     {k:'point',i:'🧮',t:'Back-of-envelope math <b>only when a number changes the design</b> — not as ritual.'}
    ]},
    {t:'order',q:'Order the interview steps.',items:['Clarify requirements','Define core entities + API','High-level design','Deep dives','Wrap up: bottlenecks & SPOFs']},
    {t:'mcq',q:'Per the delivery framework, do upfront capacity math when…',o:['always, in detail','only when a number changes the design','never','at the end'],a:1,why:'Estimate only when it drives a decision (e.g. does the heap fit on one node?).'},
@@ -3574,11 +3566,7 @@ const UNITS=[
  lessons:[
   {id:'decide-1',title:'Pick a side',steps:[
    {t:'teach',h:'The recurring forks',body:[
-     {k:'tldr',t:'Most designs come down to a few binary forks. Memorize the deciding question, not a default answer.'},
-     {k:'point',i:'🗄️',t:'<b>SQL vs NoSQL</b>: transactions/joins/strong consistency → SQL; huge scale + simple access → NoSQL.'},
-     {k:'point',i:'📨',t:'<b>Queue vs log</b>: one consumer, no replay → queue; many subscribers + replay → log.'},
-     {k:'point',i:'⚡',t:'<b>Cache vs read replica</b>: hot keys / sub-ms → cache; scale all reads → replica.'},
-     {k:'point',i:'⏱️',t:'<b>Sync vs async</b>: caller needs the result now → sync; slow work / spikes / fan-out → async.'},
+     {k:'tldr',t:'Most designs come down to a few binary forks — SQL/NoSQL, queue/log, cache/replica, sync/async. Memorize the deciding QUESTION, not a default answer. Drill all four below.'},
      {k:'point',i:'🗣️',t:'Say the deciding question out loud, then commit + justify — interviewers grade the <b>why</b>.'}
    ]},
    {t:'sort',q:'SQL or NoSQL?',buckets:['SQL','NoSQL'],items:[
@@ -3597,11 +3585,7 @@ const UNITS=[
   ]},
   {id:'decide-2',title:'Which datastore?',steps:[
    {t:'teach',h:'Match data to store',body:[
-     {k:'point',i:'🧱',t:'<b>Relational</b>: ACID txns, joins, strong consistency.'},
-     {k:'point',i:'🪣',t:'<b>Wide-column</b> (Cassandra): huge write throughput, time-series.'},
-     {k:'point',i:'🔎',t:'<b>Search</b> (Elasticsearch): full-text + faceted. <b>Graph</b>: multi-hop relationships.'},
-     {k:'point',i:'📊',t:'<b>Columnar / OLAP</b> (ClickHouse, BigQuery): scan billions of rows over a few columns for aggregates — analytics & dashboards, not point lookups. (Different from wide-column: that’s for high-write point access.)'},
-     {k:'note',t:'Pick by access pattern + consistency need, never by brand familiarity.'}
+     {k:'tldr',t:'Pick by <b>access pattern + consistency need</b>, never by brand: relational (ACID/joins) · wide-column (write-heavy/time-series) · search (full-text) · graph (multi-hop) · columnar/OLAP (big aggregates over few columns, ≠ wide-column point access). Drill the fit below.'}
    ]},
    {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)']]},
    {t:'mcq',q:'Dashboards aggregating billions of rows over just a few columns. Which store?',o:['relational (Postgres)','columnar / OLAP (ClickHouse, BigQuery)','key-value (Redis)','graph (Neo4j)'],a:1,why:'Columnar engines read only the needed columns and compress them well — built for big aggregates, unlike row stores or point-lookup KV/graph engines.'},
