@@ -406,7 +406,7 @@ const UNITS=[
      'In CAP: ',{blank:'consistency'},' = every read sees the newest write. ',
      {blank:'availability'},' = every request still gets an answer (maybe stale). ',
      'Partitions are ',{blank:'inevitable'},', so during a split you really pick ',
-     {blank:'CP'},' vs ',{blank:'AP'},'.'
+     {blank:'CP',group:'cap'},' vs ',{blank:'AP',group:'cap'},'.'
    ]},
    {t:'recall',q:'Explain CAP to a friend in 3 sentences. Say it out loud, then check.',model:['Networks partition, so P is a given.','During a partition you choose: stay consistent (reject some requests) or stay available (serve possibly-stale data).','That’s CP vs AP — e.g. Spanner is CP, Cassandra is AP.']}
   ]},
@@ -3828,6 +3828,47 @@ const UNITS=[
      'Worldwide static content → ',{blank:'CDN',alt:['edge','edge cache']},'. Read-heavy with tolerable staleness → ',{blank:'cache',alt:['caching']},
      ' + replicas. Spiky/slow work → a ',{blank:'queue',alt:['message queue']},'. Money/inventory → ',{blank:'CP',alt:['strong']},' (strong consistency).'
    ]}
+  ]},
+  {id:'decide-4',title:'Failover & fail modes',steps:[
+   {t:'teach',h:'Two forks under failure',body:[
+     {k:'tldr',t:'Two decisions surface the moment you discuss failure: <b>active-active vs active-passive</b> (how many regions take writes) and <b>fail-open vs fail-closed</b> (what to do when a check is down). Each has one deciding question — drill both below.'},
+     {k:'point',i:'🌐',t:'<b>Active-passive:</b> one region writes, a standby promotes on failover — simple, no conflicts. <b>Active-active:</b> every region writes — low latency near users, but you must resolve conflicts and risk split-brain.'},
+     {k:'point',i:'🚦',t:'<b>Fail-open:</b> dependency down → allow the request (availability). <b>Fail-closed:</b> down → block it (safety). Stakes decide which.'}
+   ]},
+   {t:'sort',q:'Active-active or active-passive?',buckets:['Active-active','Active-passive'],items:[
+     {text:'lowest write latency for users on every continent',b:0},
+     {text:'simplest failover, one writer, no conflicts',b:1},
+     {text:'avoid conflict resolution entirely',b:1},
+     {text:'must serve writes near users worldwide',b:0}
+   ]},
+   {t:'mcq',q:'You go active-active across 3 regions. The hardest problem you just signed up for?',o:['picking a load balancer','conflict resolution + split-brain when regions diverge','choosing a cache TTL','DNS propagation'],a:1,why:'Multiple regions accepting writes can update the same key concurrently. You need conflict resolution (LWW, CRDTs, or home-region-per-key) and must prevent split-brain. Active-passive sidesteps all of this with a single writer.'},
+   {t:'mcq',q:'A user always edits from Europe. Cheapest way to avoid cross-region write conflicts for their data?',o:['replicate synchronously everywhere','home-region per user/key — route their writes to one region','disable replication','use a bigger instance'],a:1,why:'Pin each user/key to a home region so their writes never race another region — you get locality without global conflict resolution, and it also respects data-residency rules.'},
+   {t:'sort',q:'Fail-open or fail-closed?',buckets:['Fail-open','Fail-closed'],items:[
+     {text:'rate limiter down on a free consumer app',b:0},
+     {text:'auth / login service down',b:1},
+     {text:'payment fraud check down',b:1},
+     {text:'recommendation service down',b:0}
+   ]},
+   {t:'mcq',q:'Your rate limiter is down and the endpoint is a paid billing API. Fail-open or fail-closed?',o:['fail-open — never block paying users','fail-closed — protect the system and money','depends on the cache','always fail-open'],a:1,why:'On a paid/admin/security endpoint, letting unlimited traffic through risks abuse or cost blowup — fail closed. On a free consumer read path you’d usually fail open to keep it available. Same component, opposite choice by stakes.'},
+   {t:'recall',q:'Fail-open vs fail-closed — what is the deciding question?',model:['"If this check is unavailable, is it safer to let the request through or block it?"','Block → fail-closed (auth, payments, security). Let through → fail-open (rate limit on consumer reads, recommendations). The stakes decide.']}
+  ]},
+  {id:'decide-5',title:'Keys, cost & schema traps',steps:[
+   {t:'teach',h:'Pick the key, know the cost',body:[
+     {k:'tldr',t:'Three fast reflexes graders reward: pick the <b>shard key</b> by access pattern, name the <b>cost-dominant component</b>, and check the <b>schema actually serves the reads</b>.'},
+     {k:'point',i:'🔑',t:'Shard key = the field you query by most. Avoid <b>low-cardinality</b> keys (few values → few shards) and <b>monotonic</b> keys (timestamp / auto-id → one hot shard).'},
+     {k:'callout',c:'mem',t:'A hot large group (a 500k-member chat, a celebrity) breaks an otherwise fine key — always name the mitigation: sub-shard, dedicated cache, or fanout-on-read.'}
+   ]},
+   {t:'match',q:'Pick the shard key.',pairs:[['Chat messages','conversation_id (sub-shard hot groups)'],['Feed timelines','user_id'],['URL shortener','the short code / hash'],['Metrics points','(series, time_bucket)']]},
+   {t:'mcq',q:'Why is "shard by created_at timestamp" usually a bad key?',o:['timestamps aren’t unique','it’s monotonic — every new write hits the newest shard (hot spot)','it can’t be indexed','it wastes disk'],a:1,why:'A monotonically increasing key routes all new writes to the same latest shard — a write hot spot. Good keys are high-cardinality and evenly accessed. (Same reason auto-increment IDs make poor shard keys.)'},
+   {t:'match',q:'Where does the cost concentrate?',pairs:[['Video streaming','egress / CDN bandwidth'],['Metrics & logs','ingest + retention / cardinality'],['ML serving','GPU utilization'],['Social feed','fanout / write amplification + cache memory']]},
+   {t:'mcq',q:'A feed loads a deep page via OFFSET 1000000 LIMIT 20. Why does it crawl?',o:['LIMIT is too small','OFFSET scans and discards a million rows every query','the index is corrupt','too many columns'],a:1,why:'OFFSET must walk and throw away every preceding row, so deep pages get linearly slower — a scan trap. Cursor / keyset pagination (WHERE id < last_seen) uses the index to jump straight to the page, O(1) regardless of depth.'},
+   {t:'sort',q:'Does the schema serve the read, or force a scan?',buckets:['Serves it','Scan trap'],items:[
+     {text:'query by user_id, with an index on user_id',b:0},
+     {text:'find orders by status, no index on status',b:1},
+     {text:'deep pagination via OFFSET',b:1},
+     {text:'cursor pagination on an indexed key',b:0}
+   ]},
+   {t:'recall',q:'How do you sanity-check a schema in an interview?',model:['Walk each read path: "does a primary key or secondary index serve this, or am I scanning?"','Then the writes: an idempotency key on the request, a clear status lifecycle (AVAILABLE→HELD→BOOKED), and an outbox row if you publish events.']}
   ]}
  ],
  boss:{title:'Decisions Boss',time:85,q:[
@@ -3839,7 +3880,12 @@ const UNITS=[
    {q:'Full-text search →',o:['Postgres LIKE','Elasticsearch','a graph DB','Redis'],a:1},
    {q:'Celebrity feed fanout →',o:['write to all 50M','read-time / hybrid','no fanout','a cron'],a:1},
    {q:'Global users + static media → first reach for…',o:['a CDN / edge cache','more shards','a queue','a lock'],a:0},
-   {q:'A 10× write spike you can process later → use…',o:['a sync path','a queue + async workers','a bigger cache','2PC'],a:1}
+   {q:'A 10× write spike you can process later → use…',o:['a sync path','a queue + async workers','a bigger cache','2PC'],a:1},
+   {q:'Active-active multi-region’s hardest cost?',o:['DNS setup','conflict resolution + split-brain','TLS certs','log volume'],a:1},
+   {q:'Auth service is down — the safe default is…',o:['fail-open','fail-closed','retry forever','cache the token'],a:1},
+   {q:'Shard key for chat messages?',o:['created_at timestamp','conversation_id (sub-shard hot groups)','random UUID','message status'],a:1},
+   {q:'Cost-dominant component for video streaming?',o:['CPU','egress / CDN bandwidth','DB rows','app RAM'],a:1},
+   {q:'Deep pagination at scale — use…',o:['OFFSET','cursor / keyset pagination','a bigger LIMIT','a join'],a:1}
  ]}
 },
 {
@@ -4117,6 +4163,58 @@ const UNITS=[
     }},
    {t:'mcq',q:'What should you ask the LLM to do after a free-form mock?',o:['Give the perfect answer before you try','Judge your answer with a rubric and ask follow-ups','Only fix grammar','Generate more API endpoints'],a:1,why:'The useful signal is whether your interview answer was complete, scoped, and defensible — not whether the LLM can solve the prompt.'},
    {t:'recall',q:'What should your answer include before you send it to an LLM judge?',model:['A clear scope and assumptions, with the core functional requirements and NFRs.','APIs/entities/schema tied to access patterns; high-level architecture with the hot path and bottleneck.','Tradeoffs and failure handling: retries/idempotency, stale reads, hot keys, backpressure, region failure, and what changes at 10× scale.']}
+  ]},
+  {id:'mock-schema',title:'LLM schema/API drills',steps:[
+   {t:'teach',h:'Judging APIs and data models',body:[
+     {k:'tldr',t:'Schemas and APIs are hard to self-grade because the answer only works if it serves every access pattern.'},
+     {k:'point',i:'🔎',t:'Give the LLM the <b>access patterns</b>, then ask it to check whether your endpoints, keys, indexes, constraints, and transactions actually support them.'},
+     {k:'point',i:'🧱',t:'This is where API/data drills belong: not as trivia, but as a review of a concrete artifact you designed.'}
+   ]},
+   {t:'htmlviz',h:'Copy an API/data drill + strict judge packet',
+    html:`<div class="llmcoach">
+  <div class="rubric">
+    <div class="cell"><b>Submit</b>Endpoints, request/response shapes, entities/tables, PK/SK, indexes, constraints, consistency, idempotency.</div>
+    <div class="cell"><b>Judge</b>Unsupported access patterns, scan traps, duplicate writes, weak pagination, hot partitions, missing transactions.</div>
+  </div>
+  <div class="prompt" data-prompt></div>
+  <textarea data-answer placeholder="Write your API/data answer here. Include endpoints, entities/tables, keys/indexes, consistency assumptions, idempotency/retry behavior, and tradeoffs."></textarea>
+  <div class="row">
+    <button class="mini" data-random>Random drill</button>
+    <button class="mini" data-copy-prompt>Copy drill</button>
+    <button class="mini" data-copy-packet>Copy judge packet</button>
+    <span class="status" data-status></span>
+  </div>
+</div>`,
+    setup:function(root){
+      var drills=[
+        {title:'Chat history + send API',prompt:'Design the API and data model for chat conversations. Support sending idempotent messages, fetching recent history, read receipts, unread counts, group membership, and reconnect catch-up.',access:['Fetch most recent N messages in a conversation.','Send a message safely when the client retries after timeout.','Show unread count per conversation for one user.','List members and permissions for a group conversation.']},
+        {title:'Orders, payments, refunds',prompt:'Design APIs and relational tables for an ecommerce checkout system with orders, payments, refunds, and inventory reservation. Prevent double-charge and oversell.',access:['Create an order with an idempotency key.','Reserve inventory before charging.','Fetch order detail with line items and payment state.','Issue a refund exactly once and preserve an audit trail.']},
+        {title:'Notification inbox',prompt:'Design APIs and data model for an in-app notification inbox plus push delivery. Support preferences, deduplication, unread counts, and coalescing bursts.',access:['List a user inbox by recency with cursor pagination.','Mark one notification or all notifications as read.','Deduplicate the same source event across retries.','Check user/channel preferences before fanout.']},
+        {title:'DynamoDB single-table ecommerce',prompt:'Design DynamoDB PK/SK and GSIs for ecommerce users, orders, order items, and product-order lookup. Avoid full table scans.',access:['Get a user profile.','List a user orders newest-first.','Fetch an order with all line items.','Admin: list all orders containing a product.']},
+        {title:'URL shortener API/data',prompt:'Design APIs and storage schema for URL shortening, redirects, expiration, custom aliases, and analytics without putting analytics on the hot redirect path.',access:['Create a short link with optional custom alias and expiration.','Redirect by code with low latency.','Fetch owner analytics for a code.','Record click events asynchronously and tolerate duplicate events.']},
+        {title:'Outbox + event publishing',prompt:'Design the outbox table, relay behavior, and consumer contract for reliable order-created and payment-captured events.',access:['Write business row and outbox row atomically.','Relay unpublished events to a log/broker.','Handle relay crash after publish but before marking sent.','Let consumers dedupe and replay safely.']},
+        {title:'Metrics/time-series API',prompt:'Design ingest/query APIs and storage schema for a metrics system ingesting millions of points/sec with rollups and retention.',access:['Batch ingest metric points with tags.','Query one series over a time range.','Query aggregate dashboard panels over long ranges.','Expire raw data while keeping rollups.']},
+        {title:'File sharing permissions',prompt:'Design APIs and schema for file/folder sharing like Google Drive. Support owners, editors, viewers, inherited folder permissions, share links, and audit logs.',access:['Check whether user U can read/write file F.','List files shared with a user.','Create/revoke a share link.','Resolve inherited permissions from parent folders.']},
+        {title:'Restaurant search API/data',prompt:'Design APIs and indexes for restaurants-near-me search. Support map bounds, filters, ranking, freshness, and high read traffic in dense cities.',access:['Find restaurants within a radius or map viewport.','Filter by cuisine/open-now/rating.','Update restaurant availability and location metadata.','Paginate stable results while the map moves.']}
+      ];
+      var judge='You are a strict system design interviewer grading an API and data-model artifact. Score 1-4 for: API contract; data model; keys and indexes; consistency and transactions; idempotency and retries; scale and hot spots; evolution and operations. Say which required access patterns are fully supported, partially supported, or unsupported. Return the 5 highest-leverage fixes and 3 interviewer follow-up questions. Do not redesign from scratch; judge the submitted artifact with concrete corrections.';
+      var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
+      function text(d){return d.title+'\\n\\n'+d.prompt+'\\n\\nAccess patterns:\\n- '+d.access.join('\\n- ');}
+      function render(){p.textContent=text(drills[i]);}
+      function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
+      function packet(){return judge+'\\n\\nDRILL:\\n'+text(drills[i])+'\\n\\nCANDIDATE API / DATA MODEL:\\n'+(a.value.trim()||'[Paste candidate answer here]');}
+      function copy(t,msg){
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){status(msg);}).catch(function(){fallback(t);});
+        else fallback(t);
+      }
+      function fallback(t){var x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();try{document.execCommand('copy');status('Copied.');}catch(e){status('Copy manually.');}document.body.removeChild(x);}
+      root.querySelector('[data-random]').onclick=function(){i=Math.floor(Math.random()*drills.length);render();status('New drill.');};
+      root.querySelector('[data-copy-prompt]').onclick=function(){copy(text(drills[i]),'Drill copied.');};
+      root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Schema judge packet copied.');};
+      render();
+    }},
+   {t:'mcq',q:'For schema/API drills, what should the LLM judge first?',o:['Whether the names are pretty','Whether every required access pattern is actually supported','Whether it uses the trendiest database','Only grammar'],a:1,why:'A schema is good only if its keys, indexes, constraints, and APIs serve the required reads/writes without hidden scans or correctness gaps.'},
+   {t:'recall',q:'What should you include in an API/data-model answer before asking for LLM judgment?',model:['Endpoints with request/response shape, pagination, auth/user source, and retry/error behavior.','Entities/tables/items with primary keys, sort keys, secondary indexes, uniqueness constraints, and query direction.','Consistency and scale notes: transactions/CAS/idempotency where invariants matter, expected hot spots, TTL/retention, migration/backfill or audit needs.']}
   ]}
  ],
  boss:{title:'Mock Designs Boss',time:110,q:[
@@ -4504,6 +4602,13 @@ function vizStepper(root,n,opts){
 
 /* feedback bar + advance */
 function feedback(ok,msg,onNext){
+  // Wrong answer: pause the countdown so the clock doesn't drain while you read the explanation.
+  // Speed runs stay a pure race (no pause). The timer resumes on the next step via manageTimer().
+  if(!ok&&R&&R.timeLeft!=null&&R.mode!=='speed'){
+    stopTimer();
+    const tEl=document.querySelector('.timer');
+    if(tEl){tEl.classList.add('paused');const ic=tEl.querySelector('span');if(ic)ic.textContent='⏸';}
+  }
   const bar=document.createElement('div');
   bar.className='feedback '+(ok?'good':'bad');
   bar.innerHTML='<div class="inner"><h4>'+(ok?'✅ Nice!':'❌ Not quite')+'</h4><p>'+msg+'</p><button class="btn '+(ok?'':'red')+'" id="contBtn">Continue</button></div>';
@@ -4823,6 +4928,10 @@ function stCloze(stage,step){
   const bank=shuffle(answers.concat(step.distract||[]).map((w,i)=>({w,used:false,id:i})));
   const filled={};
   const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9+>]/g,'');
+  // grouped blanks are order-independent: any group member is accepted in any of its slots
+  const groupAccept={};
+  slotPos.forEach(i=>{const b=tokens[i];if(b.group){(groupAccept[b.group]=groupAccept[b.group]||[]).push(norm(b.blank),...(b.alt||[]).map(norm));}});
+  const slotGood=(ti,got)=>{const ans=tokens[ti];if(ans.group)return groupAccept[ans.group].includes(norm(got));return norm(got)===norm(ans.blank)||(ans.alt||[]).some(a=>norm(a)===norm(got));};
   function nextEmpty(){for(let p=0;p<slotPos.length;p++)if(filled[p]==null)return p;return -1;}
   function allFilled(){return slotPos.every((_,p)=>filled[p]!=null);}
   function draw(){
@@ -4842,8 +4951,8 @@ function stCloze(stage,step){
   }
   function check(){
     let ok=true;
-    slotPos.forEach((ti,p)=>{const ans=tokens[ti];const got=bank.find(x=>x.id===filled[p]).w;const good=norm(got)===norm(ans.blank)||(ans.alt||[]).some(a=>norm(a)===norm(got));if(!good)ok=false;});
-    stage.querySelectorAll('.slot').forEach(s=>{const p=+s.dataset.p;const ans=tokens[slotPos[p]];const got=bank.find(x=>x.id===filled[p]).w;const good=norm(got)===norm(ans.blank)||(ans.alt||[]).some(a=>norm(a)===norm(got));s.classList.add(good?'sgood':'sbad');s.disabled=true;if(!good)s.textContent=ans.blank;});
+    slotPos.forEach((ti,p)=>{const got=bank.find(x=>x.id===filled[p]).w;if(!slotGood(ti,got))ok=false;});
+    stage.querySelectorAll('.slot').forEach(s=>{const p=+s.dataset.p;const ti=slotPos[p];const ans=tokens[ti];const got=bank.find(x=>x.id===filled[p]).w;const good=slotGood(ti,got);s.classList.add(good?'sgood':'sbad');s.disabled=true;if(!good)s.textContent=ans.blank;});
     stage.querySelectorAll('#wb .word').forEach(c=>c.disabled=true);
     grade(ok,14);finishGraded(step,ok);clearFoot();
     if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
