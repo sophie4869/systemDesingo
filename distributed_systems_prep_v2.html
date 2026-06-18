@@ -2866,6 +2866,96 @@ const UNITS=[
  ]}
 },
 {
+ id:'sec',title:'Security & Abuse',icon:'🔒',color:'#E11D48',colorD:'#BE123C',
+ blurb:'Authz, tenant isolation, secrets, and keeping abuse out.',
+ lessons:[
+  {id:'sec-1',title:'AuthN vs AuthZ',steps:[
+   {t:'teach',h:'Two different questions',body:[
+     {k:'keyt',term:'Authentication (AuthN)',def:'WHO are you? Verify identity — password, token, or mTLS certificate. Happens once, at the edge.'},
+     {k:'keyt',term:'Authorization (AuthZ)',def:'WHAT may you do? Check the caller’s rights against this specific action — on EVERY request.'},
+     {k:'callout',c:'warn',t:'Authenticate once, authorize every time. A valid token is identity, not permission — always re-check the action against the caller’s rights.'}
+   ]},
+   {t:'teach',h:'Authorization models',body:[
+     {k:'vs',a:{h:'RBAC',t:'permissions via roles (admin, editor). Simple and coarse; suffers role-explosion as rules get fine-grained.'},b:{h:'ABAC',t:'rules over attributes (dept=HR AND region=EU). Flexible, but harder to reason about and audit.'}},
+     {k:'point',i:'🔗',t:'<b>ReBAC</b>: permissions from <b>relationships</b> ("owner of doc X", "member of team Y"). Google’s Zanzibar / OpenFGA model — the right fit for sharing graphs.'}
+   ]},
+   {t:'teach',h:'Don’t trust the network',body:[
+     {k:'point',i:'🤝',t:'Internal service-to-service calls authenticate too — <b>mTLS</b> (both sides present certs) or short-lived signed tokens. "It’s on the private network" is not authn.'},
+     {k:'point',i:'🪪',t:'Derive the acting user from the <b>verified token</b> — never from a <code>user_id</code> in the request body or query string (trivially spoofed).'}
+   ]},
+   {t:'mcq',q:'A request with a valid login token asks to delete a DIFFERENT user’s account. You should…',o:['allow it — the token is valid','authorize the specific action against the caller’s permissions first','trust the user_id in the body','just rate-limit it'],a:1,why:'A valid token proves identity, not permission. Authorize every action against what THAT caller is allowed to do.'},
+   {t:'mcq',q:'Sharing-graph permissions like "owner of this doc" are best modeled with…',o:['RBAC roles','ABAC attributes','ReBAC (relationships, Zanzibar-style)','a single admin flag'],a:2,why:'Relationship-based access control expresses "X is owner/editor of object Y" directly — what RBAC roles struggle to capture.'},
+   {t:'cloze',q:'Unmask the access-control terms.',distract:['encryption','replication'],text:[
+     'AuthN answers ',{blank:'who'},' you are; AuthZ answers ',{blank:'what'},' you may do. Authenticate ',{blank:'once'},
+     ', authorize every ',{blank:'request'},'. Always derive identity from the ',{blank:'token'},', never the request body.'
+   ]},
+   {t:'recall',q:'Explain authentication vs authorization and the one cardinal rule.',model:['Authentication = verifying WHO the caller is (token / cert / password).','Authorization = checking WHAT that caller may do, re-evaluated on every request.','Cardinal rule: a valid token is identity, not permission — authorize each action, and take the user identity from the verified token, never from the request body.']}
+  ]},
+  {id:'sec-2',title:'Multi-tenant isolation',steps:[
+   {t:'teach',h:'Where does tenant data live?',body:[
+     {k:'vs',a:{h:'Silo (DB per tenant)',t:'strongest isolation, trivial "delete a tenant", easy per-tenant compliance — but priciest and lowest density. Big/regulated customers.'},b:{h:'Pool (shared table + tenant_id)',t:'cheapest, best density — but isolation lives entirely in your query logic. One missing filter = a leak.'}},
+     {k:'note',t:'Bridge = shared DB, a schema per tenant — the middle ground.'}
+   ]},
+   {t:'teach',h:'Never leak across tenants',body:[
+     {k:'point',i:'🔑',t:'Scope EVERY query by <code>tenant_id</code> — and take <code>tenant_id</code> from the auth token, never a request parameter.'},
+     {k:'point',i:'🛡️',t:'<b>Row-level security</b> (RLS) in the DB enforces the filter even when app code forgets — defense in depth, not a replacement for scoping.'},
+     {k:'point',i:'🍔',t:'<b>Noisy neighbor</b>: one tenant’s load starves the rest. Apply per-tenant quotas / rate limits (see the Rate Limiting unit).'}
+   ]},
+   {t:'mcq',q:'Best way to stop tenant A from ever reading tenant B’s rows in a pooled DB?',o:['filter results in the UI','scope every query by tenant_id from the token, backed by DB row-level security','give each tenant a different API key','check on the client'],a:1,why:'Server-side scoping by a token-derived tenant_id, enforced again by RLS, is the only trustworthy boundary. UI/client checks are bypassable.'},
+   {t:'match',q:'Isolation model → what it is.',pairs:[['Separate database per tenant','Silo'],['Shared table with a tenant_id column','Pool'],['Shared DB, separate schema per tenant','Bridge']]},
+   {t:'recall',q:'How do you keep a pooled (shared-table) multi-tenant DB from leaking data across tenants?',model:['Scope every query by tenant_id — and read tenant_id from the verified token, never a request param.','Add DB row-level security so the filter is enforced even if app code forgets.','Add per-tenant quotas/rate limits so one tenant can’t starve the others (noisy neighbor).']}
+  ]},
+  {id:'sec-3',title:'Encryption & secrets',steps:[
+   {t:'teach',h:'Encrypt in transit AND at rest',body:[
+     {k:'keyt',term:'In transit',def:'TLS everywhere — external and internal (mTLS between services). Stops sniffing and man-in-the-middle.'},
+     {k:'keyt',term:'At rest',def:'disk- or field-level encryption so a stolen disk or leaked DB dump is useless without the keys.'}
+   ]},
+   {t:'teach',h:'Manage the keys, not just the cipher',body:[
+     {k:'point',i:'🗝️',t:'<b>Envelope encryption</b>: a KMS holds the master key; it encrypts per-object <b>data keys</b>. You can rotate the master key WITHOUT re-encrypting all the data.'},
+     {k:'point',i:'♻️',t:'Rotate keys on a schedule. <b>Crypto-shredding</b> — destroying the key — makes the data unrecoverable, a clean answer to "right to be forgotten".'}
+   ]},
+   {t:'teach',h:'Secrets hygiene',body:[
+     {k:'point',i:'🚫',t:'No secrets in code, git, container images, or logs. Use a secrets manager / vault and inject at runtime.'},
+     {k:'point',i:'🎭',t:'PII: tokenize or field-encrypt sensitive columns, and scrub secrets/PII out of logs and traces.'}
+   ]},
+   {t:'mcq',q:'Envelope encryption’s main payoff is…',o:['you can skip TLS','rotate the master key without re-encrypting all the data','no key management needed','smaller payloads'],a:1,why:'The master key wraps per-object data keys, so rotating it only re-wraps the data keys — not every encrypted object.'},
+   {t:'cloze',q:'Fill the crypto blanks.',distract:['hashing','sharding'],text:[
+     'Encrypt ',{blank:'in transit',alt:['transit']},' (TLS) and at ',{blank:'rest'},'. A ',{blank:'KMS'},
+     ' holds the master key; ',{blank:'envelope'},' encryption wraps per-object data keys. Crypto-',{blank:'shred',alt:['shredding']},' = destroy the key to make data unrecoverable.'
+   ]},
+   {t:'recall',q:'What is envelope encryption, and why route keys through a KMS?',model:['A KMS holds a master key that encrypts per-object data keys (the "envelope").','Rotating or revoking the master key only re-wraps data keys — no need to re-encrypt all stored data.','It also centralizes access control and audit on key use, and enables crypto-shredding (delete the key → data is gone).']}
+  ]},
+  {id:'sec-4',title:'Abuse defense & audit',steps:[
+   {t:'teach',h:'Keep bad input and bad actors out',body:[
+     {k:'point',i:'🧹',t:'<b>Validate input, encode output</b> — the defense against injection (SQLi, XSS). Parameterize queries; never string-concatenate user input.'},
+     {k:'point',i:'🤖',t:'Bot / credential-stuffing defense: rate-limit + lockout, CAPTCHA, device fingerprinting, anomaly detection. (Builds on the Rate Limiting unit.)'},
+     {k:'callout',c:'warn',t:'Rate limits stop volume abuse, not a slow, valid-looking attacker. Layer auth, anomaly detection, and WAF rules on top.'}
+   ]},
+   {t:'teach',h:'Audit & privacy',body:[
+     {k:'point',i:'📜',t:'<b>Audit log</b>: an append-only, immutable record of who did what, when, and from where. Keep it in a separate, tamper-evident store.'},
+     {k:'point',i:'🗑️',t:'<b>Data privacy</b>: honor right-to-delete (GDPR), set retention windows, and minimize what you collect in the first place.'}
+   ]},
+   {t:'mcq',q:'An audit log should be…',o:['editable so you can fix mistakes','append-only and immutable (who / what / when)','stored alongside app data','optional for internal tools'],a:1,why:'Audit logs are evidence — append-only and tamper-evident, ideally in a separate store, so they can’t be quietly rewritten.'},
+   {t:'mcq',q:'A user invokes GDPR right-to-be-forgotten and their data is encrypted at rest (incl. backups). Fastest compliant delete?',o:['overwrite every backup tape','crypto-shred — destroy that data’s encryption key','ignore the backups','re-encrypt the whole database'],a:1,why:'If the key is gone, the ciphertext (including backups) is unrecoverable — crypto-shredding deletes data you can’t easily reach.'},
+   {t:'sort',q:'Defense layer → does it stop a SLOW, valid-looking attacker?',buckets:['Stops it','Doesn’t (volume only)'],items:[
+     {text:'Anomaly detection',b:0},{text:'Per-IP rate limit',b:1},{text:'Authorization checks',b:0},{text:'Fixed-window request cap',b:1}
+   ]},
+   {t:'recall',q:'Name the layers of abuse defense and say what an audit log is for.',model:['Input validation + output encoding (injection), rate-limit + lockout + CAPTCHA + fingerprinting (bots/credential stuffing), and anomaly detection / WAF for the slow attacks rate limits miss.','Authorization on every action keeps authenticated-but-unprivileged callers out.','An audit log is an append-only, immutable who-did-what-when record — for forensics, compliance, and detecting abuse after the fact.']}
+  ]}
+ ],
+ boss:{title:'Security Boss',time:90,q:[
+   {q:'AuthN answers…',o:['what you may do','who you are','how fast','where data lives'],a:1},
+   {q:'A valid token is…',o:['permission','identity, not permission','a role','an audit log'],a:1},
+   {q:'Take the acting user from…',o:['the request body','the verified token','a query param','the URL'],a:1},
+   {q:'"Owner of doc X" permissions →',o:['RBAC','ABAC','ReBAC','no model'],a:2},
+   {q:'Internal service calls should use…',o:['no auth on private net','mTLS / signed tokens','IP allowlists only','shared passwords'],a:1},
+   {q:'Pooled multi-tenant DB is kept safe by…',o:['UI filtering','tenant_id scoping + row-level security','separate API keys','client checks'],a:1},
+   {q:'Envelope encryption lets you…',o:['skip TLS','rotate the master key without re-encrypting all data','avoid key mgmt','compress'],a:1},
+   {q:'Right-to-be-forgotten on encrypted data →',o:['overwrite backups','crypto-shred the key','ignore it','re-encrypt all'],a:1},
+   {q:'An audit log is…',o:['editable','append-only & immutable','optional','app-colocated'],a:1}
+ ]}
+},
+{
  id:'batch',title:'Batch & Stream',icon:'🌊',color:'#EA580C',colorD:'#C2410C',
  blurb:'MapReduce, dataflow, windows, and exactly-once.',
  lessons:[

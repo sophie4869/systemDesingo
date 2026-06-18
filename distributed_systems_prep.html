@@ -337,6 +337,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="nav-label">Operating at scale</div>
     <div class="nav-item" onclick="showSection('scalability',this)"><span class="nav-dot"></span>Scalability &amp; numbers</div>
     <div class="nav-item" onclick="showSection('reliability',this)"><span class="nav-dot"></span>Reliability &amp; resilience</div>
+    <div class="nav-item" onclick="showSection('security',this)"><span class="nav-dot"></span>Security &amp; abuse</div>
     <div class="nav-item" onclick="showSection('pipelines',this)"><span class="nav-dot"></span>Batch &amp; stream</div>
     <div class="nav-item" onclick="showSection('mlinfra',this)"><span class="nav-dot"></span>Data &amp; ML infra</div>
   </div>
@@ -2484,6 +2485,75 @@ each step independently deployable &amp; rollback-safe</div>
     </div>
     <div class="section-footer">
       <button class="ask-btn" onclick="sendQ('Walk me through how you would make a microservice resilient to a slow downstream dependency — timeouts, circuit breakers, bulkheads, and degradation')">Design for resilience <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Security & abuse -->
+  <div id="section-security" class="section">
+    <div class="section-intro">
+      <h2>Security &amp; abuse</h2>
+      <p>The cross-cutting concerns interviewers probe once the happy path works: who's allowed to do what, how tenants stay isolated, how data and keys are protected, and how you keep abuse out. (Token mechanics live in <em>Data models &amp; encoding</em>; volume controls in <em>Rate limiting</em>.)</p>
+    </div>
+    <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">AuthN vs AuthZ</div><div class="card-sub">Who you are vs what you may do</div></div><span class="badge badge-blue">Foundational</span></div>
+        <div class="card-body">
+          <p><strong>Authentication (AuthN)</strong> — <em>who are you?</em> Verify identity with a password, token, or mTLS certificate. Happens once, at the edge. <strong>Authorization (AuthZ)</strong> — <em>what may you do?</em> Check the caller's rights against the specific action, on <em>every</em> request.</p>
+          <p><strong>Authorization models:</strong> <em>RBAC</em> — permissions via roles (admin, editor); simple but coarse, and roles explode as rules get fine-grained. <em>ABAC</em> — rules over attributes (<code>dept=HR AND region=EU</code>); flexible but harder to audit. <em>ReBAC</em> — permissions from relationships ("owner of doc X"); Google's Zanzibar / OpenFGA model, the right fit for sharing graphs.</p>
+          <p><strong>Don't trust the network:</strong> internal service-to-service calls authenticate too — mTLS or short-lived signed tokens. "It's on the private network" is not authentication. And always derive the acting user from the <em>verified token</em>, never a <code>user_id</code> in the request body (trivially spoofed).</p>
+          <div class="note"><strong>Cardinal rule:</strong> authenticate once, authorize every time. A valid token is <em>identity</em>, not <em>permission</em> — a logged-in user can still be unauthorized for the specific action.</div>
+          <div class="tag-row"><span class="tag">RBAC / ABAC / ReBAC</span><span class="tag">mTLS for service-to-service</span><span class="tag">identity from the token</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Multi-tenant isolation</div><div class="card-sub">Keeping tenant A out of tenant B's data</div></div><span class="badge badge-teal">Common</span></div>
+        <div class="card-body">
+          <p>Where tenant data lives is a spectrum of isolation vs cost:</p>
+          <table class="tbl"><tr><th>Model</th><th>Isolation</th><th>Tradeoff</th></tr>
+          <tr><td>Silo (DB per tenant)</td><td>Strongest</td><td>Priciest, low density; trivial "delete a tenant" &amp; per-tenant compliance</td></tr>
+          <tr><td>Bridge (schema per tenant)</td><td>Medium</td><td>Shared DB, separate schemas — middle ground</td></tr>
+          <tr><td>Pool (shared table + tenant_id)</td><td>Weakest</td><td>Cheapest, best density; isolation is all in your query logic</td></tr></table>
+          <p><strong>For the pooled model</strong> (the common case): scope <em>every</em> query by <code>tenant_id</code>, taken from the auth token — never a request parameter. Back it with database <strong>row-level security (RLS)</strong> so the filter holds even when app code forgets — defense in depth.</p>
+          <div class="note warn"><strong>Noisy neighbor:</strong> one tenant's load can starve the rest. Apply per-tenant quotas and rate limits (see <em>Rate limiting</em>) so a single tenant can't consume the whole system.</div>
+          <div class="tag-row"><span class="tag">silo / bridge / pool</span><span class="tag">tenant_id from token</span><span class="tag">row-level security</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Encryption &amp; secrets</div><div class="card-sub">Protect data in transit, at rest, and the keys</div></div><span class="badge badge-amber">Practical</span></div>
+        <div class="card-body">
+          <p><strong>In transit:</strong> TLS everywhere — external <em>and</em> internal (mTLS between services); stops sniffing and man-in-the-middle. <strong>At rest:</strong> disk- or field-level encryption so a stolen disk or leaked DB dump is useless without the keys.</p>
+          <p><strong>Envelope encryption:</strong> a KMS holds a master key that encrypts per-object <em>data keys</em>. Rotating the master key only re-wraps the data keys — you don't re-encrypt all stored data. It also centralizes access control and audit on key use.</p>
+          <p><strong>Secrets hygiene:</strong> no secrets in code, git, container images, or logs — use a secrets manager / vault and inject at runtime. For PII, tokenize or field-encrypt sensitive columns and scrub secrets/PII out of logs and traces.</p>
+          <div class="note"><strong>Crypto-shredding:</strong> destroying a data key makes its ciphertext — including in backups you can't easily reach — permanently unrecoverable. It's the clean answer to "right to be forgotten."</div>
+          <div class="tag-row"><span class="tag">TLS + mTLS</span><span class="tag">envelope encryption + KMS</span><span class="tag">key rotation</span><span class="tag">crypto-shred</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Abuse defense</div><div class="card-sub">Bad input, bots, and credential stuffing</div></div><span class="badge badge-red">Defensive</span></div>
+        <div class="card-body">
+          <p><strong>Bad input:</strong> validate input and encode output — the defense against injection (SQLi, XSS). Parameterize queries; never string-concatenate user input.</p>
+          <p><strong>Bad actors:</strong> defend against bots and credential stuffing with rate-limit + lockout, CAPTCHA, device fingerprinting, and anomaly detection. A WAF blocks known-bad patterns at the edge.</p>
+          <div class="note warn"><strong>Rate limits aren't enough:</strong> they stop volume abuse, but not a slow, valid-looking attacker (low-and-slow credential stuffing, a single abusive-but-authorized tenant). Layer authorization, anomaly detection, and WAF rules on top.</div>
+          <div class="tag-row"><span class="tag">validate in / encode out</span><span class="tag">parameterized queries</span><span class="tag">CAPTCHA + fingerprinting</span><span class="tag">WAF</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Audit logs &amp; data privacy</div><div class="card-sub">Who did what, and the right to be forgotten</div></div><span class="badge badge-purple">Compliance</span></div>
+        <div class="card-body">
+          <p><strong>Audit log:</strong> an append-only, immutable record of who did what, when, and from where. Keep it in a separate, tamper-evident store — it's evidence for forensics, compliance, and detecting abuse after the fact, so it must not be quietly rewritable.</p>
+          <p><strong>Data privacy:</strong> honor right-to-delete (GDPR), set retention windows, and minimize what you collect in the first place — data you never store can't leak. On encrypted data, crypto-shredding (destroying the key) is the fastest compliant delete, since it also covers backups.</p>
+          <div class="tag-row"><span class="tag">append-only audit log</span><span class="tag">GDPR right-to-delete</span><span class="tag">retention + minimization</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Give me a system design question that stresses security and multi-tenancy — how I would isolate tenant data, authorize requests, protect secrets, and keep abuse out')">Ask a design question <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
 
