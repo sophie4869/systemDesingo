@@ -2687,13 +2687,59 @@ Keyset (fast):
           <p><strong>Lambda architecture:</strong> two parallel pipelines. A <em>batch layer</em> reprocesses all historical data periodically (accurate, high latency, corrects errors). A <em>speed layer</em> processes recent events in real-time (low latency, approximate). A <em>serving layer</em> merges both views for queries.</p>
           <p>Pros: eventually accurate (batch corrects speed-layer errors), handles late data naturally. Cons: maintain two codebases doing the same logic — duplication, semantic drift, double the operational burden.</p>
           <p><strong>Kappa architecture:</strong> stream-only. Reprocess historical data by replaying the Kafka log from offset 0 through the same stream processor. One codebase, simpler ops. Requires: a durable, replayable, long-retention log (Kafka); a stream processor that handles large replay without OOM.</p>
-          <div class="code">Lambda:
-  events &rarr; Kafka &rarr; [speed: Flink]  &rarr; serving layer (merge both)
-                   &rarr; [batch: Spark on S3] &rarr;
-
-Kappa:
-  events &rarr; Kafka (long retention) &rarr; [Flink, replayable] &rarr; serving layer
-  reprocess: reset consumer offset to 0, replay entire log</div>
+          <div class="lk-wrap" onclick="event.stopPropagation()" style="margin:14px 0;">
+          <style>
+            .lk{display:grid;gap:12px}
+            .lk-card{border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);border-radius:12px;padding:11px 12px}
+            .lk-h{font-weight:800;font-size:12.5px;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+            .lk-badge{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px}
+            .lk-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+            .lk-node{text-align:center;border:1.5px solid var(--bd);background:var(--bg);color:var(--c);border-radius:9px;padding:7px 9px;font-weight:800;font-size:11.5px}
+            .lk-node small{display:block;font-weight:600;font-size:9px;opacity:.85;margin-top:1px}
+            .lk-arr{color:var(--color-text-secondary);font-weight:800;flex:0 0 auto;font-size:13px}
+            .lk-branch{display:grid;gap:6px}
+            .lk-blue{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+            .lk-green{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+            .lk-amber{--c:#b45309;--bg:#fffbeb;--bd:#fde68a}
+            .lk-note{font-size:10.5px;color:var(--color-text-secondary);font-weight:600;margin-top:8px;line-height:1.5}
+            .lk-note b{color:var(--color-text-primary)}
+          </style>
+          <div class="lk">
+            <div class="lk-card">
+              <div class="lk-h" style="color:#4f46e5">Lambda <span class="lk-badge" style="background:#eef2ff;color:#4f46e5">two pipelines</span></div>
+              <div class="lk-row">
+                <div class="lk-node lk-blue">events</div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">Kafka</div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-branch">
+                  <div class="lk-node lk-green">speed: Flink<small>real-time · approximate</small></div>
+                  <div class="lk-node lk-amber">batch: Spark / S3<small>periodic · exact, corrects</small></div>
+                </div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">serving<small>merge both</small></div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">query</div>
+              </div>
+              <div class="lk-note">Two codebases run the same logic; the <b>batch</b> layer later corrects the <b>speed</b> layer's approximations. Accurate, but double the ops.</div>
+            </div>
+            <div class="lk-card">
+              <div class="lk-h" style="color:#059669">Kappa <span class="lk-badge" style="background:#ecfdf5;color:#059669">stream only</span></div>
+              <div class="lk-row">
+                <div class="lk-node lk-blue">events</div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">Kafka<small>long retention</small></div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-green">Flink<small>replayable</small></div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">serving</div>
+                <div class="lk-arr">▸</div>
+                <div class="lk-node lk-blue">query</div>
+              </div>
+              <div class="lk-note"><b>Reprocess</b> = reset the consumer offset to 0 and replay the whole log through the <b>same</b> processor. One codebase, simpler ops — needs a durable, long-retention log.</div>
+            </div>
+          </div>
+          </div>
           <p><strong>Modern default:</strong> Kappa where possible — simpler and sufficient for most use cases. Lambda only when the batch layer provides correctness guarantees the stream layer cannot (e.g. ML retraining that requires a full historical pass with hindsight labels).</p>
           <div class="tag-row"><span class="tag">Lambda = two codebases, accurate</span><span class="tag">Kappa = stream + replay, simpler</span><span class="tag">Kappa preferred today</span></div>
         </div>
