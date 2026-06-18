@@ -103,6 +103,8 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .optrow{display:flex;align-items:center;gap:7px;margin:6px 18px 4px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
 .speedrow{display:flex;gap:10px;align-items:stretch;margin:8px 18px 4px}
 .speedbtn{flex:1;background:#F5ECFD;border-color:#A560E8;color:#7C3AED}
+.toolrow{margin:14px 18px 0;gap:10px}
+.toolbtn{flex:1;background:#EAF6FF;border-color:#1CB0F6;color:#1471B8}
 .lenpicker{display:flex;gap:3px;align-items:center;background:#fff;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:4px}
 .lenpill{min-width:36px;padding:8px 0;border:none;border-radius:10px;background:transparent;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit}
 .lenpill.on{background:#A560E8;color:#fff}
@@ -283,7 +285,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .gradebtns{display:flex;gap:8px;margin-top:12px}
 .gradebtns .btn{font-size:13px;padding:12px 8px}
 .llmcoach{display:grid;gap:11px}
-.llmcoach .prompt{background:var(--purple-bg);border:2px solid var(--purple);border-radius:14px;padding:13px 15px;font-size:15px;font-weight:900;line-height:1.45;color:#6d28d9}
+.llmcoach .prompt{background:var(--purple-bg);border:2px solid var(--purple);border-radius:14px;padding:13px 15px;font-size:15px;font-weight:900;line-height:1.45;color:#6d28d9;white-space:pre-wrap}
 .llmcoach textarea{width:100%;min-height:92px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:14px;font-weight:700;color:var(--ink);resize:vertical}
 .llmcoach .row{display:flex;flex-wrap:wrap;gap:8px}
 .llmcoach .mini{border:2px solid var(--blue);border-bottom-width:4px;border-radius:12px;background:var(--blue-bg);color:var(--blue-d);font-family:inherit;font-size:13px;font-weight:900;padding:9px 12px}
@@ -4101,7 +4103,58 @@ const UNITS=[
    {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
   ]},
-  {id:'mock-judge',title:'LLM mock judge',steps:[
+  {id:'mock-10',title:'Notification / fan-out',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Deliver events to users over push, email, and an in-app inbox, honouring preferences.'},
+     {k:'point',i:'📐',t:'NFRs: at-least-once delivery, dedup, coalesce bursts, per-channel preferences, delivery tracking.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: notification(id, user, type, payload, status), user channel prefs, device tokens.','API: emit(event); per-user fan-out → queue per channel; GET /inbox; track sent/delivered/read.']},
+   {t:'mcq',q:'A celebrity post must notify 50M followers. The risk?',o:['too few notifications','fan-out write amplification / hot producer','inbox is too small','email is slow'],a:1,why:'Naive fan-out-on-write explodes for high-fan-out producers; use async workers, batching, and pull/hybrid for huge audiences.'},
+   {t:'build',q:'4 · High-level components.',options:['Event ingress + queue','Per-channel workers (push/email/inbox)','Preference + device-token store','Dedup + coalesce layer','A synchronous loop over all followers'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['inbox reads','fan-out volume + 3rd-party send limits (APNs/FCM/SMTP)','preferences','dedup'],a:1,why:'Delivery is gated by provider rate limits and fan-out size; smooth with queues, batching, and backpressure.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Async fan-out workers per channel; dedup by event_id; coalesce a burst into one push; respect provider rate limits with retries/backoff.','Failure: provider 5xx → retry/backoff then dead-letter; at-least-once + idempotent send (store sent id) avoids double-notifying.']}
+  ]},
+  {id:'mock-11',title:'Nearby / geospatial search',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Find drivers/places near a point, ranked, with fresh locations and dense-city read traffic.'},
+     {k:'point',i:'📐',t:'NFRs: low-latency radius/k-NN queries, frequent location updates, high read fan-out in hotspots.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: entity(id, lat, lng, geo-cell, updated_at), plus attributes for ranking.','API: update_location(id, lat, lng); query nearby(lat, lng, radius/k) → ranked results.']},
+   {t:'mcq',q:'How do you index location for fast nearby queries?',o:['B-tree on lat then lng','a geohash / quadtree / S2 cell index','full scan + distance filter','hash of (lat,lng)'],a:1,why:'Space-filling curves (geohash/S2) or quadtrees map 2-D proximity to a 1-D key so nearby points share a prefix/cell.'},
+   {t:'build',q:'4 · High-level components.',options:['Geo index (geohash/S2/quadtree)','Hot in-memory location store (Redis)','Ranking service','Sharding by geo-cell','One row scan per query'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['location writes are rare','dense-city read hotspots + churny location writes','ranking math','storage size'],a:1,why:'A few cells (downtown) get most traffic; replicate hot cells, cache, and keep live positions in memory.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Geohash/S2 cells as the shard + index key; live positions in Redis with short TTL; query the target cell + neighbours, then rank.','Hot-cell relief: replicas + caching; precision-vs-recall tuned by cell size.','Failure: stale positions → TTL + last-seen filter; a cell shard down → serve neighbours degraded, not error.']}
+  ]},
+  {id:'mock-12',title:'Search autocomplete / typeahead',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Return prefix suggestions in <100ms, ranked by popularity, trending-aware, safe to roll out.'},
+     {k:'point',i:'📐',t:'NFRs: very low latency, read-heavy, near-real-time popularity, no offensive/unsafe suggestions.'}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: prefix → top-k suggestions (precomputed), query-frequency counts.','API: suggest(prefix) → ranked list; offline/stream job rebuilds the prefix→top-k structure.']},
+   {t:'mcq',q:'Why precompute top-k per prefix instead of querying at request time?',o:['it saves storage','reads must be ~O(1); ranking at query time is too slow','it improves write throughput','it avoids caching'],a:1,why:'Typeahead is extremely read-heavy and latency-critical; a prebuilt trie / prefix→top-k served from memory beats per-keystroke ranking.'},
+   {t:'build',q:'4 · High-level components.',options:['Trie / prefix→top-k index','Frequency aggregation pipeline (stream)','In-memory serving tier + CDN/edge','Safe-suggestion filter','A SQL LIKE %prefix% per keystroke'],correct:[0,1,2,3]},
+   {t:'mcq',q:'5 · Bottleneck?',o:['index rebuild','per-keystroke read latency at scale','storage','the filter'],a:1,why:'Every keystroke is a query; serve from memory/edge and debounce on the client. Rebuilds happen offline.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Stream-count queries → periodically rebuild prefix→top-k (trie) → push to in-memory/edge serving; debounce client input.','Trending: decay old counts so fresh terms surface; filter unsafe suggestions before publish.','Failure: rebuild job fails → keep serving the last good index (stale but available); bad index → fast rollback to previous version.']}
+  ]}
+ ],
+ boss:{title:'Mock Designs Boss',time:110,q:[
+   {q:'URL shortener: short codes via…',o:['hash + truncate','base62 of a counter/ID','UUID v4','random retry'],a:1},
+   {q:'Twitter feed for normal users:',o:['fanout-on-read','fanout-on-write','nightly batch','no cache'],a:1},
+   {q:'Twitter celebrity post:',o:['fanout-on-write to all','fanout-on-read / hybrid','block posting','shard harder'],a:1},
+   {q:'Chat real-time delivery:',o:['polling','WebSocket + pub/sub','email','cron'],a:1},
+   {q:'Ticket double-booking, first tool:',o:['distributed lock','DB atomic CAS / transaction','2PC','queue only'],a:1},
+   {q:'Rate limiter algorithm for bursts:',o:['leaky bucket','token bucket','fixed window','none'],a:1},
+   {q:'Large video upload:',o:['through app servers','presigned URL to S3','into the DB','base64'],a:1},
+   {q:'Order system cross-service atomicity:',o:['2PC','saga + compensations','global lock','none'],a:1},
+   {q:'Metrics storage partitioning:',o:['by user','by (series, time bucket)','random','one table'],a:1},
+   {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1},
+   {q:'LLM mock judge should primarily…',o:['solve first','grade your answer and ask follow-ups','write frontend code','ignore tradeoffs'],a:1}
+ ]}
+}
+];
+
+const TOOLS=[
+ {id:'tool-judge',title:'LLM mock judge',steps:[
    {t:'teach',h:'What an LLM should judge',body:[
      {k:'tldr',t:'Use the site for drills; use an LLM as a strict interviewer for free-form mocks.'},
      {k:'point',i:'🎯',t:'Do a 35–45 minute answer first. Then paste the prompt, your rough notes, and the judge instructions into an LLM.'},
@@ -4140,7 +4193,7 @@ const UNITS=[
       var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
       function render(){p.textContent=prompts[i];}
       function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
-      function packet(){return judge+'\\n\\nPROMPT:\\n'+prompts[i]+'\\n\\nCANDIDATE ANSWER:\\n'+(a.value.trim()||'[Paste candidate answer here]');}
+      function packet(){return judge+'\n\nPROMPT:\n'+prompts[i]+'\n\nCANDIDATE ANSWER:\n'+(a.value.trim()||'[Paste candidate answer here]');}
       function copy(t,msg){
         if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){status(msg);}).catch(function(){fallback(t);});
         else fallback(t);
@@ -4151,10 +4204,8 @@ const UNITS=[
       root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Judge packet copied.');};
       render();
     }},
-   {t:'mcq',q:'What should you ask the LLM to do after a free-form mock?',o:['Give the perfect answer before you try','Judge your answer with a rubric and ask follow-ups','Only fix grammar','Generate more API endpoints'],a:1,why:'The useful signal is whether your interview answer was complete, scoped, and defensible — not whether the LLM can solve the prompt.'},
-   {t:'recall',q:'What should your answer include before you send it to an LLM judge?',model:['A clear scope and assumptions, with the core functional requirements and NFRs.','APIs/entities/schema tied to access patterns; high-level architecture with the hot path and bottleneck.','Tradeoffs and failure handling: retries/idempotency, stale reads, hot keys, backpressure, region failure, and what changes at 10× scale.']}
-  ]},
-  {id:'mock-schema',title:'LLM schema/API drills',steps:[
+ ]},
+ {id:'tool-schema',title:'LLM schema/API drills',steps:[
    {t:'teach',h:'Judging APIs and data models',body:[
      {k:'tldr',t:'Schemas and APIs are hard to self-grade because the answer only works if it serves every access pattern.'},
      {k:'point',i:'🔎',t:'Give the LLM the <b>access patterns</b>, then ask it to check whether your endpoints, keys, indexes, constraints, and transactions actually support them.'},
@@ -4189,10 +4240,10 @@ const UNITS=[
       ];
       var judge='You are a strict system design interviewer grading an API and data-model artifact. Score 1-4 for: API contract; data model; keys and indexes; consistency and transactions; idempotency and retries; scale and hot spots; evolution and operations. Say which required access patterns are fully supported, partially supported, or unsupported. Return the 5 highest-leverage fixes and 3 interviewer follow-up questions. Do not redesign from scratch; judge the submitted artifact with concrete corrections.';
       var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
-      function text(d){return d.title+'\\n\\n'+d.prompt+'\\n\\nAccess patterns:\\n- '+d.access.join('\\n- ');}
+      function text(d){return d.title+'\n\n'+d.prompt+'\n\nAccess patterns:\n- '+d.access.join('\n- ');}
       function render(){p.textContent=text(drills[i]);}
       function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
-      function packet(){return judge+'\\n\\nDRILL:\\n'+text(drills[i])+'\\n\\nCANDIDATE API / DATA MODEL:\\n'+(a.value.trim()||'[Paste candidate answer here]');}
+      function packet(){return judge+'\n\nDRILL:\n'+text(drills[i])+'\n\nCANDIDATE API / DATA MODEL:\n'+(a.value.trim()||'[Paste candidate answer here]');}
       function copy(t,msg){
         if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){status(msg);}).catch(function(){fallback(t);});
         else fallback(t);
@@ -4203,24 +4254,7 @@ const UNITS=[
       root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Schema judge packet copied.');};
       render();
     }},
-   {t:'mcq',q:'For schema/API drills, what should the LLM judge first?',o:['Whether the names are pretty','Whether every required access pattern is actually supported','Whether it uses the trendiest database','Only grammar'],a:1,why:'A schema is good only if its keys, indexes, constraints, and APIs serve the required reads/writes without hidden scans or correctness gaps.'},
-   {t:'recall',q:'What should you include in an API/data-model answer before asking for LLM judgment?',model:['Endpoints with request/response shape, pagination, auth/user source, and retry/error behavior.','Entities/tables/items with primary keys, sort keys, secondary indexes, uniqueness constraints, and query direction.','Consistency and scale notes: transactions/CAS/idempotency where invariants matter, expected hot spots, TTL/retention, migration/backfill or audit needs.']}
-  ]}
- ],
- boss:{title:'Mock Designs Boss',time:110,q:[
-   {q:'URL shortener: short codes via…',o:['hash + truncate','base62 of a counter/ID','UUID v4','random retry'],a:1},
-   {q:'Twitter feed for normal users:',o:['fanout-on-read','fanout-on-write','nightly batch','no cache'],a:1},
-   {q:'Twitter celebrity post:',o:['fanout-on-write to all','fanout-on-read / hybrid','block posting','shard harder'],a:1},
-   {q:'Chat real-time delivery:',o:['polling','WebSocket + pub/sub','email','cron'],a:1},
-   {q:'Ticket double-booking, first tool:',o:['distributed lock','DB atomic CAS / transaction','2PC','queue only'],a:1},
-   {q:'Rate limiter algorithm for bursts:',o:['leaky bucket','token bucket','fixed window','none'],a:1},
-   {q:'Large video upload:',o:['through app servers','presigned URL to S3','into the DB','base64'],a:1},
-   {q:'Order system cross-service atomicity:',o:['2PC','saga + compensations','global lock','none'],a:1},
-   {q:'Metrics storage partitioning:',o:['by user','by (series, time bucket)','random','one table'],a:1},
-   {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1},
-   {q:'LLM mock judge should primarily…',o:['solve first','grade your answer and ask follow-ups','write frontend code','ignore tradeoffs'],a:1}
  ]}
-}
 ];
 
 /* locked / coming-soon topics shown on the map */
@@ -4309,6 +4343,10 @@ function renderHome(scrollToNext){
     h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'"'+(u.id===curUnit?' id="jump-current"':'')+' data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
   h+='</div></div>';
   h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master distributed systems for your interview — one quick quest at a time.</p></div>';
+  h+='<div class="actions toolrow">'
+    +'<button class="act toolbtn" id="toolJudge">🎤 LLM mock judge</button>'
+    +'<button class="act toolbtn" id="toolSchema">🧱 LLM schema/API drills</button>'
+    +'</div>';
   h+='<div class="levelcard"><div class="ring" style="--p:'+prog+'"><span>'+lvl+'</span></div>'
     +'<div class="lc-meta"><div class="lc-title">Level '+lvl+'</div><div class="lc-sub">'+prog+'/100 XP to level '+(lvl+1)+'</div></div></div>';
   const allMist=Object.values(S.mistakes);
@@ -4401,6 +4439,8 @@ function renderHome(scrollToNext){
   });
   document.getElementById('reviewBtn').onclick=startReview;
   document.getElementById('recallBtn').onclick=startRecallReview;
+  document.getElementById('toolJudge').onclick=()=>openTool('tool-judge');
+  document.getElementById('toolSchema').onclick=()=>openTool('tool-schema');
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
   const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();renderHome();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
@@ -4450,6 +4490,23 @@ function startRandomMix(n){
   const time=steps.length*12; // ~12s/question, pooled across the whole run
   R={mode:'speed',source:'mix',unit:{id:'speed'},steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time,timeLeft:time};
   renderStep(); // manageTimer() starts the clock (speed mode keeps it active)
+}
+/* Standalone LLM coach tool — interactive widget only, no timer/hearts/scoring. */
+function openTool(id){
+  const t=TOOLS.find(x=>x.id===id);if(!t)return;
+  stopTimer();
+  APP().innerHTML='<div class="lhead"><button class="close" id="quitBtn">×</button></div><div class="stage" id="stage"></div>';
+  document.getElementById('quitBtn').onclick=()=>renderHome();
+  const stage=document.getElementById('stage');
+  let s='<div class="q-sub">🤖 LLM coach</div><div class="q-title">'+t.title+'</div>';
+  t.steps.forEach(step=>{
+    if(step.t==='teach')step.body.forEach(b=>s+=blockHTML(b));
+    else if(step.t==='htmlviz')s+='<div class="htmlviz" data-viz>'+step.html+'</div>';
+  });
+  stage.innerHTML=s;
+  const roots=stage.querySelectorAll('[data-viz]');let vi=0;
+  t.steps.forEach(step=>{if(step.t==='htmlviz'&&step.setup){try{step.setup(roots[vi++]);}catch(e){}}});
+  try{window.scrollTo(0,0);}catch(e){}
 }
 function startReview(){
   let pool=Object.values(S.mistakes);
