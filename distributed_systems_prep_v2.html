@@ -500,6 +500,27 @@ const UNITS=[
      {k:'point',i:'🔑',t:'Each leaf hashes the <b>key + value/version</b> in its range — not just the key (all replicas share the same keys, so that would never reveal a diff).'},
      {k:'point',i:'🌳',t:'<b>Merkle trees</b>: equal root hash → identical (O(1)); otherwise descend only mismatching branches — finding one divergent range is ~log-depth, and the work grows with the number of differing ranges (no full O(N) scan when few keys differ).'}
    ]},
+   {t:'htmlviz',h:'Merkle anti-entropy — descend only the mismatch',
+    html:`<style>
+.mkv{display:grid;gap:11px}
+.mkv-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mkv-tree{background:var(--color-background-secondary);border:2px solid var(--color-border-tertiary);border-radius:14px;padding:12px}
+.mkv-title{font-size:12px;font-weight:900;color:var(--color-text-primary);margin-bottom:9px}
+.mkv-row{display:flex;justify-content:center;gap:7px;margin:6px 0;flex-wrap:wrap}
+.mkv-h{font-family:var(--font-mono);font-size:11px;font-weight:800;border-radius:8px;padding:5px 8px;background:#fff;border:1.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.mkv-h.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.mkv-h.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.mkv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.mkv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.mkv-pair{grid-template-columns:1fr}}
+</style>
+<div class="mkv">
+  <div class="mkv-pair">
+    <div class="mkv-tree"><div class="mkv-title">Replica A</div><div class="mkv-row"><span class="mkv-h bad">root X</span></div><div class="mkv-row"><span class="mkv-h good">left A1</span><span class="mkv-h bad">right A2</span></div><div class="mkv-row"><span class="mkv-h good">k1</span><span class="mkv-h good">k2</span><span class="mkv-h bad">k3:v7</span><span class="mkv-h good">k4</span></div></div>
+    <div class="mkv-tree"><div class="mkv-title">Replica B</div><div class="mkv-row"><span class="mkv-h bad">root Y</span></div><div class="mkv-row"><span class="mkv-h good">left A1</span><span class="mkv-h bad">right B2</span></div><div class="mkv-row"><span class="mkv-h good">k1</span><span class="mkv-h good">k2</span><span class="mkv-h bad">k3:v8</span><span class="mkv-h good">k4</span></div></div>
+  </div>
+  <div class="mkv-cap"><b>Equal hashes prune whole ranges.</b> The left subtree matches, so anti-entropy never scans k1-k2. It descends only into the mismatching right subtree, finds k3, and syncs that range.</div>
+</div>`},
    {t:'build',q:'Pick the tools an AP store uses to converge replicas.',options:['Read repair','Two-phase commit','Anti-entropy','Merkle trees','A single global lock'],correct:[0,2,3]},
    {t:'recall',q:'How does a Merkle tree make anti-entropy cheap?',model:['Each leaf hashes the DATA in a key range — the keys AND their values/versions (hashing just the key is useless: all replicas hold the same keys). Parents hash their children up to a root.','It cheaply narrows the changed ranges: equal roots are O(1), descending to one divergent range is roughly logarithmic.','Many differences cost proportional work — but you never full-scan when only a few keys differ.']}
   ]},
@@ -508,6 +529,25 @@ const UNITS=[
      {k:'tldr',t:'Async followers trail the leader — so a follower read can be stale, causing subtle bugs.'},
      {k:'cause',a:'Write to leader, then read from a lagging follower',b:'You don’t see your own write yet'}
    ]},
+   {t:'htmlviz',h:'Replication lag — three read bugs',
+    html:`<style>
+.rlv{display:grid;gap:10px}
+.rlv-line{display:grid;grid-template-columns:94px 1fr;gap:9px;align-items:center}
+.rlv-name{font-size:12px;font-weight:900;color:var(--color-text-secondary);line-height:1.3}
+.rlv-events{display:flex;gap:6px;flex-wrap:wrap}
+.rlv-pill{border:2px solid var(--color-border-tertiary);background:var(--color-background-secondary);border-radius:10px;padding:7px 9px;font-size:12px;font-weight:800;color:var(--color-text-secondary)}
+.rlv-pill.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.rlv-pill.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.rlv-pill.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.rlv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.rlv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="rlv">
+  <div class="rlv-line"><div class="rlv-name">Read-your-writes</div><div class="rlv-events"><span class="rlv-pill good">write profile v2 to leader</span><span class="rlv-pill bad">read follower v1</span><span class="rlv-pill info">fix: read leader / home region</span></div></div>
+  <div class="rlv-line"><div class="rlv-name">Monotonic reads</div><div class="rlv-events"><span class="rlv-pill good">read F1: v5</span><span class="rlv-pill bad">read F2: v3</span><span class="rlv-pill info">fix: sticky replica/session</span></div></div>
+  <div class="rlv-line"><div class="rlv-name">Consistent prefix</div><div class="rlv-events"><span class="rlv-pill bad">see reply first</span><span class="rlv-pill">see question later</span><span class="rlv-pill info">fix: preserve causal order</span></div></div>
+  <div class="rlv-cap"><b>Async lag is not one bug.</b> It creates personal staleness, time going backward, and effect-before-cause reads. Each guarantee patches a different user-visible failure.</div>
+</div>`},
    {t:'teach',h:'Three guarantees that patch it',body:[
      {k:'keyt',term:'Read-your-writes',def:'you always see your OWN latest write (read from leader / your region).'},
      {k:'keyt',term:'Monotonic reads',def:'reads never go backwards in time (stick to one replica).'},
@@ -586,6 +626,25 @@ const UNITS=[
      {k:'cause',a:'Write → HEAD → node → … → TAIL → ack',b:'Read ← TAIL only'},
      {k:'point',i:'🔗',t:'A write is acked only once the <b>TAIL</b> has it. The tail therefore only ever sees fully-propagated writes → reads from it are <b>linearizable</b>.'}
    ]},
+   {t:'htmlviz',h:'Chain replication + CRAQ — where reads go',
+    html:`<style>
+.crv{display:grid;gap:10px}
+.crv-chain{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.crv-node{min-width:70px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.crv-node.head{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.crv-node.tail{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.crv-node.dirty{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.crv-n{font-size:13px;font-weight:900}
+.crv-s{font-size:10.5px;font-weight:800;margin-top:3px}
+.crv-arr{font-size:20px;font-weight:900;color:var(--color-text-tertiary)}
+.crv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.crv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="crv">
+  <div class="crv-chain"><div class="crv-node head"><div class="crv-n">HEAD</div><div class="crv-s">writes enter</div></div><div class="crv-arr">→</div><div class="crv-node dirty"><div class="crv-n">MIDDLE</div><div class="crv-s">may be dirty</div></div><div class="crv-arr">→</div><div class="crv-node tail"><div class="crv-n">TAIL</div><div class="crv-s">acked writes</div></div></div>
+  <div class="crv-cap"><b>Plain chain:</b> writes flow head → tail and ack only at the tail; linearizable reads go to the tail because it only sees fully propagated writes.</div>
+  <div class="crv-cap"><b>CRAQ:</b> clean nodes answer reads directly. Dirty nodes hold an uncommitted version, so they ask the tail for the committed value before replying.</div>
+</div>`},
    {t:'teach',h:'Why bother',body:[
      {k:'point',i:'⚖️',t:'Load splits: the <b>head</b> absorbs write ingestion, the <b>tail</b> serves reads — more throughput than routing everything through one leader.'},
      {k:'point',i:'🛠️',t:'Clean recovery: head, middle, and tail each have a well-defined rule when a node dies.'},
@@ -2867,7 +2926,7 @@ const UNITS=[
    {t:'mcq',q:'Which window groups events by gaps of inactivity?',o:['tumbling','hopping','session','global'],a:2,why:'A session window closes after a period of no events for that key.'},
    {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
   ]},
-  {id:'batch-3',title:'Architectures & tiering',steps:[
+  {id:'batch-3',title:'Lambda & Kappa',steps:[
    {t:'htmlviz',h:'Lambda vs Kappa',
     html:`<style>
       .lk{display:grid;gap:12px;font-family:inherit}
@@ -2922,17 +2981,11 @@ const UNITS=[
       </div>
       <div class="lk-tip">💡 Kappa is the modern default when your processor can replay; Lambda lingers where batch tools are much cheaper / more accurate for the bulk path.</div>
     </div>`},
-   {t:'teach',h:'Data lifecycle tiering',body:[
-     {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD/in-memory/standard object).'},
-     {k:'point',i:'🌤️',t:'<b>Warm</b>: occasional access — cheaper, slower (infrequent-access tiers).'},
-     {k:'point',i:'🧊',t:'<b>Cold</b>: rarely read, keep for compliance — cheapest, slow retrieval (Glacier/archive).'},
-     {k:'note',t:'Lifecycle policies age data hot → warm → cold automatically; time-series/logs are the classic case.'}
-   ]},
    {t:'mcq',q:'Kappa architecture differs from Lambda by…',o:['using two code paths','using one streaming path and replaying to reprocess','dropping streaming','requiring a warehouse'],a:1,why:'Kappa keeps a single streaming codebase and reprocesses by replaying the log; Lambda maintains separate batch + speed layers.'},
-   {t:'cloze',q:'Fill the tiering blanks.',distract:['shard','quorum'],text:[
-     {blank:'Lambda',alt:['lambda']},' runs batch + speed layers; ',{blank:'Kappa',alt:['kappa']},' uses one stream and ',{blank:'replays',alt:['replay']},' to reprocess. Aging data flows ',{blank:'hot',alt:['hot-warm-cold']},' → warm → cold to cut cost.'
+   {t:'cloze',q:'Fill the Lambda/Kappa blanks.',distract:['shard','quorum'],text:[
+     {blank:'Lambda',alt:['lambda']},' runs batch + speed layers; ',{blank:'Kappa',alt:['kappa']},' uses one stream and ',{blank:'replays',alt:['replay']},' to reprocess.'
    ]},
-   {t:'recall',q:'Lambda vs Kappa, and how does data tiering save cost?',model:['Lambda: a batch layer (accurate, reprocessable) plus a speed layer (fresh, approximate), merged at serving — but two codebases.','Kappa: one streaming pipeline; reprocess by replaying the log — simpler when streaming meets accuracy needs.','Tiering ages data hot → warm → cold (e.g. SSD → infrequent-access → Glacier) via lifecycle policies, paying less for rarely-read data.']}
+   {t:'recall',q:'Lambda vs Kappa — when would you pick each?',model:['Lambda: a batch layer (accurate, reprocessable) plus a speed layer (fresh, approximate), merged at serving — but two codebases that can drift.','Kappa: one streaming pipeline; reprocess by replaying the log — simpler, and the default when your stream processor can replay.']}
   ]}
  ],
  boss:{title:'Batch & Stream Boss',time:80,q:[
@@ -2943,7 +2996,7 @@ const UNITS=[
    {q:'Watermarks handle…',o:['hot keys','late events','encryption','sharding'],a:1},
    {q:'Exactly-once stream processing needs…',o:['no state','checkpoints + idempotent sinks','UDP','a single node'],a:1},
    {q:'Kappa architecture uses…',o:['batch + speed layers','one streaming path, replay to reprocess','no streaming','a warehouse only'],a:1},
-   {q:'Rarely-read compliance data belongs in a…',o:['hot tier','cold/archive tier','cache','queue'],a:1}
+   {q:'Lambda maintains…',o:['one codebase','separate batch + speed layers','only streaming','no batch layer'],a:1}
  ]}
 },
 {
@@ -2951,13 +3004,12 @@ const UNITS=[
  blurb:'Pipelines, storage tiers, and serving models at scale.',
  lessons:[
   {id:'data-1',title:'Pipelines & storage',steps:[
-   {t:'teach',h:'Batch vs stream; ELT',body:[
-     {k:'vs',a:{h:'Batch',t:'process big chunks on a schedule. High throughput, high latency.'},b:{h:'Stream',t:'process events as they arrive (Flink/Kafka Streams). Low latency.'}},
-     {k:'point',i:'🏛️',t:'<b>Where it lands</b>: <b>warehouse</b> = structured, SQL, analytics-tuned (Snowflake/BigQuery); <b>data lake</b> = raw files in object storage, schema-on-read, cheap; <b>lakehouse</b> = open table formats (Delta/Iceberg) adding ACID + schema on a lake.'},
-     {k:'note',t:'Modern default is ELT: load raw into a warehouse (BigQuery/Snowflake), transform with SQL.'}
+   {t:'teach',h:'ETL vs ELT',body:[
+     {k:'vs',a:{h:'ETL',t:'transform <b>before</b> load — clean, join, aggregate, then load structured results. Good when transforms are expensive or data must be sanitised first.'},b:{h:'ELT',t:'load raw <b>first</b>, transform in-warehouse with SQL. The modern default — cheap columnar storage, and you can re-run transforms without re-ingesting.'}},
+     {k:'point',i:'🏛️',t:'<b>Where it lands</b>: <b>warehouse</b> = structured, SQL, analytics-tuned (Snowflake/BigQuery); <b>data lake</b> = raw files in object storage, schema-on-read, cheap; <b>lakehouse</b> = open table formats (Delta/Iceberg) adding ACID + schema on a lake.'}
    ]},
-   {t:'sort',q:'Batch or streaming?',buckets:['Batch','Streaming'],items:[
-     {text:'nightly report',b:0},{text:'fraud alert in seconds',b:1},{text:'huge throughput, latency ok',b:0},{text:'live dashboard',b:1}
+   {t:'sort',q:'ETL or ELT?',buckets:['ETL — transform first','ELT — load raw first'],items:[
+     {text:'sanitise PII before storing',b:0},{text:'cheap columnar warehouse',b:1},{text:'re-run transforms on raw data',b:1},{text:'expensive transform, run once',b:0}
    ]},
    {t:'mcq',q:'Open table formats (Delta Lake, Iceberg) that add ACID + schema on top of a data lake are called a…',o:['warehouse','data lake','lakehouse','cache'],a:2,why:'A lakehouse layers warehouse-like guarantees (ACID, schema) over cheap object-storage files — lake flexibility with warehouse reliability.'},
    {t:'teach',h:'Storage tiers',body:[
@@ -2966,6 +3018,13 @@ const UNITS=[
      {k:'point',i:'🪣',t:'<b>Object</b> (S3): HTTP, 11 nines, immutable — media, data lakes, checkpoints.'}
    ]},
    {t:'mcq',q:'Where do you store ML training data and model checkpoints?',o:['block volume','object storage (S3/GCS)','the app server','a queue'],a:1,why:'Object storage is cheap, durable, and globally accessible — ideal for datasets & checkpoints.'},
+   {t:'teach',h:'Lifecycle tiering',body:[
+     {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD / in-memory / standard object).'},
+     {k:'point',i:'🌤️',t:'<b>Warm</b>: occasional access — cheaper, slower (infrequent-access tiers).'},
+     {k:'point',i:'🧊',t:'<b>Cold</b>: rarely read, kept for compliance — cheapest, slow retrieval (Glacier / archive).'},
+     {k:'note',t:'Lifecycle policies age data hot → warm → cold automatically; time-series and logs are the classic case.'}
+   ]},
+   {t:'mcq',q:'Rarely-read compliance data you must keep for years belongs in…',o:['a hot SSD tier','a cold / archive tier (Glacier)','an in-memory cache','a message queue'],a:1,why:'Archive tiers are cheapest for data that is almost never read; lifecycle policies move it there automatically.'},
    {t:'recall',q:'Why is ELT the modern default over ETL?',model:['Cheap columnar warehouses make it fine to load raw data first.','Transform on-demand with SQL in the warehouse, and re-run transforms without re-ingesting from source.']}
   ]},
   {id:'data-2',title:'Serving ML',steps:[
@@ -2991,7 +3050,7 @@ const UNITS=[
   ]}
  ],
  boss:{title:'Data & ML Boss',time:75,q:[
-   {q:'Streaming beats batch when you need…',o:['throughput','low latency','cheap storage','simplicity'],a:1},
+   {q:'Rarely-read compliance data belongs in a…',o:['hot tier','cold / archive tier','cache','queue'],a:1},
    {q:'ELT loads raw data into…',o:['the app','a warehouse, transform later','a queue','a cache'],a:1},
    {q:'Object storage (S3) is best for…',o:['DB volumes','blobs/datasets/checkpoints','low-latency random I/O','locks'],a:1},
    {q:'A feature store prevents…',o:['hot keys','train/serve skew','partitions','GC'],a:1},
