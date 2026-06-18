@@ -163,6 +163,8 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .lhearts{color:var(--red);font-weight:900;display:flex;align-items:center;gap:3px}
 .lskip{font:inherit;font-weight:800;font-size:12px;color:var(--color-text-tertiary);background:none;border:none;cursor:pointer;padding:4px 4px;white-space:nowrap}
 .lskip:hover{color:var(--color-text-secondary)}
+.lnew{color:var(--color-text-danger,#E53935)}
+.lnew:hover{color:var(--color-text-danger,#E53935);text-decoration:underline}
 .timer{font-weight:900;color:var(--ink);display:flex;align-items:center;gap:4px}
 .timer.low{color:var(--red)}
 .timer.paused{color:var(--faint);font-weight:700}
@@ -383,7 +385,7 @@ const UNITS=[
    {t:'teach',h:'So the choice is…',body:[
      {k:'tldr',t:'P is mandatory. During a partition you really choose CP or AP.'},
      {k:'vs',a:{h:'CP',t:'Refuse some requests to stay correct. (HBase, ZooKeeper, Spanner)'},b:{h:'AP',t:'Answer anyway, maybe stale. (Cassandra, Riak, the Dynamo paper)'}},
-     {k:'callout',c:'note',t:'Nuance: the <b>Dynamo paper</b> is the canonical AP design, but <b>DynamoDB</b> the product is subtler — single-region writes are strongly serialized with optional strongly-consistent reads; only <em>global tables</em> are async/eventual across regions.'}
+     {k:'callout',c:'note',t:'Nuance: the <b>Dynamo paper</b> is the canonical AP design, but <b>DynamoDB</b> the product is subtler — single-region writes are strongly serialized with optional strongly-consistent reads; global tables default to multi-region eventual consistency (MREC), with multi-region strong consistency (MRSC) available under constraints.'}
    ]},
    {t:'sort',q:'CP or AP? Sort fast.',buckets:['CP (consistent)','AP (available)'],items:[
      {text:'ZooKeeper',b:0},{text:'Cassandra',b:1},{text:'Spanner',b:0},{text:'Riak',b:1},{text:'HBase',b:0}
@@ -407,8 +409,8 @@ const UNITS=[
      {k:'keyt',term:'P → A or C',def:'during a Partition, pick Availability or Consistency.'},
      {k:'keyt',term:'E → L or C',def:'Else (normal), pick low Latency or Consistency.'},
      {k:'mnemonic',t:'Read it: "If Partition then A/C, Else L/C."'},
-     {k:'point',i:'🏷️',t:'Examples: <b>Dynamo (paper)</b> / <b>Cassandra</b> = PA/EL, <b>Spanner</b> = PC/EC, <b>MongoDB</b> = PA/EC (single-primary fails over → PA, but primary reads are consistent → EC).'},
-     {k:'callout',c:'note',t:'<b>DynamoDB</b> the product is subtler than the Dynamo paper — single-region is closer to PC/EC (serialized writes, optional strong reads); only <em>global tables</em> are PA/EL across regions.'}
+     {k:'point',i:'🏷️',t:'Examples: <b>Dynamo (paper)</b> / <b>Cassandra</b> = PA/EL, <b>Spanner</b> = PC/EC, <b>MongoDB</b> = PA/EC (single-primary fails over → PA; primary reads avoid replica lag, and <code>majority</code>/<code>linearizable</code> read concern give read-your-writes / true linearizable reads → EC).'},
+     {k:'callout',c:'note',t:'<b>DynamoDB</b> the product is subtler than the Dynamo paper — single-region is closer to PC/EC (serialized writes, optional strong reads); global tables are PA/EL by default (MREC), though strong cross-region reads (MRSC) now exist with constraints.'}
    ]},
    {t:'match',q:'Match the system to its PACELC label.',pairs:[['Cassandra','PA/EL'],['Spanner','PC/EC'],['MongoDB','PA/EC']]},
    {t:'mcq',q:'MongoDB (default) is usually labelled…',o:['PA/EL','PA/EC','PC/EL','CA'],a:1,why:'Single-primary fails over (PA); reads from primary are strongly consistent (EC).'},
@@ -4113,7 +4115,7 @@ function renderHome(scrollToNext){
       const revisit=lessonNeedsRevisit(l);
       h+='<div class="node-wrap '+off+'">'
         +'<button class="node '+cls+'" '+(frontier?'id="next-stage" ':'')+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
-        +'<div class="node-label"'+(revisit?' title="New questions added since you finished this — click to jump straight to them"':'')+'>'+(revisit?'<span class="revisit-dot"></span>':'')+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
+        +'<div class="node-label"'+(revisit?' title="New questions added since you finished this — open it and tap ‘New →’ to jump to them"':'')+'>'+(revisit?'<span class="revisit-dot"></span>':'')+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
     // boss node
     const bopen=unlocked&&bossUnlocked(u);
@@ -4175,11 +4177,7 @@ function startLesson(id){
   const {u,l}=lessonById(id);
   const quizN=l.steps.filter(s=>isQuizStep(s.t)).length;
   const t=Math.max(60,quizN*25); // clock only ticks on quiz steps; learning steps are untimed
-  // Red-dot stage: revisiting a finished lesson that has a newly-added (unanswered) quiz →
-  // jump straight to the first unanswered quiz instead of replaying the whole lesson.
-  let startIdx=0;
-  if(S.done[id]){const j=l.steps.findIndex(s=>isQuizStep(s.t)&&!S.answered[sigOf(s)]);if(j>=0)startIdx=j;}
-  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:startIdx,frontier:startIdx,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
   renderStep(); // renderStep starts/pauses the timer per step
 }
 /* run the countdown only on a fresh quiz step (or in boss mode); pause it on learning/review steps */
@@ -4263,6 +4261,7 @@ function topbarHTML(){
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
     +'<div class="lhearts" title="Lives — a wrong answer costs one ❤️. Lose them all and the round ends (separate from the timer).">❤️ '+R.hearts+'</div>'
     +right
+    +(nextUnseenIdx()>=0?'<button class="lskip lnew" id="newBtn" title="Jump to the next question you’ve never answered (added since you finished this lesson)">New →</button>':'')
     +(canSkip?'<button class="lskip" id="skipBtn" title="Skip this question — it won’t count toward your score">Skip →</button>':'')
     +'</div>';
 }
@@ -4276,6 +4275,7 @@ function renderStep(){
   document.getElementById('quitBtn').onclick=()=>{stopTimer();if(R.mode!=='boss'){renderHome(R.mode==='lesson');return;}if(confirm('Quit the timed boss? Your attempt will be lost.'))renderHome(true);else startTimer();};
   const bb=document.getElementById('backBtn');if(bb)bb.onclick=backStep;
   const sk=document.getElementById('skipBtn');if(sk)sk.onclick=skipStep;
+  const nb=document.getElementById('newBtn');if(nb)nb.onclick=jumpToNextUnseen;
   const stage=document.getElementById('stage');
   if(R.idx<R.frontier){renderReview(stage,step);}
   else{({teach:stTeach,mcq:stMcq,sort:stSort,match:stMatch,order:stOrder,build:stBuild,recall:stRecall,cloze:stCloze,vecviz:stVecViz,htmlviz:stHtmlViz}[step.t])(stage,step);}
@@ -4283,6 +4283,13 @@ function renderStep(){
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
+/* Red-dot lessons only: index of the next never-answered quiz AHEAD of the current step (or -1). */
+function nextUnseenIdx(){
+  if(R.mode!=='lesson'||!R.lesson||!S.done[R.lesson.id])return -1;
+  for(let i=R.idx+1;i<R.steps.length;i++){const s=R.steps[i];if(isQuizStep(s.t)&&!S.answered[sigOf(s)])return i;}
+  return -1;
+}
+function jumpToNextUnseen(){const j=nextUnseenIdx();if(j<0)return;R.idx=j;if(R.idx>R.frontier)R.frontier=R.idx;renderStep();}
 function skipStep(){
   const step=R.steps[R.idx];
   // Skipping still means you've SEEN the question — mark it answered so the lesson keeps
