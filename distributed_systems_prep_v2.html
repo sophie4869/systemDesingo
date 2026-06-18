@@ -3105,7 +3105,7 @@ const UNITS=[
    {t:'teach',h:'Squeeze the GPU',body:[
      {k:'point',i:'🎚️',t:'<b>Dynamic batching</b>: collect requests for a few ms, run one GPU pass over the batch, fan results back. GPUs are far more efficient batched — tune <b>batch size vs latency</b>.'},
      {k:'point',i:'🧠',t:'<b>Cache predictions</b> keyed by a hash of the input — a big win for repeated queries (popular items, autocomplete).'},
-     {k:'callout',c:'warn',t:'Model too big for one GPU? In order of complexity: <b>quantization</b> (int8/fp16, ~2–4× smaller) → <b>tensor parallelism</b> (split weight matrices) → <b>pipeline parallelism</b> (layers across GPUs).'}
+     {k:'callout',c:'warn',t:'Model too big for one GPU? In order of complexity: <b>quantization</b> (int8/fp16, ~2–4× smaller) → split it with <b>model parallelism</b> — <b>tensor</b> (split a layer\'s matrices) then <b>pipeline</b> (layers across GPUs).'}
    ]},
    {t:'mcq',q:'Why batch requests together on a GPU?',o:['lower memory use','much higher GPU throughput','to avoid caching','for consistency'],a:1,why:'A GPU processes many examples per forward pass far more efficiently than one at a time; dynamic batching trades a few ms of latency for big throughput gains.'},
    {t:'mcq',q:'A model is too large for one GPU. Cheapest first option?',o:['tensor parallelism','quantization (int8/fp16)','pipeline parallelism','a bigger cache'],a:1,why:'Quantization shrinks the model ~2–4× with the least system complexity; reach for tensor/pipeline parallelism only when it still will not fit.'},
@@ -3123,7 +3123,7 @@ const UNITS=[
      {k:'point',i:'🧪',t:'Validate online with A/B tests or shadow/canary deploys before full rollout; watch for data/concept drift and retrain.'}
    ]},
    {t:'teach',h:'Distributed training',body:[
-     {k:'vs',a:{h:'Data parallelism',t:'every worker holds a full model copy and trains on a different data shard; gradients are merged via <b>AllReduce</b>. The default.'},b:{h:'Model parallelism',t:'split the model across GPUs when it will not fit on one — more communication, harder. For very large models.'}},
+     {k:'vs',a:{h:'Data parallelism',t:'every worker holds a full model copy and trains on a different data shard; gradients are merged via <b>AllReduce</b>. The default.'},b:{h:'Model parallelism',t:'split the model itself across GPUs when it will not fit — <b>tensor</b> (split a layer\'s matrices) or <b>pipeline</b> (layers on different GPUs). More communication, harder; for very large models.'}},
      {k:'point',i:'💾',t:'<b>Checkpoint</b> model state to object storage every few minutes; on a crash or preemption, resume from the last checkpoint instead of step 0 — write-ahead logging for training.'}
    ]},
    {t:'mcq',q:'Default way to train across many machines when the model fits on one GPU?',o:['model parallelism','data parallelism — shard data, AllReduce gradients','pipeline parallelism','single GPU only'],a:1,why:'Data parallelism replicates the model and shards the data, averaging gradients with AllReduce. Model parallelism is only needed when the model itself is too big for one device.'},
