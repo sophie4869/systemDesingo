@@ -2872,18 +2872,6 @@ each step independently deployable &amp; rollback-safe</div>
       </div>
 
       <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Canonical practice problems</div><div class="card-sub">Work these end to end</div></div><span class="badge badge-purple">Practice</span></div>
-        <div class="card-body">
-          <p>Knowledge only sticks once you apply it. Run each with the framework — requirements, entities, API, high-level design, deep dives — then compare against a worked breakdown.</p>
-          <p><strong>Warm-ups:</strong> URL shortener (Bitly), distributed rate limiter, distributed cache, key-value store.</p>
-          <p><strong>Product design:</strong> Twitter / news feed, WhatsApp / chat, Instagram, Dropbox / Drive, Ticketmaster, Uber, YouTube, Google Docs, Yelp.</p>
-          <p><strong>Infra &amp; data:</strong> web crawler, ad-click aggregator, metrics monitoring, job scheduler, Top-K / trending, payment system.</p>
-          <div class="note"><strong>Method:</strong> attempt first, time-boxed to 35–45 min, <em>then</em> read the answer key. Hello Interview publishes free worked breakdowns for most of these.</div>
-          <div class="tag-row"><span class="tag">attempt before reading</span><span class="tag">time-box 35–45m</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Clarifying questions to always ask</div><div class="card-sub">Turn an open prompt into a spec</div></div><span class="badge badge-teal">Checklist</span></div>
         <div class="card-body">
           <p><strong>Scale:</strong> How many users / DAU? Read vs write ratio? Expected QPS and growth?</p>
@@ -2893,24 +2881,6 @@ each step independently deployable &amp; rollback-safe</div>
           <p><strong>Scope:</strong> Which features are in scope? Do we need auth, payments, search, mobile, offline?</p>
           <div class="note"><strong>Why this matters:</strong> the same prompt ("design a URL shortener", "design a chat app") has very different answers at 1K vs 1B users. Stating assumptions out loud is half the grade — and it's the difference between CP and AP, SQL and NoSQL, sync and async.</div>
           <div class="tag-row"><span class="tag">state your assumptions</span><span class="tag">no single right answer</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Common building blocks</div><div class="card-sub">Your reusable toolbox</div></div><span class="badge badge-purple">Toolbox</span></div>
-        <div class="card-body">
-          <p>Most designs assemble the same parts. Know the default role of each:</p>
-          <table class="tbl"><tr><th>Block</th><th>Use it for</th></tr>
-          <tr><td>Load balancer</td><td>Spread traffic, health checks, TLS</td></tr>
-          <tr><td>API gateway</td><td>Auth, rate limiting, routing at edge</td></tr>
-          <tr><td>Cache (Redis)</td><td>Hot reads, sessions, counters, locks</td></tr>
-          <tr><td>SQL DB</td><td>Transactions, relations, strong consistency</td></tr>
-          <tr><td>NoSQL (wide-column/KV)</td><td>Huge scale, simple access, write-heavy</td></tr>
-          <tr><td>Message queue / log</td><td>Decoupling, async work, spikes, events</td></tr>
-          <tr><td>Object store (S3)</td><td>Blobs, media, backups, data lake</td></tr>
-          <tr><td>CDN</td><td>Static/edge content near users</td></tr>
-          <tr><td>Search (Elasticsearch)</td><td>Full-text, faceted search</td></tr></table>
-          <div class="tag-row"><span class="tag">pick the simplest that works</span><span class="tag">justify each box</span></div>
         </div>
       </div>
 
@@ -3357,6 +3327,40 @@ Processing time = when the stream processor sees the event
     <div class="section-intro">
       <h2>Mock designs</h2>
       <p>Active practice beats re-reading. Drill estimation and key numbers with the interactive tools, then work the open-ended prompts — attempt each yourself out loud before revealing the worked solution.</p>
+    </div>
+
+    <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Canonical practice problems</div><div class="card-sub">Work these end to end</div></div><span class="badge badge-purple">Practice</span></div>
+        <div class="card-body">
+          <p>Knowledge only sticks once you apply it. Run each with the framework — requirements, entities, API, high-level design, deep dives — then compare against a worked breakdown.</p>
+          <p><strong>Warm-ups:</strong> URL shortener (Bitly), distributed rate limiter, distributed cache, key-value store.</p>
+          <p><strong>Product design:</strong> Twitter / news feed, WhatsApp / chat, Instagram, Dropbox / Drive, Ticketmaster, Uber, YouTube, Google Docs, Yelp.</p>
+          <p><strong>Infra &amp; data:</strong> web crawler, ad-click aggregator, metrics monitoring, job scheduler, Top-K / trending, payment system.</p>
+          <div class="note"><strong>Method:</strong> attempt first, time-boxed to 35–45 min, <em>then</em> read the answer key. Hello Interview publishes free worked breakdowns for most of these.</div>
+          <div class="tag-row"><span class="tag">attempt before reading</span><span class="tag">time-box 35–45m</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Common building blocks</div><div class="card-sub">Your reusable toolbox</div></div><span class="badge badge-purple">Toolbox</span></div>
+        <div class="card-body">
+          <p>Most designs assemble the same parts. Know the default role of each:</p>
+          <table class="tbl"><tr><th>Block</th><th>Use it for</th></tr>
+          <tr><td>Load balancer</td><td>Spread traffic, health checks, TLS</td></tr>
+          <tr><td>API gateway</td><td>Auth, rate limiting, routing at edge</td></tr>
+          <tr><td>Cache (Redis)</td><td>Hot reads, sessions, counters, locks</td></tr>
+          <tr><td>SQL DB</td><td>Transactions, relations, strong consistency</td></tr>
+          <tr><td>NoSQL (wide-column/KV)</td><td>Huge scale, simple access, write-heavy</td></tr>
+          <tr><td>Message queue / log</td><td>Decoupling, async work, spikes, events</td></tr>
+          <tr><td>Object store (S3)</td><td>Blobs, media, backups, data lake</td></tr>
+          <tr><td>CDN</td><td>Static/edge content near users</td></tr>
+          <tr><td>Search (Elasticsearch)</td><td>Full-text, faceted search</td></tr></table>
+          <div class="tag-row"><span class="tag">pick the simplest that works</span><span class="tag">justify each box</span></div>
+        </div>
+      </div>
+
     </div>
 
     <!-- Estimation scratchpad -->
