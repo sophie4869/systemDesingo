@@ -2603,10 +2603,16 @@ const UNITS=[
      {k:'point',i:'🗺️',t:'<b>Map</b> emits key→value; <b>Reduce</b> folds all values for a key.'}
    ]},
    {t:'teach',h:'Beyond MapReduce',body:[
-     {k:'vs',a:{h:'MapReduce',t:'materializes every intermediate step to disk. Robust but slow.'},b:{h:'Dataflow (Spark/Flink)',t:'keeps intermediates in memory, pipelines stages. Much faster.'}},
-     {k:'point',i:'🔗',t:'Joins: sort-merge, broadcast-hash (small side), partitioned-hash.'}
+     {k:'vs',a:{h:'MapReduce',t:'materializes every intermediate step to disk. Robust but slow.'},b:{h:'Dataflow (Spark/Flink)',t:'keeps intermediates in memory, pipelines stages. Much faster.'}}
    ]},
    {t:'mcq',q:'Why do Spark/Flink beat classic MapReduce?',o:['they use SQL','they don’t materialize every intermediate step to disk','they avoid the shuffle','they need no cluster'],a:1,why:'Dataflow engines pipeline stages in memory instead of writing each step to disk.'},
+   {t:'teach',h:'Distributed joins',body:[
+     {k:'point',i:'📡',t:'<b>Broadcast-hash</b>: when one side is <b>small</b>, copy it to every node and build an in-memory hash table, then stream the big side past it. No shuffle of the big table — the fastest option when the small side fits in memory.'},
+     {k:'point',i:'🔀',t:'<b>Partitioned-hash (shuffle)</b>: when <b>both sides are large</b>, shuffle both by the join key so matching rows land on the same node, then hash-join each partition locally. The general-purpose distributed join.'},
+     {k:'point',i:'🪜',t:'<b>Sort-merge</b>: sort both sides by the join key, then walk them together in one pass. Wins when inputs are already sorted (or too big to hash) and handles range joins.'},
+     {k:'callout',c:'mem',t:'Pick by size: <b>small + large → broadcast</b>; large + large → partitioned-hash; already-sorted / huge → sort-merge.'}
+   ]},
+   {t:'mcq',q:'You join a huge events table with a tiny lookup table. Best strategy?',o:['sort-merge','broadcast-hash the small table','partitioned-hash (shuffle both)','a cross join'],a:1,why:'Broadcasting the small table to every node avoids shuffling the huge one — each node hash-joins locally against the in-memory copy.'},
    {t:'recall',q:'Describe map and reduce in one line each.',model:['Map: transform each input record into key→value pairs (embarrassingly parallel).','Reduce: gather all values for a key (after a shuffle) and aggregate them into output.']}
   ]},
   {id:'batch-2',title:'Stream processing',steps:[
