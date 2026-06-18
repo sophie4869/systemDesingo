@@ -2005,7 +2005,7 @@ const UNITS=[
    {t:'teach',h:'Outbox & CDC',body:[
      {k:'cause',a:'Writing DB + publishing event separately',b:'A crash between them = lost/phantom events (dual-write problem)'},
      {k:'point',i:'📦',t:'<b>Outbox</b>: write business row + outbox row in one txn; a relay publishes it.'},
-     {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
+     {k:'point',i:'🔌',t:'<b>CDC</b> tails the DB\'s write-ahead log (WAL) to emit the change stream.'}
    ]},
    {t:'htmlviz',h:'Outbox + CDC — make publish retryable',
     html:`<style>

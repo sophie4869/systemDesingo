@@ -624,7 +624,7 @@ a{color:var(--accent);text-decoration:none}
           <tr><td>WAL (Write-ahead log)</td><td>Log raw byte-level changes</td><td>Tightly coupled to storage engine version — hard to do zero-downtime upgrades</td></tr>
           <tr><td>Row-based (logical)</td><td>Log before/after row values</td><td>Larger logs but storage-engine-independent. Used by MySQL row-based, Postgres logical</td></tr>
           <tr><td>Trigger-based</td><td>App-level triggers fire on write</td><td>Fully flexible, works cross-database — but high overhead and fragile</td></tr></table>
-          <p>Trigger-based is a last resort for cases the DB engine can't handle natively. Modern alternative: CDC tools like Debezium read the WAL externally, giving flexibility without trigger overhead.</p>
+          <p>Trigger-based is a last resort for cases the DB engine can't handle natively. Modern alternative: CDC tools read the WAL externally, giving flexibility without trigger overhead.</p>
         </div>
       </div>
 
@@ -1612,8 +1612,8 @@ COMMIT
             </div>
             <div class="obv-cap"><b>If the service crashes after commit, the event is not lost.</b> The outbox row remains in the DB for the relay to publish later.</div>
           </div>
-          <p><strong>CDC (Change Data Capture):</strong> tools like Debezium tail the DB's WAL/binlog and emit a change stream — often used <em>as</em> the relay, or to turn a DB into an event source without app changes. Delivery is at-least-once, so consumers must dedupe.</p>
-          <div class="tag-row"><span class="tag">Debezium</span><span class="tag">no distributed txn needed</span><span class="tag">at-least-once</span></div>
+          <p><strong>CDC (Change Data Capture):</strong> reads the DB's WAL/binlog and emits a change stream — often used <em>as</em> the relay, or to turn a DB into an event source without app changes. Delivery is at-least-once, so consumers must dedupe.</p>
+          <div class="tag-row"><span class="tag">tail the WAL/binlog</span><span class="tag">no distributed txn needed</span><span class="tag">at-least-once</span></div>
         </div>
       </div>
 
@@ -2513,6 +2513,24 @@ each step independently deployable &amp; rollback-safe</div>
         <div class="card-body">
           <p>Never route gigabytes through your app servers. Instead, the server issues a temporary, scoped <strong>presigned URL</strong> and the client uploads <em>directly</em> to blob storage (S3). Downloads go through a <strong>CDN</strong> with signed URLs for access control.</p>
           <p>This removes your servers as the bottleneck and enables resumable uploads and progress tracking. <strong>Main challenge:</strong> keeping DB metadata in sync with storage — use storage <em>event notifications</em> to confirm uploads and reconcile state.</p>
+          <div class="vidv" onclick="event.stopPropagation()">
+<style>
+.vidv{display:grid;gap:10px;margin:.75rem 0}
+.vidv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.vidv-node{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:96px}
+.vidv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.vidv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.vidv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.vidv-t{font-size:12.5px;font-weight:700;color:var(--color-text-primary)}
+.vidv-s{font-size:10.5px;font-weight:700;line-height:1.35;margin-top:3px}
+.vidv-arr{font-size:18px;font-weight:800;color:var(--color-text-tertiary)}
+.vidv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.vidv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="vidv-flow"><div class="vidv-node"><div class="vidv-t">Client</div><div class="vidv-s">requests upload</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">App API</div><div class="vidv-s">metadata + presigned URL</div></div><div class="vidv-arr">→</div><div class="vidv-node good"><div class="vidv-t">Object store</div><div class="vidv-s">direct bytes</div></div></div>
+            <div class="vidv-flow"><div class="vidv-node good"><div class="vidv-t">Storage event</div><div class="vidv-s">upload complete</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Queue</div><div class="vidv-s">async jobs</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Transcoders</div><div class="vidv-s">240p..4K renditions</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">CDN</div><div class="vidv-s">serve segments</div></div></div>
+            <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback egress.</div>
+          </div>
           <div class="tag-row"><span class="tag">presigned URLs</span><span class="tag">direct-to-S3 + CDN</span><span class="tag">storage events</span></div>
         </div>
       </div>
@@ -2958,7 +2976,7 @@ Processing time = when the stream processor sees the event
         <div class="card-body">
           <p><strong>ETL (Extract-Transform-Load):</strong> extract from source, transform (clean, join, aggregate), then load structured results into a warehouse. Classic approach — data arrives ready to query. Good when transformations are expensive or data must be sanitized before storage.</p>
           <p><strong>ELT (Extract-Load-Transform):</strong> load raw data into the warehouse first, transform there with SQL. Modern default with cheap columnar storage (BigQuery, Snowflake, Redshift) — raw data is cheap to keep, and the warehouse can transform on-demand. Enables re-running transformations on raw data without re-ingesting from the source.</p>
-          <p><strong>CDC as a pipeline:</strong> Debezium tails the WAL &rarr; publishes change events to Kafka &rarr; stream processor or batch job writes to a warehouse or data lake. Enables near-real-time analytics on operational data without adding load to the production DB or introducing dual writes.</p>
+          <p><strong>CDC as a pipeline:</strong> a CDC connector tails the WAL &rarr; publishes change events to Kafka &rarr; stream processor or batch job writes to a warehouse or data lake. Enables near-real-time analytics on operational data without adding load to the production DB or introducing dual writes.</p>
           <p><strong>Warehouse vs data lake:</strong> a <em>warehouse</em> is structured and SQL-optimized for analytics (Snowflake, BigQuery); a <em>data lake</em> is cheap raw files in object storage (S3/GCS), schema-on-read. <em>("Lakehouse" — Delta/Iceberg — just layers ACID + schema on a lake; recognize the term, don't dwell on it.)</em></p>
           <div class="tag-row"><span class="tag">ELT = modern default</span><span class="tag">CDC &rarr; Kafka &rarr; warehouse</span><span class="tag">warehouse = SQL · lake = raw/cheap</span></div>
         </div>
@@ -2999,6 +3017,26 @@ Processing time = when the stream processor sees the event
           <p><strong>Two-store architecture:</strong></p>
           <p><strong>Offline store:</strong> historical feature values in a data warehouse or object storage (BigQuery, Parquet on S3). Used for model training. Must support <em>point-in-time correct</em> joins — training must only use features that were available at the label timestamp, not future values (which would cause data leakage and inflated offline metrics).</p>
           <p><strong>Online store:</strong> latest feature values in a low-latency KV store (Redis, Bigtable). Used at inference time. Must return features in &lt;10 ms for real-time serving.</p>
+          <div class="fsv" onclick="event.stopPropagation()">
+<style>
+.fsv{display:grid;gap:10px;margin:.75rem 0}
+.fsv-top{display:grid;grid-template-columns:1fr 32px 1.1fr;gap:8px;align-items:center}
+.fsv-split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fsv-box{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.fsv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.fsv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.fsv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.fsv-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.fsv-s{font-size:11px;font-weight:700;line-height:1.35;margin-top:4px}
+.fsv-arr{text-align:center;font-size:22px;font-weight:800;color:var(--color-text-tertiary)}
+.fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.fsv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
+</style>
+            <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
+            <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
+            <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
+          </div>
           <div class="code">Feature pipeline:
   source (DB events, streams) &rarr; compute features &rarr; write to:
     offline store (S3/BigQuery) — batch, historical
@@ -3132,6 +3170,26 @@ Point-in-time training lookup:
       <div class="ex-solution">
         <p><strong>Writes:</strong> 100M/day ÷ 86,400 ≈ <strong>~1.2K/sec</strong>; peak ≈ ~6K/sec.</p>
         <p><strong>Reads (redirects):</strong> ×100 = 10B/day ≈ <strong>~116K/sec</strong>; peak ≈ ~580K/sec → serve from cache/CDN + read replicas, never the primary.</p>
+        <div class="urlv" onclick="event.stopPropagation()">
+<style>
+.urlv{display:grid;gap:10px;margin:.75rem 0}
+.urlv-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.urlv-node{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:88px}
+.urlv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.urlv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.urlv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.urlv-t{font-size:12.5px;font-weight:700;color:var(--color-text-primary)}
+.urlv-s{font-size:10.5px;font-weight:700;line-height:1.35;margin-top:3px}
+.urlv-arr{font-size:18px;font-weight:800;color:var(--color-text-tertiary)}
+.urlv-side{display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center}
+.urlv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.urlv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.urlv-side{grid-template-columns:1fr}.urlv-side .urlv-arr{transform:rotate(90deg);text-align:center}}
+</style>
+          <div class="urlv-main"><div class="urlv-node hot"><div class="urlv-t">GET /abc123</div><div class="urlv-s">100x reads</div></div><div class="urlv-arr">→</div><div class="urlv-node good"><div class="urlv-t">CDN / edge</div><div class="urlv-s">hot redirects</div></div><div class="urlv-arr">→</div><div class="urlv-node info"><div class="urlv-t">Redirect svc</div><div class="urlv-s">cache miss only</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">KV store</div><div class="urlv-s">code to URL</div></div></div>
+          <div class="urlv-side"><div class="urlv-node info"><div class="urlv-t">302 redirect</div><div class="urlv-s">count every click</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">Analytics stream</div><div class="urlv-s">async, not on hot path</div></div></div>
+          <div class="urlv-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when accurate click tracking matters.</div>
+        </div>
         <p><strong>Storage:</strong> 100M × 500 B = 50 GB/day → × 365 × 5 × 3 ≈ <strong>~270 TB</strong>.</p>
         <p><strong>Code length:</strong> total links over 5 yr = 100M × 365 × 5 ≈ 182B. Base62 needs ⌈log₆₂(1.8×10¹¹)⌉ ≈ 6.2 → <strong>7 characters</strong> (62⁷ ≈ 3.5×10¹², huge headroom).</p>
       </div>
@@ -3323,6 +3381,26 @@ posts(post_id PK, author_id, body, like_count)                      -- denormali
         <div class="code">partition key = (metric_name, host, time_bucket)   -- e.g. bucket = hour or day
 clustering/sort key = timestamp
 value(s) = gauge / counter readings</div>
+        <div class="metv" onclick="event.stopPropagation()">
+<style>
+.metv{display:grid;gap:10px;margin:.75rem 0}
+.metv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.metv-node{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:94px}
+.metv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.metv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.metv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.metv-t{font-size:12.5px;font-weight:700;color:var(--color-text-primary)}
+.metv-s{font-size:10.5px;font-weight:700;line-height:1.35;margin-top:3px}
+.metv-arr{font-size:18px;font-weight:800;color:var(--color-text-tertiary)}
+.metv-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.metv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.metv-tiers{grid-template-columns:1fr}}
+</style>
+          <div class="metv-flow"><div class="metv-node"><div class="metv-t">Agents</div><div class="metv-s">batched points</div></div><div class="metv-arr">→</div><div class="metv-node hot"><div class="metv-t">Kafka</div><div class="metv-s">spike buffer</div></div><div class="metv-arr">→</div><div class="metv-node info"><div class="metv-t">Stream agg</div><div class="metv-s">rules + rollups</div></div><div class="metv-arr">→</div><div class="metv-node good"><div class="metv-t">TSDB</div><div class="metv-s">series + time bucket</div></div></div>
+          <div class="metv-tiers"><div class="metv-node hot"><div class="metv-t">Raw</div><div class="metv-s">7 days</div></div><div class="metv-node info"><div class="metv-t">1-min</div><div class="metv-s">30 days</div></div><div class="metv-node good"><div class="metv-t">1-hour</div><div class="metv-s">2 years</div></div></div>
+          <div class="metv-cap"><b>Kafka decouples ingest from storage.</b> Rollup tiers keep dashboards fast and make retention a policy instead of an ever-growing bill.</div>
+        </div>
         <p><strong>Partition by (series, time bucket):</strong> bucketing keeps partitions bounded and makes a range query touch only the relevant buckets, while spreading writes across buckets avoids one ever-growing hot partition (the classic time-series mistake). It's an append-heavy LSM/columnar workload → wide-column or a purpose-built TSDB (Cassandra, InfluxDB, TimescaleDB, Prometheus).</p>
         <p><strong>Rollups / downsampling:</strong> keep raw points at full resolution only briefly; pre-aggregate into 1-min → 1-hour → 1-day rollups. Long-range queries read the coarse rollup, not billions of raw points.</p>
         <p><strong>Retention:</strong> TTL auto-expires data by tier (e.g. 7 days raw, 30 days 1-min, 2 years 1-hour). This bounds cost — which is why TSDBs build TTL/retention in natively.</p>
