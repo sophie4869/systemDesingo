@@ -3363,7 +3363,7 @@ const UNITS=[
    {t:'build',q:'Pick the tactics that scale WRITES (not reads).',options:['Shard by a good key','Add read replicas','Batch + queue writes','Add a cache','Denormalize / precompute','LSM-tree storage'],correct:[0,2,5]},
    {t:'cloze',q:'Unmask the write-scaling toolkit.',distract:['cache','denormalize'],text:[
      'You can’t copy your way out of writes, so either split the authority — ',{blank:'shard',alt:['shard by key','partition']},' on a high-cardinality key — or shape the stream: ',
-     {blank:'batch',alt:['batch + queue','buffer']},' bursts behind a queue, and use an ',{blank:'LSM',alt:['LSM-tree']},'-tree engine for high ingest. (Denormalize/precompute belongs to read scaling, not here.)'
+     {blank:'batch',alt:['batch + queue','buffer']},' bursts behind a queue, and use an ',{blank:'LSM',alt:['LSM-tree']},'-tree engine for high ingest.'
    ]},
    {t:'mcq',q:'Why can’t you scale writes just by copying the data?',o:['copies cost too much disk','every write must reach the single source of truth','reads block all writes','replicas are read-only by law'],a:1,why:'You can copy data for reads, but each write must hit the authority — so you split it (shard) or shape the stream (batch/queue, write-optimized store).'},
    {t:'sort',q:'Scales READS or WRITES?',buckets:['Scale reads','Scale writes'],items:[
@@ -3387,10 +3387,11 @@ const UNITS=[
 .gpv-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:11px;font-weight:700;color:var(--color-text-secondary)}
 .gpv-li{display:flex;align-items:center;gap:7px;line-height:1.3}
 .gpv-sw{flex:0 0 auto;width:13px;height:13px;border-radius:4px;border:2px solid}
-.gpv-sw.kept{background:var(--color-background-success);border-color:var(--color-border-success)}
 .gpv-sw.ring{background:var(--color-background-info);border-color:var(--color-border-info)}
-.gpv-sw.drop{background:var(--color-background-secondary);border-color:var(--color-text-secondary)}
-.gpv-sw.far{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);opacity:.6}
+.gpv-dot{flex:0 0 auto;width:12px;height:12px;border-radius:50%}
+.gpv-dot.kept{background:var(--color-text-success)}
+.gpv-dot.drop{background:var(--color-text-secondary)}
+.gpv-dot.far{background:var(--color-text-tertiary);opacity:.5}
 .gpv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
 .gpv-cap b{color:var(--color-text-primary)}
 .gpv-cap code{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-text-primary)}
@@ -3417,28 +3418,23 @@ const UNITS=[
   </svg>
   <div class="gpv-legend">
     <div class="gpv-li"><span class="gpv-sw ring"></span>your cell + 8 neighbors — scanned (1-D prefix range)</div>
-    <div class="gpv-li"><span class="gpv-sw kept"></span>inside the radius — kept</div>
-    <div class="gpv-li"><span class="gpv-sw drop"></span>in the ring but too far — dropped at exact step</div>
-    <div class="gpv-li"><span class="gpv-sw far"></span>far — never fetched</div>
+    <div class="gpv-li"><span class="gpv-dot kept"></span>inside the radius — kept</div>
+    <div class="gpv-li"><span class="gpv-dot drop"></span>in the ring but too far — dropped at exact step</div>
+    <div class="gpv-li"><span class="gpv-dot far"></span>far — never fetched</div>
   </div>
   <div class="gpv-cap"><b>Shared prefix = physical closeness.</b> Cells near each other share a geohash prefix (the inner nine all start <code>9q8y…</code>), so "near me" becomes a prefix range scan over your cell + its 8 neighbors. Exact distance then keeps only points inside the radius — the 8-neighbor ring catches points just over your cell’s edge.</div>
 </div>`},
    {t:'mcq',q:'Why does a shared geohash prefix make proximity search cheap?',o:['it compresses the coordinates','nearby points share a prefix → 2D proximity becomes a 1-D range scan','it encrypts the location','it returns exact nearest neighbors directly'],a:1,why:'A shared prefix means physical closeness, so an ordinary range scan over a prefix (B-tree / sorted set) gathers nearby points — no special index engine.'},
    {t:'mcq',q:'After the prefix range scan, why still compute exact distance?',o:['the scan is just a coarse filter — it returns a candidate set, not exact neighbors','geohash is usually wrong','to sort the strings alphabetically','distance is free anyway'],a:0,why:'Coarse filter, then precise: the cell scan cheaply discards the far 99.9%, leaving a tiny set to measure exactly and rank by true distance.'},
    {t:'mcq',q:'Why scan the 8 neighboring cells, not just your own?',o:['for redundancy','a point just over your cell’s edge can be closer than ones inside your cell','to balance load','geohash mandates it'],a:1,why:'Cell boundaries are arbitrary — the nearest point may sit just across the edge, so you always include the surrounding ring.'},
-   {t:'teach',h:'Three ways to cut the map',body:[
-     {k:'point',i:'🗺️',t:'<b>Geohash</b>: a fixed, uniform grid — dead simple and lives in any sorted store, but a dense city overloads one cell while the ocean wastes them.'},
-     {k:'point',i:'🌳',t:'<b>Quadtree</b>: recursively splits a cell into four only where points are dense — adapts to skew (cities vs ocean), but it’s an in-memory tree you must rebuild.'},
-     {k:'point',i:'⬡',t:'<b>S2 / H3</b>: hierarchical cells; H3’s hexagons make all six neighbors equidistant (no corner-vs-edge ambiguity) — why Uber uses it for matching.'}
-   ]},
-   {t:'htmlviz',h:'How the cells actually look',
+   {t:'htmlviz',h:'Three ways to cut the map',
     html:`<style>
 .giz{display:grid;gap:10px}
 .giz-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
 .giz-fig{margin:0;display:grid;gap:5px;padding:9px;border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary)}
 .giz-fig svg{width:100%;height:auto;display:block;border-radius:6px}
 .giz-ft{font-size:12px;font-weight:800;color:var(--color-text-primary);line-height:1.2}
-.giz-fs{font-size:10.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.35}
+.giz-fs{font-size:11px;font-weight:600;color:var(--color-text-secondary);line-height:1.4}
 .giz-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
 .giz-cap b{color:var(--color-text-primary)}
 @media(max-width:520px){.giz-grid{grid-template-columns:1fr}}
@@ -3453,7 +3449,7 @@ const UNITS=[
         <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M37.5 1V149 M75 1V149 M112.5 1V149"/><path d="M1 37.5H149 M1 75H149 M1 112.5H149"/></g>
         <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
       </svg>
-      <div class="giz-fs">One dense cell overloads while sparse cells sit near-empty.</div>
+      <div class="giz-fs"><b>Geohash</b>: a fixed, uniform grid — dead simple, lives in any sorted store. But a dense city overloads one cell while the ocean wastes them.</div>
     </figure>
     <figure class="giz-fig">
       <div class="giz-ft">Quadtree · adaptive</div>
@@ -3463,7 +3459,7 @@ const UNITS=[
         <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M75 1V149 M1 75H149"/><path d="M37.5 1V75 M1 37.5H75"/><path d="M18.75 1V37.5 M1 18.75H37.5"/></g>
         <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
       </svg>
-      <div class="giz-fs">Cells shrink only where points cluster.</div>
+      <div class="giz-fs"><b>Quadtree</b>: recursively splits a cell into four only where points are dense — adapts to skew (cities vs ocean), but it's an in-memory tree you must rebuild.</div>
     </figure>
     <figure class="giz-fig">
       <div class="giz-ft">S2 / H3 · hexagons</div>
@@ -3481,10 +3477,10 @@ const UNITS=[
         <use href="#hx" x="54.6" y="90" fill="var(--color-background-success)" stroke="var(--color-border-success)" stroke-width="1.5"/>
         <circle cx="54.6" cy="90" r="2.8" fill="var(--color-text-success)"/>
       </svg>
-      <div class="giz-fs">All six neighbors (blue) sit an equal distance from the center.</div>
+      <div class="giz-fs"><b>S2 / H3</b>: hierarchical cells; H3's hexagons make all six neighbors (blue) equidistant — no corner-vs-edge ambiguity, why Uber uses it for matching.</div>
     </figure>
   </div>
-  <div class="giz-cap"><b>How the cells actually look.</b> Geohash lays a uniform grid — simple, but a dense city overloads one cell. Quadtree subdivides only where points cluster, adapting to skew. H3 tiles with hexagons so all six neighbors sit at an equal distance — handy for matching &amp; coverage.</div>
+  <div class="giz-cap"><b>Pick by data shape:</b> simplicity &amp; any sorted store → geohash; uneven density (cities vs ocean) → quadtree; equal-distance neighbors for matching/coverage → H3.</div>
 </div>`},
    {t:'match',q:'Geospatial index → its trait.',pairs:[['Geohash','fixed grid, dead simple, any sorted store'],['Quadtree','subdivides only dense areas (city vs ocean)'],['S2 / H3','hierarchical cells; H3 hexagons = equal-distance neighbors']]},
    {t:'sort',q:'Worth a geo index, or just scan?',buckets:['Geo index','Just scan'],items:[
