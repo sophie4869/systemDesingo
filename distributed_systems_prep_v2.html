@@ -282,6 +282,17 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .model li{font-size:15px;font-weight:700;margin:0 0 6px 18px;color:#2f5a10}
 .gradebtns{display:flex;gap:8px;margin-top:12px}
 .gradebtns .btn{font-size:13px;padding:12px 8px}
+.llmcoach{display:grid;gap:11px}
+.llmcoach .prompt{background:var(--purple-bg);border:2px solid var(--purple);border-radius:14px;padding:13px 15px;font-size:15px;font-weight:900;line-height:1.45;color:#6d28d9}
+.llmcoach textarea{width:100%;min-height:92px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:14px;font-weight:700;color:var(--ink);resize:vertical}
+.llmcoach .row{display:flex;flex-wrap:wrap;gap:8px}
+.llmcoach .mini{border:2px solid var(--blue);border-bottom-width:4px;border-radius:12px;background:var(--blue-bg);color:var(--blue-d);font-family:inherit;font-size:13px;font-weight:900;padding:9px 12px}
+.llmcoach .mini:active{transform:translateY(2px);border-bottom-width:2px}
+.llmcoach .status{font-size:12px;font-weight:900;color:var(--green-d);align-self:center}
+.llmcoach .rubric{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.llmcoach .cell{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:10px;font-size:12.5px;font-weight:800;line-height:1.45;color:var(--muted)}
+.llmcoach .cell b{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
+@media(max-width:460px){.llmcoach .rubric{grid-template-columns:1fr}}
 
 /* cloze (fill-the-blank) */
 .cloze{font-size:18px;font-weight:700;line-height:2.2;color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:15px 17px;margin-bottom:14px}
@@ -2532,7 +2543,7 @@ const UNITS=[
    {t:'mcq',q:'500M writes/day, 1 KB each, kept 1 year, 3× replication. Rough storage?',o:['~5 TB','~50 TB','~0.5 PB','~50 PB'],a:2,why:'500M × 1KB = 500 GB/day; × 365 ≈ 180 TB/year; × 3 replicas ≈ ~0.5 PB. Round to the nearest power of 10.'},
    {t:'mcq',q:'1M users each streaming video at 5 Mbps. Aggregate egress bandwidth?',o:['~5 Gbps','~50 Gbps','~5 Tbps','~5 Pbps'],a:2,why:'1,000,000 × 5 Mbps = 5,000,000 Mbps = 5 Tbps. That Tbps wall is why video must be served from a CDN.'},
    {t:'cloze',q:'Fill the estimation shortcuts.',distract:['3,600','42'],text:[
-     'Divide a daily count by ',{blank:'86,400',alt:['86400','~10^5']},' to get QPS — so 1M/day ≈ ',{blank:'12',alt:['~12']},' QPS. Provision for the ',{blank:'peak',alt:['peak load']},' (≈2–10× average), and multiply raw storage by ',{blank:'3',alt:['×3','3x']},' for replication.'
+     'Divide a daily count by ',{blank:'86,400',alt:['86400','~10^5']},' to get QPS — so 1M/day ≈ ',{blank:'12',alt:['~12']},' QPS. Provision for the ',{blank:'peak',alt:['peak load']},' (≈2–10× average), and multiply raw storage by the replication factor (commonly ',{blank:'3',alt:['×3','3x']},') for durability.'
    ]},
    {t:'recall',q:'Give the 3-step recipe for capacity estimation.',model:['Traffic: DAU × actions ÷ 86,400 → QPS; peak = 2–10×.','Storage: writes/day × bytes × retention × replication.','Cache: 80/20 — size the hot working set, not total reads.']}
   ]},
@@ -3963,6 +3974,59 @@ const UNITS=[
    {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
    {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
+  ]},
+  {id:'mock-judge',title:'LLM mock judge',steps:[
+   {t:'teach',h:'What an LLM should judge',body:[
+     {k:'tldr',t:'Use the site for drills; use an LLM as a strict interviewer for free-form mocks.'},
+     {k:'point',i:'🎯',t:'Do a 35–45 minute answer first. Then paste the prompt, your rough notes, and the judge instructions into an LLM.'},
+     {k:'point',i:'🧭',t:'The grader should score <b>interview performance</b>: scope, API/data model, architecture, bottlenecks, failure modes, tradeoffs, and communication.'},
+     {k:'callout',c:'warn',t:'Do not ask the LLM to solve it first. Ask it to judge your answer, find weak spots, and ask follow-up questions.'}
+   ]},
+   {t:'htmlviz',h:'Copy a mock prompt + judging rubric',
+    html:`<div class="llmcoach">
+  <div class="rubric">
+    <div class="cell"><b>Answer canvas</b>Requirements → scale/NFRs → APIs/data → architecture → bottleneck → failure/tradeoffs.</div>
+    <div class="cell"><b>Judge output</b>Scores, 5 highest-leverage gaps, 3 follow-up questions, improved outline.</div>
+  </div>
+  <div class="prompt" data-prompt></div>
+  <textarea data-answer placeholder="After the mock, paste your rough answer notes here. Include assumptions, APIs/schema, architecture, bottlenecks, and failure handling."></textarea>
+  <div class="row">
+    <button class="mini" data-random>Random prompt</button>
+    <button class="mini" data-copy-prompt>Copy prompt</button>
+    <button class="mini" data-copy-packet>Copy judge packet</button>
+    <span class="status" data-status></span>
+  </div>
+</div>`,
+    setup:function(root){
+      var prompts=[
+        'Design a collaborative document editor like Google Docs. Focus on real-time collaboration, conflict handling, document storage, permissions, and offline/reconnect behavior.',
+        'Design a notification system for a large social app. Support push, email, in-app inbox, preferences, deduplication, and delivery tracking.',
+        'Design search autocomplete for a global shopping app. Support low latency prefix suggestions, personalization, trending terms, and safe rollout of new indexes.',
+        'Design a Dropbox/Google Drive style file storage system. Support large uploads, sync across devices, sharing permissions, version history, and conflict resolution.',
+        'Design a web crawler for a search engine. Cover URL frontier management, politeness, deduplication, content extraction, failure handling, and scaling.',
+        'Design a Top-K trending topics service. Support high write volume, time windows, approximate vs exact counts, hot keys, and dashboard queries.',
+        'Design a distributed job scheduler. Support delayed jobs, retries, exactly-once effect, worker leases, priority, and dead-letter handling.',
+        'Design an ad-click aggregation system. Support high ingest rate, deduplication, near-real-time reporting, late events, and fraud/anomaly signals.',
+        'Design a restaurant-near-me service. Support geospatial search, freshness, ranking, map movement, and high read traffic in dense cities.',
+        'Design a checkout/inventory reservation system. Support carts, inventory holds, payment retries, no oversell, and graceful recovery from partial failures.'
+      ];
+      var judge='You are a strict system design interviewer. Grade the candidate answer as interview performance, not as a polished architecture doc. Score 1-4 for: requirements/scope, API and data model, architecture, scale and bottlenecks, consistency/reliability, tradeoffs, and communication. Return: overall level (weak/borderline/hireable/strong), a score table, the 5 highest-leverage gaps, 3 realistic follow-up questions, and a concise improved outline. Do not redesign from scratch; judge the candidate answer.';
+      var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
+      function render(){p.textContent=prompts[i];}
+      function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
+      function packet(){return judge+'\\n\\nPROMPT:\\n'+prompts[i]+'\\n\\nCANDIDATE ANSWER:\\n'+(a.value.trim()||'[Paste candidate answer here]');}
+      function copy(t,msg){
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){status(msg);}).catch(function(){fallback(t);});
+        else fallback(t);
+      }
+      function fallback(t){var x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();try{document.execCommand('copy');status('Copied.');}catch(e){status('Copy manually.');}document.body.removeChild(x);}
+      root.querySelector('[data-random]').onclick=function(){i=Math.floor(Math.random()*prompts.length);render();status('New prompt.');};
+      root.querySelector('[data-copy-prompt]').onclick=function(){copy(prompts[i],'Prompt copied.');};
+      root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Judge packet copied.');};
+      render();
+    }},
+   {t:'mcq',q:'What should you ask the LLM to do after a free-form mock?',o:['Give the perfect answer before you try','Judge your answer with a rubric and ask follow-ups','Only fix grammar','Generate more API endpoints'],a:1,why:'The useful signal is whether your interview answer was complete, scoped, and defensible — not whether the LLM can solve the prompt.'},
+   {t:'recall',q:'What should your answer include before you send it to an LLM judge?',model:['A clear scope and assumptions, with the core functional requirements and NFRs.','APIs/entities/schema tied to access patterns; high-level architecture with the hot path and bottleneck.','Tradeoffs and failure handling: retries/idempotency, stale reads, hot keys, backpressure, region failure, and what changes at 10× scale.']}
   ]}
  ],
  boss:{title:'Mock Designs Boss',time:110,q:[
@@ -3975,7 +4039,8 @@ const UNITS=[
    {q:'Large video upload:',o:['through app servers','presigned URL to S3','into the DB','base64'],a:1},
    {q:'Order system cross-service atomicity:',o:['2PC','saga + compensations','global lock','none'],a:1},
    {q:'Metrics storage partitioning:',o:['by user','by (series, time bucket)','random','one table'],a:1},
-   {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1}
+   {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1},
+   {q:'LLM mock judge should primarily…',o:['solve first','grade your answer and ask follow-ups','write frontend code','ignore tradeoffs'],a:1}
  ]}
 }
 ];
@@ -4246,6 +4311,8 @@ function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
   const curStep=R.steps[R.idx];
   const canSkip=(R.idx>=R.frontier)&&curStep&&isQuizStep(curStep.t)&&R.mode!=='speed';
+  const aheadNew=nextUnseenIdx()>=0; // a never-answered question is ahead → offer the jump
+  const curNew=!aheadNew&&R.mode==='lesson'&&R.lesson&&S.done[R.lesson.id]&&curStep&&isQuizStep(curStep.t)&&!S.answered[sigOf(curStep)]; // sitting on the last new one
   let right='';
   if(R.timeLeft!=null){
     const step=R.steps[R.idx];
@@ -4261,7 +4328,7 @@ function topbarHTML(){
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
     +'<div class="lhearts" title="Lives — a wrong answer costs one ❤️. Lose them all and the round ends (separate from the timer).">❤️ '+R.hearts+'</div>'
     +right
-    +(nextUnseenIdx()>=0?'<button class="lskip lnew" id="newBtn" title="Jump to the next question you’ve never answered (added since you finished this lesson)">New →</button>':'')
+    +(aheadNew?'<button class="lskip lnew" id="newBtn" title="Jump to the next question you’ve never answered (added since you finished this lesson)">New →</button>':curNew?'<span class="lskip lnew" title="A new question added since you finished this lesson — answer it">✦ new</span>':'')
     +(canSkip?'<button class="lskip" id="skipBtn" title="Skip this question — it won’t count toward your score">Skip →</button>':'')
     +'</div>';
 }
