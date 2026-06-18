@@ -121,8 +121,10 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .node-label .pct{color:var(--orange);font-weight:800;font-size:11px}
 .node.boss{width:84px;height:76px;font-size:34px}
 .node-label{font-size:13px;font-weight:800;color:var(--muted);margin-top:-2px}
-.node-wrap{display:flex;flex-direction:column;align-items:center;gap:1px}
+.node-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px}
 .node-wrap.off1{margin-left:90px}.node-wrap.off2{margin-right:90px}
+.revisit-dot{position:absolute;left:-3px;top:-3px;width:18px;height:18px;border-radius:50%;background:var(--color-text-danger,#E53935);border:3px solid var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.25);z-index:2;animation:revisitPulse 1.8s ease-in-out infinite}
+@keyframes revisitPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
 
 /* Badges shelf */
 .shelf{margin:18px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);padding:14px 16px}
@@ -331,6 +333,7 @@ var S=Object.assign({xp:0,done:{},badges:{},streak:0,lastDay:null,recallNailed:0
 if(!S.mistakes)S.mistakes={};
 if(!S.perfect)S.perfect={};
 if(!S.best)S.best={};
+if(!S.answered)S.answered={};  // sigs of graded questions you've actually answered (for the revisit dot)
 
 /* streak update on open */
 (function(){
@@ -3189,7 +3192,7 @@ const UNITS=[
      {k:'point',i:'📖',t:'<b>Scaling reads</b>: index → replicas → cache/CDN.'},
      {k:'point',i:'✍️',t:'<b>Scaling writes</b>: shard by a good key; batch; buffer bursts.'},
      {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3 (multipart / resumable for huge files), serve via CDN — keep the bytes off the app tier.'},
-     {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index (geohash/quadtree).'}
+     {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index. Geohash encodes (lat,lng) into a string where a shared prefix = physical closeness, so 2D "near me" becomes a 1D prefix scan a plain index can serve.'}
    ]},
    {t:'mcq',q:'Large file uploads should…',o:['stream through app servers','use presigned URLs direct to blob storage','go in the DB','be base64'],a:1,why:'Keep gigabytes off the app tier; serve via CDN.'},
    {t:'teach',h:'Three more to recognise',body:[
@@ -3218,7 +3221,16 @@ const UNITS=[
      'Live server→client updates: start ',{blank:'SSE',alt:['Server-Sent Events']},', upgrade to WebSocket only when the client must push too. Work that takes minutes → return a ',
      {blank:'job id',alt:['job-id','jobid']},' and process it ',{blank:'async',alt:['asynchronously']},'. Find-near-me needs a ',{blank:'geospatial index',alt:['geospatial','geohash']},'.'
    ]},
-   {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']}
+   {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']},
+   {t:'teach',h:'"Find near me" — how a geo index actually works',body:[
+     {k:'tldr',t:'Don\'t stop at "use geohash." The interview point is WHY it lets a normal database answer "near me" fast.'},
+     {k:'point',i:'🧬',t:'<b>Geohash</b> encodes (lat,lng) into a string where a <b>shared prefix = physical closeness</b> — so 2D proximity collapses into a 1D prefix range a plain B-tree / Redis sorted set can scan. No special engine needed.'},
+     {k:'point',i:'🔁',t:'<b>Two phases</b>: ① cheaply narrow to candidate cells with the index, ② compute exact distance on that handful and keep what\'s within radius. The index filters; it doesn\'t measure.'},
+     {k:'point',i:'⭕',t:'<b>Always query your cell + its 8 neighbors</b>: a point at your cell\'s edge can be nearer than anything inside it.'},
+     {k:'point',i:'🗺️',t:'<b>Pick by data shape</b>: geohash = simple fixed grid; <b>quadtree</b> adapts to density (cities vs ocean); <b>H3</b> hexagons give equal neighbor distance — why Uber uses it.'}
+   ]},
+   {t:'mcq',nu:true,q:'Why can a plain B-tree (no special geo engine) serve "drivers near me" once you geohash points?',o:['B-trees store 2D coordinates natively','shared geohash prefix = closeness, so proximity becomes a 1D prefix range scan','it sorts by raw latitude only','it computes great-circle distance internally'],a:1,why:'Geohash maps (lat,lng) to a string where nearby points share a prefix — turning 2D proximity into a 1D range a normal index already does well.'},
+   {t:'mcq',nu:true,q:'Your geohash lookup returns points in the user\'s cell only and sometimes misses a closer one. Fix?',o:['use a longer geohash','also scan the 8 neighboring cells, then rank by exact distance','switch to a SQL LIKE scan','store everything in one cell'],a:1,why:'A point at the cell boundary can be closer than anything inside the cell. Query the cell + its 8 neighbors (coarse filter), then compute exact distance to rank.'}
   ]},
   {id:'pat-3',title:'Don’t reach for the heavy tool',steps:[
    {t:'teach',h:'Escalate from cheap to heavy',body:[
@@ -3349,6 +3361,65 @@ const UNITS=[
      {blank:'sharding',alt:['shard','partitioning']},' on a good key, or by ',{blank:'batching',alt:['batch','buffering']},' / shaping the write stream.'
    ]},
    {t:'recall',q:'Why are reads easier to scale than writes?',model:['Reads: data can be copied freely → add replicas, caches, and CDNs and serve from the nearest copy; the only cost is staleness.','Writes: there is one source of truth every write must reach → you can’t copy your way out.','So writes scale by splitting the authority (shard by key) or shaping the stream (batch/buffer, denormalize, write-optimized store).']}
+  ]},
+  {id:'pat-6',title:'Proximity & geospatial',steps:[
+   {t:'teach',h:'"Find things near me"',body:[
+     {k:'tldr',t:'Proximity search (Uber, Yelp, delivery) needs a geospatial index — divide the map into cells so you can ignore the 99.9% of the world that’s far before measuring anything precisely.'},
+     {k:'point',i:'🧭',t:'<b>The geohash trick</b>: encode (lat, lng) into a short string where a <em>shared prefix means physical closeness</em>. That collapses 2D proximity into a 1-D <b>prefix range</b> — a plain B-tree or a Redis sorted set answers "near me" with an ordinary range scan, no special engine.'},
+     {k:'point',i:'🔍',t:'<b>Longer prefix = smaller, more precise cell.</b> Shorten the prefix to widen the search, lengthen it to zoom in.'},
+     {k:'point',i:'📐',t:'<b>Query = coarse then exact</b>: scan your cell + its 8 neighbors (one prefix range) → fetch the few hundred candidates → compute real distance, sort, keep within the radius.'},
+     {k:'point',i:'🧱',t:'<b>Why the 8 neighbors</b>: a point just over your cell’s edge can be closer than anything inside your own cell, so you always scan the surrounding ring too.'}
+   ]},
+   {t:'htmlviz',h:'Geohash — prefix = proximity, scan the ring, then measure',
+    html:`<style>
+.gpv{display:grid;gap:10px}
+.gpv-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:11px;font-weight:700;color:var(--color-text-secondary)}
+.gpv-li{display:flex;align-items:center;gap:7px;line-height:1.3}
+.gpv-sw{flex:0 0 auto;width:13px;height:13px;border-radius:4px;border:2px solid}
+.gpv-sw.kept{background:var(--color-background-success);border-color:var(--color-border-success)}
+.gpv-sw.ring{background:var(--color-background-info);border-color:var(--color-border-info)}
+.gpv-sw.drop{background:var(--color-background-secondary);border-color:var(--color-text-secondary)}
+.gpv-sw.far{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);opacity:.6}
+.gpv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.gpv-cap b{color:var(--color-text-primary)}
+.gpv-cap code{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-text-primary)}
+@media(max-width:460px){.gpv-legend{grid-template-columns:1fr}}
+</style>
+<div class="gpv">
+  <svg viewBox="0 0 300 300" width="100%" style="max-width:330px;display:block;margin:0 auto;height:auto" xmlns="http://www.w3.org/2000/svg">
+    <rect x="12" y="12" width="275" height="275" rx="6" fill="var(--color-background-secondary)" stroke="var(--color-border-tertiary)"/>
+    <rect x="67" y="67" width="165" height="165" fill="var(--color-background-info)" stroke="var(--color-border-info)" stroke-width="2"/>
+    <rect x="122" y="122" width="55" height="55" fill="var(--color-background-success)" stroke="var(--color-border-success)" stroke-width="2"/>
+    <g stroke="var(--color-border-tertiary)" stroke-width="1" opacity=".55"><path d="M67 12V287 M122 12V287 M177 12V287 M232 12V287"/><path d="M12 67H287 M12 122H287 M12 177H287 M12 232H287"/></g>
+    <circle cx="150" cy="150" r="70" fill="none" stroke="var(--color-text-info)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <g fill="var(--color-text-tertiary)" opacity=".5"><circle cx="38" cy="40" r="3"/><circle cx="262" cy="42" r="3"/><circle cx="40" cy="262" r="3"/><circle cx="150" cy="38" r="3"/></g>
+    <g fill="var(--color-text-secondary)"><circle cx="92" cy="98" r="3.2"/><circle cx="208" cy="202" r="3.2"/><circle cx="98" cy="210" r="3.2"/></g>
+    <g fill="var(--color-text-success)"><circle cx="134" cy="165" r="3.4"/><circle cx="167" cy="163" r="3.4"/></g>
+    <circle cx="150" cy="150" r="4.2" fill="var(--color-text-info)" stroke="var(--color-background-primary)" stroke-width="1.5"/>
+    <g font-family="ui-monospace,monospace" font-size="9" font-weight="700" text-anchor="middle">
+      <text x="150" y="131" fill="var(--color-text-success)">9q8yy</text>
+      <text x="150" y="93" fill="var(--color-text-info)">9q8yz</text>
+      <text x="94" y="151" fill="var(--color-text-info)">9q8yw</text>
+      <text x="205" y="151" fill="var(--color-text-info)">9q8yx</text>
+      <text x="150" y="208" fill="var(--color-text-info)">9q8yv</text>
+    </g>
+  </svg>
+  <div class="gpv-legend">
+    <div class="gpv-li"><span class="gpv-sw ring"></span>your cell + 8 neighbors — scanned (1-D prefix range)</div>
+    <div class="gpv-li"><span class="gpv-sw kept"></span>inside the radius — kept</div>
+    <div class="gpv-li"><span class="gpv-sw drop"></span>in the ring but too far — dropped at exact step</div>
+    <div class="gpv-li"><span class="gpv-sw far"></span>far — never fetched</div>
+  </div>
+  <div class="gpv-cap"><b>Shared prefix = physical closeness.</b> Cells near each other share a geohash prefix (the inner nine all start <code>9q8y…</code>), so "near me" becomes a prefix range scan over your cell + its 8 neighbors. Exact distance then keeps only points inside the radius — the 8-neighbor ring catches points just over your cell’s edge.</div>
+</div>`},
+   {t:'mcq',q:'Why does a shared geohash prefix make proximity search cheap?',o:['it compresses the coordinates','nearby points share a prefix → 2D proximity becomes a 1-D range scan','it encrypts the location','it returns exact nearest neighbors directly'],a:1,why:'A shared prefix means physical closeness, so an ordinary range scan over a prefix (B-tree / sorted set) gathers nearby points — no special index engine.'},
+   {t:'mcq',q:'After the prefix range scan, why still compute exact distance?',o:['the scan is just a coarse filter — it returns a candidate set, not exact neighbors','geohash is usually wrong','to sort the strings alphabetically','distance is free anyway'],a:0,why:'Coarse filter, then precise: the cell scan cheaply discards the far 99.9%, leaving a tiny set to measure exactly and rank by true distance.'},
+   {t:'mcq',q:'Why scan the 8 neighboring cells, not just your own?',o:['for redundancy','a point just over your cell’s edge can be closer than ones inside your cell','to balance load','geohash mandates it'],a:1,why:'Cell boundaries are arbitrary — the nearest point may sit just across the edge, so you always include the surrounding ring.'},
+   {t:'match',q:'Geospatial index → its trait.',pairs:[['Geohash','fixed grid, dead simple, any sorted store'],['Quadtree','subdivides only dense areas (city vs ocean)'],['S2 / H3','hierarchical cells; H3 hexagons = equal-distance neighbors']]},
+   {t:'sort',q:'Worth a geo index, or just scan?',buckets:['Geo index','Just scan'],items:[
+     {text:'10M restaurants nationwide',b:0},{text:'~1,000 store locations',b:1},{text:'millions of live drivers',b:0},{text:'a single small city’s list',b:1}
+   ]},
+   {t:'recall',q:'Walk the "find restaurants near me" query end to end.',model:['Geohash the user’s (lat,lng); take that cell + its 8 neighbors as a set of prefix ranges.','Range-scan a B-tree / Redis sorted set for candidates in those cells (coarse filter — drops the far 99.9%).','Compute exact distance on the few hundred candidates, sort, keep within the radius. Right-size: skip the index below ~100k items and just scan.']}
   ]}
  ],
  boss:{title:'Patterns Boss',time:90,q:[
@@ -3656,7 +3727,7 @@ const UNITS=[
 <div class="vidv">
   <div class="vidv-flow"><div class="vidv-node"><div class="vidv-t">Client</div><div class="vidv-s">requests upload</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">App API</div><div class="vidv-s">metadata + presigned URL</div></div><div class="vidv-arr">→</div><div class="vidv-node good"><div class="vidv-t">Object store</div><div class="vidv-s">direct bytes</div></div></div>
   <div class="vidv-flow"><div class="vidv-node good"><div class="vidv-t">Storage event</div><div class="vidv-s">upload complete</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Queue</div><div class="vidv-s">async jobs</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Transcoders</div><div class="vidv-s">240p..4K renditions</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">CDN</div><div class="vidv-s">serve segments</div></div></div>
-  <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback egress.</div>
+  <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback <b>egress</b> — the bytes streamed out to viewers.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Presigned-URL upload to S3','Transcoding worker pool (queue)','CDN for delivery','Metadata DB + object storage','Synchronous transcode in the request'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['metadata writes','serving the bytes — egress bandwidth (Tbps)','transcoding speed','upload size'],a:1,why:'Average egress is enormous; a CDN is mandatory — no origin serves that.'},
@@ -3777,6 +3848,23 @@ function unitUnlocked(ui){if(S.unlockAll||ui===0)return true;const prev=UNITS[ui
 function lessonUnlocked(u,li){if(S.unlockAll||li===0)return true;return !!S.done[u.lessons[li-1].id];}
 function bossUnlocked(u){if(S.unlockAll)return true;return u.lessons.every(l=>S.done[l.id]);}
 
+/* Revisit dot: a completed lesson that still contains a graded question you've never answered
+   (e.g. quizzes added after you finished it). One-time seed below marks everything in your
+   already-completed lessons as answered so the back-catalog doesn't all light up — except steps
+   flagged nu:true, which are treated as "added this release" and so still flag. */
+function seedAnswered(){
+  if(S.answeredSeeded)return;
+  UNITS.forEach(u=>u.lessons.forEach(l=>{
+    if(!S.done[l.id])return;
+    l.steps.forEach(s=>{if(isQuizStep(s.t)&&!s.nu)S.answered[sigOf(s)]=1;});
+  }));
+  S.answeredSeeded=1;save();
+}
+function lessonNeedsRevisit(l){
+  if(!S.done[l.id])return false;
+  return l.steps.some(s=>isQuizStep(s.t)&&!S.answered[sigOf(s)]);
+}
+
 /* ============================ HOME ============================ */
 function renderHome(scrollToNext){
   const lvl=levelOf(S.xp), prog=xpInLevel(S.xp);
@@ -3833,7 +3921,9 @@ function renderHome(scrollToNext){
       const off=li%2===1?'off1':(li%2===0&&li>0?'off2':'');
       const title=(done&&!perfect)?(' title="Best '+(S.best[l.id]||0)+(tier==='good'?'% — passed; revisit to perfect it':'% — revisit to perfect it')+'"'):'';
       const frontier=open&&!done&&!frontierSet;if(frontier)frontierSet=true;
+      const revisit=lessonNeedsRevisit(l);
       h+='<div class="node-wrap '+off+'">'
+        +(revisit?'<span class="revisit-dot" title="New questions added since you finished this — revisit"></span>':'')
         +'<button class="node '+cls+'" '+(frontier?'id="next-stage" ':'')+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
         +'<div class="node-label">'+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
@@ -4047,6 +4137,7 @@ function grade(ok,gain){
 function sigOf(step){return step.q?(step.t+'|'+step.q):(step.t+'|'+JSON.stringify(step.text||step.items||step.pairs||step.options||''));}
 function finishGraded(step,perfect){
   const sig=sigOf(step);
+  S.answered[sig]=1;  // you've now actually answered this question → clears any revisit dot
   if(perfect){if(S.mistakes[sig])delete S.mistakes[sig];}
   else{const c=Object.assign({},step);delete c.__d;S.mistakes[sig]=c;}
   save();
@@ -4477,6 +4568,7 @@ function keyAction(e){
 document.addEventListener('keydown',keyAction);
 
 /* ============================ boot ============================ */
+seedAnswered();
 renderHome(true);
 </script>
 </body>
