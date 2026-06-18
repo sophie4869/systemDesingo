@@ -3699,8 +3699,7 @@ const UNITS=[
    {t:'cloze',q:'Fill the reflexes.',distract:['shard','lock'],text:[
      'Worldwide static content → ',{blank:'CDN',alt:['edge','edge cache']},'. Read-heavy with tolerable staleness → ',{blank:'cache',alt:['caching']},
      ' + replicas. Spiky/slow work → a ',{blank:'queue',alt:['message queue']},'. Money/inventory → ',{blank:'CP',alt:['strong']},' (strong consistency).'
-   ]},
-   {t:'recall',q:'Fire 4 signal→strategy reflexes you can use in an interview.',model:['Global users + static/media → CDN/edge cache near users.','Read-heavy, staleness OK → cache + read replicas; hot key → dedicated cache / fanout-on-read.','Spiky or slow work → queue + async workers to smooth the load.','Wrong/stale answer unacceptable (money, inventory) → CP/strong consistency; otherwise AP for availability + latency.']}
+   ]}
   ]}
  ],
  boss:{title:'Decisions Boss',time:85,q:[
