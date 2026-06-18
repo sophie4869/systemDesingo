@@ -2222,8 +2222,9 @@ const UNITS=[
     }},
    {t:'mcq',q:'You must allow short bursts but cap the average. Which?',o:['leaky bucket','token bucket','fixed window','none'],a:1,why:'Token bucket permits a burst up to capacity, then enforces the refill rate.'},
    {t:'teach',h:'Window counters',body:[
-     {k:'point',i:'🪟',t:'<b>Fixed window</b>: simple, but boundary bursts (2× at the edge).'},
-     {k:'point',i:'🌊',t:'<b>Sliding window counter</b>: weight previous window — smooth, O(1).'}
+     {k:'point',i:'🪟',t:'<b>Fixed window</b>: one counter per interval — simple, but allows boundary bursts (2× at the edge).'},
+     {k:'point',i:'🧾',t:'<b>Sliding window log</b>: a timestamp per request, count those in the trailing window. Exact, but <b>O(n)</b> memory.'},
+     {k:'point',i:'🌊',t:'<b>Sliding window counter</b>: weight the previous window by its overlap — smooths the spike with <b>O(1)</b> memory. The usual production choice.'}
    ]},
    {t:'htmlviz',h:'Fixed window — the boundary burst',
     html:`<style>
@@ -2245,30 +2246,53 @@ const UNITS=[
 </div>
 <div class="fw-burst">⚠ 6 requests cross the boundary in a brief span — 2× the limit</div>
 <div class="fw-ex"><b>Fixed window</b> counts each window independently, so 3 at the end of W1 + 3 at the start of W2 = a <b>2× burst</b> right at the edge. A <b>sliding-window</b> counter weights the previous window’s count to smooth that spike.</div>`},
-   {t:'htmlviz',h:'Sliding window — weight the previous window',
+   {t:'htmlviz',h:'Sliding window log — exact, but O(n)',
     html:`<style>
-.sw-lbl{display:flex;font-size:11px;font-weight:800;color:var(--color-text-tertiary);margin-bottom:4px}
+.swl-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;font-weight:700;margin-top:7px}
+.swl-leg span{display:inline-flex;align-items:center;gap:5px;color:var(--color-text-secondary)}
+.swl-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.swl-cap{margin-top:9px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.swl-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<svg viewBox="0 0 440 92" style="width:100%;height:auto;font-family:inherit">
+  <rect x="215" y="34" width="190" height="40" rx="8" fill="var(--color-text-success)" fill-opacity="0.12" stroke="var(--color-text-success)" stroke-opacity="0.5" stroke-width="1.4"/>
+  <line x1="20" y1="58" x2="420" y2="58" stroke="var(--color-text-tertiary)" stroke-width="1"/>
+  <g fill="var(--color-text-tertiary)"><circle cx="70" cy="58" r="4"/><circle cx="120" cy="58" r="4"/><circle cx="170" cy="58" r="4"/></g>
+  <g fill="var(--color-text-info)"><circle cx="240" cy="58" r="4"/><circle cx="275" cy="58" r="4"/><circle cx="305" cy="58" r="4"/><circle cx="345" cy="58" r="4"/><circle cx="388" cy="58" r="4"/></g>
+  <line x1="215" y1="30" x2="215" y2="72" stroke="var(--color-text-success)" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <text x="215" y="24" text-anchor="middle" font-size="9.5" font-weight="800" fill="var(--color-text-success)">now − T</text>
+  <line x1="400" y1="30" x2="400" y2="72" stroke="var(--color-text-primary)" stroke-width="2"/>
+  <text x="400" y="24" text-anchor="middle" font-size="9.5" font-weight="800" fill="var(--color-text-primary)">now</text>
+  <text x="120" y="88" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-text-tertiary)">expired → dropped</text>
+  <text x="307" y="88" text-anchor="middle" font-size="9" font-weight="800" fill="var(--color-text-info)">5 in window = counted</text>
+</svg>
+<div class="swl-leg"><span><i class="swl-dot" style="background:var(--color-text-info)"></i>inside window</span><span><i class="swl-dot" style="background:var(--color-text-tertiary)"></i>expired</span></div>
+<div class="swl-cap"><b>Sliding window log</b>: keep a <b>timestamp for every request</b>. On each new request, drop timestamps older than <b>now − T</b> and count what's left. Perfectly exact — but memory and work grow with request volume (one entry per request).</div>`},
+   {t:'htmlviz',h:'Sliding window counter — O(1) approximation',
+    html:`<style>
+.sw-lbl{display:flex;font-size:11px;font-weight:800;color:var(--color-text-tertiary);margin-bottom:6px}
 .sw-lbl span{flex:1;text-align:center}
-.sw-wrap{position:relative;margin-top:22px}
-.sw-track{display:flex;border:1.5px solid var(--color-border-primary);border-radius:10px;overflow:hidden;height:46px}
-.sw-win{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
-.sw-win.prev{background:var(--color-background-secondary);color:var(--color-text-primary)}
-.sw-win.cur{background:var(--color-background-info);color:var(--color-text-info)}
-.sw-frame{position:absolute;top:-5px;bottom:-5px;left:12.5%;right:37.5%;border:2.5px solid var(--color-text-danger);border-radius:10px;pointer-events:none}
-.sw-frame-lbl{position:absolute;top:-21px;left:12.5%;width:50%;text-align:center;font-size:10.5px;font-weight:800;color:var(--color-text-danger)}
-.sw-calc{margin-top:13px;text-align:center;font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary)}
+.sw-calc{margin-top:11px;text-align:center;font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary);line-height:1.7}
 .sw-calc b{color:var(--color-text-primary)}
 .sw-ex{margin-top:11px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
 .sw-ex b{color:var(--color-text-primary);font-weight:800}
 </style>
 <div class="sw-lbl"><span>Previous window — 80</span><span>Current window — 30 so far</span></div>
-<div class="sw-wrap">
-  <div class="sw-track"><div class="sw-win prev">80</div><div class="sw-win cur">30</div></div>
-  <div class="sw-frame"></div>
-  <div class="sw-frame-lbl">sliding window (1 interval)</div>
-</div>
-<div class="sw-calc">est = 30 + 80 × <b>0.75</b> (75% still in window) = <b>90</b></div>
-<div class="sw-ex">A <b>sliding-window counter</b> weights the previous window by how much of it still overlaps "now" (here 75%), then adds the current count. Just one number per window → <b>O(1) memory</b>, and the fixed-window boundary spike is smoothed.</div>`},
+<svg viewBox="0 0 440 116" style="width:100%;height:auto;font-family:inherit">
+  <rect x="30" y="44" width="195" height="42" rx="8" fill="var(--color-background-secondary)" stroke="var(--color-border-primary)" stroke-width="1.4"/>
+  <rect x="225" y="44" width="195" height="42" rx="8" fill="var(--color-background-info)" stroke="var(--color-border-info)" stroke-width="1.4"/>
+  <rect x="79" y="44" width="146" height="42" fill="var(--color-text-danger)" fill-opacity="0.12"/>
+  <text x="127" y="71" text-anchor="middle" font-size="15" font-weight="800" fill="var(--color-text-primary)">80</text>
+  <text x="322" y="71" text-anchor="middle" font-size="15" font-weight="800" fill="var(--color-text-info)">30</text>
+  <line x1="225" y1="36" x2="225" y2="96" stroke="var(--color-text-secondary)" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <text x="225" y="110" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-text-secondary)">window boundary</text>
+  <line x1="274" y1="30" x2="274" y2="96" stroke="var(--color-text-primary)" stroke-width="2"/>
+  <text x="300" y="26" text-anchor="middle" font-size="9.5" font-weight="800" fill="var(--color-text-primary)">now · 25% in</text>
+  <rect x="79" y="38" width="195" height="54" rx="8" fill="none" stroke="var(--color-text-danger)" stroke-width="2.4"/>
+  <text x="150" y="26" text-anchor="middle" font-size="9.5" font-weight="800" fill="var(--color-text-danger)">trailing window = 1 interval</text>
+</svg>
+<div class="sw-calc">“now” sits <b>25%</b> into the current window, so the trailing window still covers the last <b>75%</b> of the previous one.<br>est = 30 + 80 × <b>0.75</b> = <b>90</b></div>
+<div class="sw-ex">A <b>sliding-window counter</b> stores just two numbers — this window's count plus last window's. It weights the previous window by the fraction still inside the trailing window (the red box), here <b>75%</b>. <b>O(1) memory</b>, and the boundary spike is smoothed.</div>`},
    {t:'sort',q:'Bursty-friendly or smoothing?',buckets:['Allows bursts','Smooths/strict'],items:[
      {text:'token bucket',b:0},{text:'leaky bucket',b:1}
    ]},
