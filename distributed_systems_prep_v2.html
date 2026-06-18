@@ -3103,10 +3103,38 @@ const UNITS=[
      {k:'point',i:'🚦',t:'Ship new versions safely with a <b>canary</b> (route X% of traffic, watch metrics) or a <b>blue/green</b> swap — exactly like deploying any stateless service.'}
    ]},
    {t:'teach',h:'Squeeze the GPU',body:[
-     {k:'point',i:'🎚️',t:'<b>Dynamic batching</b>: collect requests for a few ms, run one GPU pass over the batch, fan results back. GPUs are far more efficient batched — tune <b>batch size vs latency</b>.'},
+     {k:'point',i:'🎚️',t:'<b>Dynamic batching</b>: hold incoming requests for a few ms (or until a max batch size), then run them as <b>one</b> GPU forward pass. A GPU runs a batch in nearly the same time as a single request, so throughput multiplies for a few ms of added latency.'},
      {k:'point',i:'🧠',t:'<b>Cache predictions</b> keyed by a hash of the input — a big win for repeated queries (popular items, autocomplete).'},
      {k:'callout',c:'warn',t:'Model too big for one GPU? In order of complexity: <b>quantization</b> (int8/fp16, ~2–4× smaller) → split it with <b>model parallelism</b> — <b>tensor</b> (split a layer\'s matrices) then <b>pipeline</b> (layers across GPUs).'}
    ]},
+   {t:'htmlviz',h:'Dynamic batching — one pass, many requests',
+    html:`<style>
+.dbz{display:grid;gap:11px;font-family:inherit}
+.dbz-row{border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);border-radius:12px;padding:10px 12px}
+.dbz-h{font-weight:800;font-size:12px;margin-bottom:8px;color:var(--color-text-primary)}
+.dbz-flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dbz-req{width:24px;height:24px;border-radius:6px;background:var(--color-background-info);color:var(--color-text-info);font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--color-border-info)}
+.dbz-gpu{border-radius:9px;padding:7px 10px;font-weight:800;font-size:11px;text-align:center;border:1.5px solid}
+.dbz-gpu.bad{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.dbz-gpu.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.dbz-arr{color:var(--color-text-secondary);font-weight:800}
+.dbz-tag{font-size:10px;font-weight:800;width:100%;margin-top:2px}
+.dbz-tag.bad{color:var(--color-text-warning)}
+.dbz-tag.good{color:var(--color-text-success)}
+.dbz-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.dbz-cap b{color:var(--color-text-primary)}
+</style>
+<div class="dbz">
+  <div class="dbz-row">
+    <div class="dbz-h">One request at a time</div>
+    <div class="dbz-flow"><span class="dbz-req">R1</span><span class="dbz-arr">▸</span><span class="dbz-gpu bad">pass</span><span class="dbz-req">R2</span><span class="dbz-arr">▸</span><span class="dbz-gpu bad">pass</span><span class="dbz-req">R3</span><span class="dbz-arr">▸</span><span class="dbz-gpu bad">pass</span><span class="dbz-tag bad">3 passes · GPU mostly idle each time</span></div>
+  </div>
+  <div class="dbz-row">
+    <div class="dbz-h">Dynamic batching · ~5 ms window</div>
+    <div class="dbz-flow"><span class="dbz-req">R1</span><span class="dbz-req">R2</span><span class="dbz-req">R3</span><span class="dbz-arr">▸</span><span class="dbz-gpu good">1 pass · batch of 3</span><span class="dbz-tag good">1 pass · ~3× the throughput</span></div>
+  </div>
+</div>
+<div class="dbz-cap"><b>Why it works:</b> a GPU has thousands of cores, and a pass is dominated by loading the model weights — one request leaves most cores idle. Running 3 (or 32) inputs in a single pass takes nearly the same time, so throughput multiplies. <b>Dynamic</b> = batch whatever arrived in a short window (or up to a max size): under load batches fill instantly; when idle you wait at most the window. The knob is <b>max batch size vs max wait</b> — throughput against tail latency.</div>`},
    {t:'mcq',q:'Why batch requests together on a GPU?',o:['lower memory use','much higher GPU throughput','to avoid caching','for consistency'],a:1,why:'A GPU processes many examples per forward pass far more efficiently than one at a time; dynamic batching trades a few ms of latency for big throughput gains.'},
    {t:'mcq',q:'A model is too large for one GPU. Cheapest first option?',o:['tensor parallelism','quantization (int8/fp16)','pipeline parallelism','a bigger cache'],a:1,why:'Quantization shrinks the model ~2–4× with the least system complexity; reach for tensor/pipeline parallelism only when it still will not fit.'},
    {t:'match',q:'Serving technique → what it buys.',pairs:[['Dynamic batching','GPU throughput'],['Prediction cache','skip recompute for repeats'],['Quantization','fit a bigger model in memory'],['Canary deploy','validate a new model on X% of traffic']]},
