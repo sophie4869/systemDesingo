@@ -121,10 +121,10 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .node-label .pct{color:var(--orange);font-weight:800;font-size:11px}
 .node.boss{width:84px;height:76px;font-size:34px}
 .node-label{font-size:13px;font-weight:800;color:var(--muted);margin-top:-2px}
-.node-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px}
+.node-wrap{display:flex;flex-direction:column;align-items:center;gap:1px}
 .node-wrap.off1{margin-left:90px}.node-wrap.off2{margin-right:90px}
-.revisit-dot{position:absolute;left:-3px;top:-3px;width:18px;height:18px;border-radius:50%;background:var(--color-text-danger,#E53935);border:3px solid var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.25);z-index:2;animation:revisitPulse 1.8s ease-in-out infinite}
-@keyframes revisitPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.revisit-dot{display:inline-block;vertical-align:middle;width:9px;height:9px;border-radius:50%;background:var(--color-text-danger,#E53935);margin-right:5px;position:relative;top:-1px;animation:revisitPulse 1.6s ease-in-out infinite}
+@keyframes revisitPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.5)}50%{box-shadow:0 0 0 4px rgba(229,57,53,0)}}
 
 /* Badges shelf */
 .shelf{margin:18px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);padding:14px 16px}
@@ -3248,7 +3248,7 @@ const UNITS=[
    ]},
    {t:'recall',q:'Give the escalation order for contention, and why start cheap.',model:['Single row/DB: a transaction or optimistic CAS (version check) — no extra infra.','Across nodes/resources: a distributed lock (with a fencing token + lease).','Last resort, multi-service atomicity: prefer a saga over 2PC. Start cheap because each step up adds latency, failure modes, and SPOFs.']}
   ]},
-  {id:'pat-4',title:'Fan-out & notifications',steps:[
+  {id:'pat-4',title:'Fan-out',steps:[
    {t:'teach',h:'One event → millions of recipients',body:[
      {k:'tldr',t:'The core challenge is write amplification: one post by a popular account can mean millions of inbox writes. The design choice is WHERE you pay — on write or on read.'},
      {k:'point',i:'✍️',t:'<b>Fan-out on write (push)</b>: on post, write into every follower’s inbox. Reads are O(1) (inbox pre-built) — but a celebrity’s post explodes into millions of writes.'},
@@ -3282,37 +3282,55 @@ const UNITS=[
   <div class="nfz-sec"><div class="nfz-h">Push <span class="nfz-tag good">normal · ~500 followers</span></div><div class="nfz-flow"><div class="nfz-box good"><div class="nfz-t">User posts</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Queue</div><div class="nfz-s">one job per follower</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Workers</div><div class="nfz-s">write each inbox</div></div><div class="nfz-arr">→</div><div class="nfz-box good"><div class="nfz-t">Read = O(1)</div><div class="nfz-s">inbox pre-built</div></div></div></div>
   <div class="nfz-sec"><div class="nfz-h">Pull <span class="nfz-tag warn">celebrity · 10M followers</span></div><div class="nfz-flow"><div class="nfz-box warn"><div class="nfz-t">User posts</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Store 1 event</div><div class="nfz-s">O(1) write</div></div><div class="nfz-arr">→</div><div class="nfz-box warn"><div class="nfz-t">Read merges live</div><div class="nfz-s">sort accounts followed (slow)</div></div></div></div>
   <div class="nfz-sec"><div class="nfz-h">Hybrid <span class="nfz-tag info">production standard</span></div><div class="nfz-flow"><div class="nfz-box good"><div class="nfz-t">followers &lt; threshold</div><div class="nfz-s">push to inboxes</div></div><div class="nfz-box warn"><div class="nfz-t">celebrity</div><div class="nfz-s">pull on read</div></div></div><div class="nfz-note">read → inbox = <b>pre-built rows + celebrity events</b> merged</div></div>
-  <div class="nfz-sec"><div class="nfz-h">Push delivery</div><div class="nfz-flow"><div class="nfz-box info"><div class="nfz-t">Notification svc</div><div class="nfz-s">batch device tokens</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">APNs / FCM</div><div class="nfz-s">iOS · Android</div></div></div><div class="nfz-note"><b>Dedup</b> notification_id · <b>Coalesce</b> bursts → one push</div></div>
-  <div class="nfz-cap"><b>Push the many, pull the few.</b> Pre-populate normal inboxes for O(1) reads; celebrities store once and merge at read time. At-least-once delivery means dedup + coalesce before the push.</div>
+  <div class="nfz-cap"><b>Push the many, pull the few.</b> Pre-populate normal inboxes for O(1) reads; celebrities store once and merge at read time — so the celebrity write explosion never happens.</div>
 </div>`},
    {t:'mcq',q:'A user with 10M followers posts. Pure fan-out-on-write means…',o:['O(1) total work','~10M inbox writes from one post','cheaper reads for everyone','no extra cost'],a:1,why:'Push writes one row per follower — fine for hundreds, catastrophic for celebrities. Pull/hybrid avoids the write explosion.'},
    {t:'sort',q:'Which fan-out strategy fits?',buckets:['Fan-out on write (push)','Fan-out on read (pull)'],items:[
      {text:'normal user, ~500 followers',b:0},{text:'celebrity, 10M followers',b:1},{text:'reads must be O(1)',b:0},{text:'writes must stay cheap',b:1}
    ]},
    {t:'mcq',q:'Why does hybrid fan-out win in production?',o:['it never writes any inbox','push keeps normal reads O(1) while pull avoids the celebrity write explosion','it removes the need for a cache','it makes every write strongly consistent'],a:1,why:'Pay write cost where it is cheap (normal users) and read cost where it is cheap (few celebrities), merging both at read time.'},
-   {t:'teach',h:'Delivery: dedup & coalesce',body:[
-     {k:'point',i:'📱',t:'<b>Channels</b>: mobile push via APNs (iOS) / FCM (Android) from stored device tokens; email (batch, respect limits); SMS (expensive — critical only); in-app via WebSocket/SSE.'},
-     {k:'point',i:'🔁',t:'<b>Dedup</b>: async workers and APNs retries make delivery at-least-once → store a sent notification_id and skip duplicates before sending (the idempotency idea, applied to delivery).'},
-     {k:'point',i:'🎚️',t:'<b>Coalesce</b>: collapse bursts — "5 people liked your post" beats 5 separate pushes. Better UX, fewer sends.'}
+   {t:'match',q:'Fan-out / notification term → what it does.',pairs:[['Fan-out on write','Pre-populate every follower inbox'],['Fan-out on read','Store once, build the feed at read time'],['Hybrid','Push normal users, pull celebrities'],['Celebrity post','Where pure push explodes']]},
+   {t:'recall',q:'Walk fan-out on write vs read, and when you go hybrid.',model:['Write (push): write each follower’s inbox on post → O(1) reads, but a celebrity post explodes into millions of writes.','Read (pull): store the post once, assemble feeds at read time → O(1) writes, but slow reads that grow with accounts followed.','Hybrid: push for normal users, pull for celebrities, merge at read time.']}
+  ]},
+  {id:'pat-notif',title:'Notification delivery',steps:[
+   {t:'teach',h:'One event → many channels',body:[
+     {k:'tldr',t:'A notification system routes one event (a like, a payment, a mention) to recipients across channels without spamming them. Separate concern from fan-out: fan-out decides WHO sees it in-feed; delivery decides HOW it reaches them off-app.'},
+     {k:'point',i:'📱',t:'<b>Channels</b>: mobile push via APNs (iOS) / FCM (Android) from stored device tokens; email (batch, respect provider limits); SMS (expensive — critical only); in-app via WebSocket/SSE.'},
+     {k:'point',i:'🧩',t:'<b>Shape</b>: a notification service batches device tokens and hands off to APNs/FCM — it never blocks the posting request; delivery runs async off a queue.'}
    ]},
+   {t:'htmlviz',h:'Notification delivery — reliable, not spammy',
+    html:`<style>
+.ndz{display:grid;gap:10px}
+.ndz-sec{display:grid;gap:8px;padding:11px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary)}
+.ndz-h{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.ndz-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.ndz-box{flex:1 1 108px;min-width:0;display:flex;flex-direction:column;justify-content:center;border:2px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-primary);padding:8px 9px;text-align:center}
+.ndz-box.info{background:var(--color-background-info);border-color:var(--color-border-info)}
+.ndz-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.ndz-t{font-size:12px;font-weight:900;color:var(--color-text-primary);line-height:1.25}
+.ndz-s{font-size:10.5px;font-weight:700;color:var(--color-text-secondary);line-height:1.3;margin-top:3px}
+.ndz-arr{flex:0 0 auto;align-self:center;font-size:16px;font-weight:900;color:var(--color-text-tertiary)}
+.ndz-note{font-size:11px;font-weight:700;color:var(--color-text-secondary);text-align:center;line-height:1.4}
+.ndz-note b{color:var(--color-text-primary)}
+.ndz-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.ndz-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.ndz-flow{flex-direction:column;align-items:stretch}.ndz-arr{transform:rotate(90deg)}}
+</style>
+<div class="ndz">
+  <div class="ndz-sec"><div class="ndz-h">Delivery path</div><div class="ndz-flow"><div class="ndz-box info"><div class="ndz-t">Notification svc</div><div class="ndz-s">batch device tokens</div></div><div class="ndz-arr">→</div><div class="ndz-box"><div class="ndz-t">APNs / FCM</div><div class="ndz-s">iOS · Android</div></div><div class="ndz-arr">→</div><div class="ndz-box good"><div class="ndz-t">Device</div><div class="ndz-s">one clean push</div></div></div></div>
+  <div class="ndz-sec"><div class="ndz-h">Two guards before the send</div><div class="ndz-flow"><div class="ndz-box"><div class="ndz-t">Dedup</div><div class="ndz-s">stored notification_id → skip repeats</div></div><div class="ndz-box"><div class="ndz-t">Coalesce</div><div class="ndz-s">"5 liked your post" &gt; 5 pushes</div></div></div><div class="ndz-note">delivery is at-least-once (async workers · APNs retries) → <b>dedup + coalesce</b> before the push</div></div>
+  <div class="ndz-cap"><b>Reliable, not spammy.</b> Because delivery is at-least-once, the same notification can fire twice — dedup on a stored id, and collapse bursts into one push. Channels: push (APNs/FCM), email, SMS for critical only, in-app over WebSocket/SSE.</div>
+</div>`},
    {t:'mcq',q:'At-least-once push delivery can send the same notification twice. Prevent it with…',o:['fire-and-forget','a stored notification_id checked before sending','more workers','SMS instead of push'],a:1,why:'Dedup on a stored id turns at-least-once into a single user-visible push.'},
-   {t:'match',q:'Fan-out / notification term → what it does.',pairs:[['Fan-out on write','Pre-populate every follower inbox'],['Fan-out on read','Store once, build the feed at read time'],['Dedup','Skip a duplicate via stored notification_id'],['Coalesce','Collapse a burst into one push']]},
-   {t:'recall',q:'Walk fan-out on write vs read, and when you go hybrid.',model:['Write (push): write each follower’s inbox on post → O(1) reads, but a celebrity post explodes into millions of writes.','Read (pull): store the post once, assemble feeds at read time → O(1) writes, but slow reads that grow with accounts followed.','Hybrid: push for normal users, pull for celebrities, merge at read time — plus dedup + coalesce on the delivery path.']}
+   {t:'mcq',q:'"5 people liked your post" should reach the user as…',o:['5 separate pushes','one coalesced push','no push at all','an email only'],a:1,why:'Coalesce bursts into a single notification — better UX and far fewer sends.'},
+   {t:'mcq',q:'Why does the notification service hand off to APNs / FCM instead of pushing to phones itself?',o:['they are the OS-owned gateways that actually reach iOS / Android devices','they are cheaper databases','they store the social graph','they replace the queue'],a:0,why:'Apple (APNs) and Google (FCM) own the push channel to their devices; your service batches device tokens and delegates the last hop to them.'},
+   {t:'match',q:'Notification term → what it does.',pairs:[['Dedup','Skip a duplicate via stored notification_id'],['Coalesce','Collapse a burst into one push'],['APNs / FCM','OS push gateways (iOS / Android)'],['Device token','Addresses a specific install for push']]},
+   {t:'recall',q:'Why is notification delivery at-least-once, and what two guards keep it user-friendly?',model:['Async workers and APNs/FCM retries can deliver the same event more than once → at-least-once, not exactly-once.','Dedup: store a sent notification_id and skip it on a repeat (the idempotency idea applied to delivery).','Coalesce: collapse a burst of events into a single push so the user gets one tap, not twenty.']}
   ]},
   {id:'pat-5',title:'Scaling reads & writes',steps:[
-   {t:'teach',h:'Scaling READS — copy the data',body:[
-     {k:'tldr',t:'Reads are the easy half: you can copy data as many times as you like and serve from the nearest/cheapest copy. Climb the ladder only as far as you need — each rung trades freshness for throughput.'},
-     {k:'point',i:'🔎',t:'<b>Index first.</b> Most "slow reads" are a missing index, not too little hardware — turn a table scan into a lookup before adding any machines.'},
-     {k:'point',i:'📑',t:'<b>Read replicas.</b> Leader takes writes; followers serve reads → multiplies read throughput. Cost: replication lag → stale reads (use read-your-writes for a user’s own data).'},
-     {k:'point',i:'⚡',t:'<b>Cache.</b> Keep the hot ~20% in memory (Redis) for sub-ms repeated lookups. Cost: invalidation and stampedes on hot keys (stale-while-revalidate / mutex).'},
-     {k:'point',i:'🌍',t:'<b>CDN / edge.</b> Push static assets and cacheable responses near users — the only real fix for cross-continent latency.'}
-   ]},
-   {t:'teach',h:'Scaling WRITES — split the authority',body:[
-     {k:'tldr',t:'Writes are the hard half: every write must reach the single source of truth, so you can’t just copy your way out. You either split the authority or shape the stream.'},
-     {k:'point',i:'🧩',t:'<b>Shard / partition by a good key.</b> Split data so writes land on different nodes; pick a high-cardinality key to avoid hot shards (the celebrity-key problem).'},
-     {k:'point',i:'📦',t:'<b>Batch &amp; buffer.</b> Coalesce many small writes and put a queue in front to absorb spikes, smoothing traffic to the DB’s sustainable rate.'},
-     {k:'point',i:'🧱',t:'<b>Denormalize / precompute.</b> Write data in the shape reads want (fan-out on write, materialized views) to move cost off the read path.'},
-     {k:'point',i:'🪵',t:'<b>Write-optimized storage.</b> LSM-tree engines (Cassandra, RocksDB) turn random writes into sequential appends for high ingest.'}
+   {t:'teach',h:'Reads copy · writes split',body:[
+     {k:'tldr',t:'One mental model: reads are the easy half (copy the data, accept staleness); writes are the hard half (one source of truth — split it or shape the stream). The map below is your menu; the quizzes drill it.'},
+     {k:'vs',a:{h:'Scale READS — copy freely',t:'index → replicas → cache → CDN. Cost: staleness.'},b:{h:'Scale WRITES — one authority',t:'shard, batch/queue, denormalize, LSM. Cost: complexity.'}}
    ]},
    {t:'htmlviz',h:'Reads scale by copying · writes scale by splitting',
     html:`<style>
@@ -3352,6 +3370,12 @@ const UNITS=[
    {t:'order',q:'Climb the read-scaling ladder: cheapest → heaviest.',items:['Add an index','Read replicas','Cache hot keys','CDN / edge']},
    {t:'mcq',q:'A query on one table is slow. First move?',o:['add read replicas','add an index for that query','put it behind a CDN','shard the table'],a:1,why:'Most slow reads are a missing index — turn the scan into a lookup before adding hardware or replicas.'},
    {t:'mcq',q:'Read replicas multiply read throughput. The main cost?',o:['writes get slower for everyone','replication lag → possibly stale reads','replicas can’t serve reads','guaranteed data loss'],a:1,why:'Followers lag the leader, so a read can be stale; route a user’s own reads to a fresh source (read-your-writes).'},
+   {t:'mcq',q:'A cache gives sub-ms reads. Its main hazard?',o:['it slows every write','invalidation + stampedes on hot keys','it can only store numbers','it forces strong consistency'],a:1,why:'Stale entries and thundering-herd on a hot key — mitigate with TTLs, stale-while-revalidate, or a mutex / single-flight.'},
+   {t:'build',q:'Pick the tactics that scale WRITES (not reads).',options:['Shard by a good key','Add read replicas','Batch + queue writes','Add a cache','Denormalize / precompute','LSM-tree storage'],correct:[0,2,4,5]},
+   {t:'cloze',q:'Unmask the write-scaling toolkit.',distract:['cache','replica'],text:[
+     'You can’t copy your way out of writes, so either split the authority — ',{blank:'shard',alt:['shard by key','partition']},' on a high-cardinality key — or shape the stream: ',
+     {blank:'batch',alt:['batch + queue','buffer']},' bursts behind a queue, ',{blank:'denormalize',alt:['precompute']},' into the shape reads want, and use an ',{blank:'LSM',alt:['LSM-tree']},'-tree engine for high ingest.'
+   ]},
    {t:'mcq',q:'Why can’t you scale writes just by copying the data?',o:['copies cost too much disk','every write must reach the single source of truth','reads block all writes','replicas are read-only by law'],a:1,why:'You can copy data for reads, but each write must hit the authority — so you split it (shard) or shape the stream (batch, denormalize).'},
    {t:'sort',q:'Scales READS or WRITES?',buckets:['Scale reads','Scale writes'],items:[
      {text:'add an index',b:0},{text:'denormalize / precompute',b:1},{text:'cache hot keys',b:0},{text:'LSM-tree storage engine',b:1}
@@ -3415,6 +3439,66 @@ const UNITS=[
    {t:'mcq',q:'Why does a shared geohash prefix make proximity search cheap?',o:['it compresses the coordinates','nearby points share a prefix → 2D proximity becomes a 1-D range scan','it encrypts the location','it returns exact nearest neighbors directly'],a:1,why:'A shared prefix means physical closeness, so an ordinary range scan over a prefix (B-tree / sorted set) gathers nearby points — no special index engine.'},
    {t:'mcq',q:'After the prefix range scan, why still compute exact distance?',o:['the scan is just a coarse filter — it returns a candidate set, not exact neighbors','geohash is usually wrong','to sort the strings alphabetically','distance is free anyway'],a:0,why:'Coarse filter, then precise: the cell scan cheaply discards the far 99.9%, leaving a tiny set to measure exactly and rank by true distance.'},
    {t:'mcq',q:'Why scan the 8 neighboring cells, not just your own?',o:['for redundancy','a point just over your cell’s edge can be closer than ones inside your cell','to balance load','geohash mandates it'],a:1,why:'Cell boundaries are arbitrary — the nearest point may sit just across the edge, so you always include the surrounding ring.'},
+   {t:'teach',h:'Three ways to cut the map',body:[
+     {k:'point',i:'🗺️',t:'<b>Geohash</b>: a fixed, uniform grid — dead simple and lives in any sorted store, but a dense city overloads one cell while the ocean wastes them.'},
+     {k:'point',i:'🌳',t:'<b>Quadtree</b>: recursively splits a cell into four only where points are dense — adapts to skew (cities vs ocean), but it’s an in-memory tree you must rebuild.'},
+     {k:'point',i:'⬡',t:'<b>S2 / H3</b>: hierarchical cells; H3’s hexagons make all six neighbors equidistant (no corner-vs-edge ambiguity) — why Uber uses it for matching.'}
+   ]},
+   {t:'htmlviz',h:'How the cells actually look',
+    html:`<style>
+.giz{display:grid;gap:10px}
+.giz-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.giz-fig{margin:0;display:grid;gap:5px;padding:9px;border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary)}
+.giz-fig svg{width:100%;height:auto;display:block;border-radius:6px}
+.giz-ft{font-size:12px;font-weight:800;color:var(--color-text-primary);line-height:1.2}
+.giz-fs{font-size:10.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.35}
+.giz-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.giz-cap b{color:var(--color-text-primary)}
+@media(max-width:520px){.giz-grid{grid-template-columns:1fr}}
+</style>
+<div class="giz">
+  <div class="giz-grid">
+    <figure class="giz-fig">
+      <div class="giz-ft">Geohash · uniform grid</div>
+      <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+        <rect x="1.5" y="1.5" width="36" height="36" fill="var(--color-background-warning)" opacity=".55"/>
+        <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M37.5 1V149 M75 1V149 M112.5 1V149"/><path d="M1 37.5H149 M1 75H149 M1 112.5H149"/></g>
+        <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
+      </svg>
+      <div class="giz-fs">One dense cell overloads while sparse cells sit near-empty.</div>
+    </figure>
+    <figure class="giz-fig">
+      <div class="giz-ft">Quadtree · adaptive</div>
+      <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="148" height="148" rx="4" fill="var(--color-background-primary)" stroke="var(--color-border-tertiary)"/>
+        <rect x="1.5" y="1.5" width="17.25" height="17.25" fill="var(--color-background-info)" opacity=".5"/>
+        <g stroke="var(--color-border-tertiary)" stroke-width="1"><path d="M75 1V149 M1 75H149"/><path d="M37.5 1V75 M1 37.5H75"/><path d="M18.75 1V37.5 M1 18.75H37.5"/></g>
+        <g fill="var(--color-text-info)"><circle cx="12" cy="16" r="2.6"/><circle cx="26" cy="12" r="2.6"/><circle cx="16" cy="30" r="2.6"/><circle cx="30" cy="28" r="2.6"/><circle cx="20" cy="22" r="2.6"/><circle cx="33" cy="35" r="2.6"/><circle cx="112" cy="26" r="2.6"/><circle cx="126" cy="98" r="2.6"/><circle cx="40" cy="122" r="2.6"/><circle cx="104" cy="128" r="2.6"/></g>
+      </svg>
+      <div class="giz-fs">Cells shrink only where points cluster.</div>
+    </figure>
+    <figure class="giz-fig">
+      <div class="giz-ft">S2 / H3 · hexagons</div>
+      <svg viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+        <defs><polygon id="hx" points="0,-20 17.3,-10 17.3,10 0,20 -17.3,10 -17.3,-10"/></defs>
+        <g stroke="var(--color-border-info)" stroke-width="1.1" fill="var(--color-background-secondary)">
+          <use href="#hx" x="20" y="30"/><use href="#hx" x="54.6" y="30"/><use href="#hx" x="89.2" y="30"/><use href="#hx" x="123.8" y="30"/>
+          <use href="#hx" x="37.3" y="60"/><use href="#hx" x="71.9" y="60"/><use href="#hx" x="106.5" y="60"/>
+          <use href="#hx" x="20" y="90"/><use href="#hx" x="89.2" y="90"/><use href="#hx" x="123.8" y="90"/>
+          <use href="#hx" x="37.3" y="120"/><use href="#hx" x="71.9" y="120"/><use href="#hx" x="106.5" y="120"/>
+        </g>
+        <g stroke="var(--color-border-info)" stroke-width="1.1" fill="var(--color-background-info)">
+          <use href="#hx" x="20" y="90"/><use href="#hx" x="89.2" y="90"/><use href="#hx" x="37.3" y="60"/><use href="#hx" x="71.9" y="60"/><use href="#hx" x="37.3" y="120"/><use href="#hx" x="71.9" y="120"/>
+        </g>
+        <use href="#hx" x="54.6" y="90" fill="var(--color-background-success)" stroke="var(--color-border-success)" stroke-width="1.5"/>
+        <circle cx="54.6" cy="90" r="2.8" fill="var(--color-text-success)"/>
+      </svg>
+      <div class="giz-fs">All six neighbors (blue) sit an equal distance from the center.</div>
+    </figure>
+  </div>
+  <div class="giz-cap"><b>How the cells actually look.</b> Geohash lays a uniform grid — simple, but a dense city overloads one cell. Quadtree subdivides only where points cluster, adapting to skew. H3 tiles with hexagons so all six neighbors sit at an equal distance — handy for matching &amp; coverage.</div>
+</div>`},
    {t:'match',q:'Geospatial index → its trait.',pairs:[['Geohash','fixed grid, dead simple, any sorted store'],['Quadtree','subdivides only dense areas (city vs ocean)'],['S2 / H3','hierarchical cells; H3 hexagons = equal-distance neighbors']]},
    {t:'sort',q:'Worth a geo index, or just scan?',buckets:['Geo index','Just scan'],items:[
      {text:'10M restaurants nationwide',b:0},{text:'~1,000 store locations',b:1},{text:'millions of live drivers',b:0},{text:'a single small city’s list',b:1}
@@ -3923,9 +4007,8 @@ function renderHome(scrollToNext){
       const frontier=open&&!done&&!frontierSet;if(frontier)frontierSet=true;
       const revisit=lessonNeedsRevisit(l);
       h+='<div class="node-wrap '+off+'">'
-        +(revisit?'<span class="revisit-dot" title="New questions added since you finished this — revisit"></span>':'')
         +'<button class="node '+cls+'" '+(frontier?'id="next-stage" ':'')+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
-        +'<div class="node-label">'+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
+        +'<div class="node-label"'+(revisit?' title="New questions added since you finished this — revisit"':'')+'>'+(revisit?'<span class="revisit-dot"></span>':'')+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
     // boss node
     const bopen=unlocked&&bossUnlocked(u);
