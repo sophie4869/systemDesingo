@@ -3218,14 +3218,7 @@ const UNITS=[
      'Live server→client updates: start ',{blank:'SSE',alt:['Server-Sent Events']},', upgrade to WebSocket only when the client must push too. Work that takes minutes → return a ',
      {blank:'job id',alt:['job-id','jobid']},' and process it ',{blank:'async',alt:['asynchronously']},'. Find-near-me needs a ',{blank:'geospatial index',alt:['geospatial','geohash']},'.'
    ]},
-   {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']},
-   {t:'teach',h:'"Find near me" — how a geo index actually works',body:[
-     {k:'tldr',t:'Don\'t stop at "use geohash." The interview point is WHY it lets a normal database answer "near me" fast.'},
-     {k:'point',i:'🧬',t:'<b>Geohash</b> encodes (lat,lng) so a <b>shared prefix = physical closeness</b> — 2D proximity collapses into a 1D prefix range a plain B-tree / Redis sorted set can scan. No special engine.'},
-     {k:'point',i:'🔁',t:'<b>Two phases</b>: ① index narrows to candidate cells (your cell + its 8 neighbors), ② compute exact distance on that handful, keep what\'s in radius. The index filters; it doesn\'t measure.'}
-   ]},
-   {t:'mcq',nu:true,q:'Why can a plain B-tree (no special geo engine) serve "drivers near me" once you geohash points?',o:['B-trees store 2D coordinates natively','shared geohash prefix = closeness, so proximity becomes a 1D prefix range scan','it sorts by raw latitude only','it computes great-circle distance internally'],a:1,why:'Geohash maps (lat,lng) to a string where nearby points share a prefix — turning 2D proximity into a 1D range a normal index already does well.'},
-   {t:'mcq',nu:true,q:'Your geohash lookup returns points in the user\'s cell only and sometimes misses a closer one. Fix?',o:['use a longer geohash','also scan the 8 neighboring cells, then rank by exact distance','switch to a SQL LIKE scan','store everything in one cell'],a:1,why:'A point at the cell boundary can be closer than anything inside the cell. Query the cell + its 8 neighbors (coarse filter), then compute exact distance to rank.'}
+   {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']}
   ]},
   {id:'pat-3',title:'Don’t reach for the heavy tool',steps:[
    {t:'teach',h:'Escalate from cheap to heavy',body:[
@@ -3324,9 +3317,9 @@ const UNITS=[
   ]},
   {id:'pat-5',title:'Scaling reads & writes',steps:[
    {t:'teach',h:'Reads copy · writes split',body:[
-     {k:'tldr',t:'One mental model: reads are the easy half (copy the data or precompute it ahead of time, accept staleness); writes are the hard half (one source of truth — split it or shape the stream). The map below is your menu; the quizzes drill it.'},
+     {k:'tldr',t:'One mental model: reads are the easy half (copy the data or precompute it ahead of time, accept staleness); writes are the hard half (one source of truth — split it or shape the stream).'},
      {k:'vs',a:{h:'Scale READS — copy & precompute',t:'index → replicas → cache → CDN; denormalize/precompute. Cost: staleness.'},b:{h:'Scale WRITES — one authority',t:'shard, batch/queue, LSM. Cost: complexity.'}},
-     {k:'note',t:'<b>Common trap:</b> denormalize / precompute scales <b>reads</b>, not writes — you do the work ahead of time so reads are cheap. The bill lands on the write path (more copies to keep in sync), which is exactly why it costs writes but counts as read scaling.'}
+     {k:'note',t:'<b>Which side is denormalize / precompute?</b> It scales <b>reads</b>, not writes — you do the work ahead of time so reads are cheap. The cost lands on the write path (more copies to keep in sync), so it <b>costs</b> writes but <b>counts as</b> read scaling.'}
    ]},
    {t:'htmlviz',h:'Reads scale by copying · writes scale by splitting',
     html:`<style>
@@ -4130,7 +4123,13 @@ function renderStep(){
   try{window.scrollTo(0,0);}catch(e){}
 }
 function backStep(){if(R.idx>0){R.idx--;renderStep();}}
-function skipStep(){toast('⏭ Skipped — not scored');nextStep();}
+function skipStep(){
+  const step=R.steps[R.idx];
+  // Skipping still means you've SEEN the question — mark it answered so the lesson keeps
+  // your historical record for it instead of flagging it as never-answered ("missing").
+  if(step&&isQuizStep(step.t)){S.answered[sigOf(step)]=1;save();}
+  toast('⏭ Skipped — not scored');nextStep();
+}
 function renderReview(stage,step){
   if(step.t==='vecviz'){stVecViz(stage,step);return;}
   if(step.t==='htmlviz'){stHtmlViz(stage,step);return;}
