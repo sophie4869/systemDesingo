@@ -3200,17 +3200,170 @@ const UNITS=[
    {t:'match',q:'Problem → pattern, round 2.',pairs:[['Search posts by keyword','Inverted index / search engine'],['Retry a charge safely','Idempotency key'],['Order → pay → ship across services','Orchestrated saga']]},
    {t:'mcq',q:'Keyword search over millions of documents is fastest with…',o:['a SQL LIKE %term% scan','an inverted index (term → doc ids)','a B-tree on the row id','a full table scan'],a:1,why:'An inverted index maps each term to the docs containing it, so a keyword lookup touches only matches instead of every row; search engines (Elasticsearch) build and serve these.'},
    {t:'recall',q:'For a feed, when fanout-on-write vs fanout-on-read?',model:['Fanout-on-write (push): precompute timelines — cheap reads, expensive for celebrities.','Fanout-on-read (pull): assemble at read time — cheap writes, costly reads.','Hybrid: push for normal users, pull/merge for celebrities.']}
+  ]},
+  {id:'pat-2',title:'Name that pattern',steps:[
+   {t:'teach',h:'Read the scenario, reach for the shape',body:[
+     {k:'tldr',t:'Interviews rarely name the pattern — they describe a symptom. Train the reflex: scenario → playbook, then justify.'},
+     {k:'point',i:'🎯',t:'The tell is in the verb: "see live" → real-time push; "takes minutes" → async job; "last one wins" → contention; "find near me" → geospatial.'}
+   ]},
+   {t:'mcq',q:'A dashboard must show new events the moment they happen, server→client only. Cheapest fit before reaching for WebSocket?',o:['poll every 100ms','Server-Sent Events (SSE)','WebSocket from the start','a second database'],a:1,why:'SSE is one-way server push over plain HTTP — perfect for live feeds/notifications. Reserve WebSocket for when the client also needs to push (chat, presence).'},
+   {t:'mcq',q:'An endpoint kicks off a 5-minute video transcode. Best API shape?',o:['block the request until it finishes','enqueue a job, return a job id immediately; client polls or gets notified','run it inside a DB trigger','stream the result synchronously'],a:1,why:'Long work goes async: accept → return id → workers process → report status. Never hold an HTTP connection open for minutes.'},
+   {t:'mcq',q:'Reads are 100× writes and the same hot keys are fetched constantly. First cheap win?',o:['shard the database','add a cache in front of the hot keys','rewrite the service','two-phase commit'],a:1,why:'Scale reads index → replicas → cache/CDN. Repeated hot keys are the textbook case for a cache.'},
+   {t:'mcq',q:'A write firehose of 1M events/sec overwhelms one node. Reach for…',o:['a bigger single box (vertical only)','shard by a good partition key; batch / buffer bursts','a global lock','synchronous replication'],a:1,why:'Scale writes by sharding on a high-cardinality key so load spreads; batch and buffer to absorb spikes.'},
+   {t:'match',q:'Symptom → playbook.',pairs:[['Typeahead over 50M products','Inverted index / search engine'],['Charge a card; client retried the call','Idempotency key'],['Find drivers within 2km','Geospatial index'],['Export a 4K video file','Presigned URL + CDN']]},
+   {t:'sort',q:'Is this scaling READS or WRITES?',buckets:['Scale reads','Scale writes'],items:[
+     {text:'add an index, then replicas, then cache',b:0},{text:'shard by a good key',b:1},{text:'serve static assets via CDN',b:0},{text:'buffer bursts in a queue',b:1}
+   ]},
+   {t:'cloze',q:'Fill the playbook blanks.',distract:['polling','sharding'],text:[
+     'Live server→client updates: start ',{blank:'SSE',alt:['Server-Sent Events']},', upgrade to WebSocket only when the client must push too. Work that takes minutes → return a ',
+     {blank:'job id',alt:['job-id','jobid']},' and process it ',{blank:'async',alt:['asynchronously']},'. Find-near-me needs a ',{blank:'geospatial index',alt:['geospatial','geohash']},'.'
+   ]},
+   {t:'recall',q:'A scenario says "show it live, the instant it changes." Walk the real-time ladder.',model:['Start with polling — simplest, fine for low-frequency or many idle clients.','Server→client stream only → SSE (one-way over HTTP).','Bidirectional / low-latency (chat, presence, games) → WebSocket; fan out server-side via pub/sub.']}
+  ]},
+  {id:'pat-3',title:'Don’t reach for the heavy tool',steps:[
+   {t:'teach',h:'Escalate from cheap to heavy',body:[
+     {k:'tldr',t:'Half of pattern-spotting is NOT over-engineering. Name the cheap tool first; justify the heavy one only when the cheap one provably fails.'},
+     {k:'point',i:'🪜',t:'Contention: DB transaction / optimistic CAS → distributed lock only across nodes. Multi-service workflow: saga + compensation, not 2PC.'},
+     {k:'callout',c:'warn',t:'Search is NOT SQL LIKE %x% (full scan). Dedup is NOT a new random id per retry (defeats itself). Blobs do NOT stream through the app tier.'}
+   ]},
+   {t:'mcq',q:'Two users race for the last seat in one database. Reach for a distributed lock first?',o:['yes, always lock','no — a DB transaction or optimistic CAS handles single-DB contention','use 2PC','ignore it and hope'],a:1,why:'Single-DB contention is solved by a transaction or compare-and-set. Distributed locks/2PC are for coordination ACROSS nodes — heavier and failure-prone.'},
+   {t:'mcq',q:'At-least-once delivery means a charge can fire twice. The fix?',o:['hope the network is exactly-once','an idempotency key — server stores the result and replays it on retry','retry with a fresh random id each time','fire-and-forget'],a:1,why:'A stable idempotency key turns at-least-once into an exactly-once effect. A new random id per retry makes every attempt look new → duplicate charges.'},
+   {t:'mcq',q:'Order → pay → ship spans three services. Coordinate them with…',o:['one giant distributed 2PC','an orchestrated saga with compensating actions','a single cross-service transaction','a global lock'],a:1,why:'2PC blocks and is fragile across services. A saga runs each step locally and compensates (refund, restock) on failure; make every step idempotent.'},
+   {t:'build',q:'Pick what actually makes a retry SAFE.',options:['A stable idempotency key','A new random id per attempt','Server stores the result per key','Fire-and-forget','Make the operation idempotent'],correct:[0,2,4]},
+   {t:'match',q:'Over-engineered tool → the right cheaper one.',pairs:[['Distributed lock for single-DB contention','DB transaction / CAS'],['2PC across microservices','Saga + compensation'],['SQL LIKE scan for search','Inverted index'],['Streaming a blob through the app tier','Presigned URL to storage']]},
+   {t:'sort',q:'Safe retry, or breaks dedup?',buckets:['Safe','Breaks dedup'],items:[
+     {text:'stable idempotency key',b:0},{text:'new random id each retry',b:1},{text:'server caches the result per key',b:0},{text:'fire-and-forget, no ack',b:1}
+   ]},
+   {t:'recall',q:'Give the escalation order for contention, and why start cheap.',model:['Single row/DB: a transaction or optimistic CAS (version check) — no extra infra.','Across nodes/resources: a distributed lock (with a fencing token + lease).','Last resort, multi-service atomicity: prefer a saga over 2PC. Start cheap because each step up adds latency, failure modes, and SPOFs.']}
+  ]},
+  {id:'pat-4',title:'Fan-out & notifications',steps:[
+   {t:'teach',h:'One event → millions of recipients',body:[
+     {k:'tldr',t:'The core challenge is write amplification: one post by a popular account can mean millions of inbox writes. The design choice is WHERE you pay — on write or on read.'},
+     {k:'point',i:'✍️',t:'<b>Fan-out on write (push)</b>: on post, write into every follower’s inbox. Reads are O(1) (inbox pre-built) — but a celebrity’s post explodes into millions of writes.'},
+     {k:'point',i:'📖',t:'<b>Fan-out on read (pull)</b>: store the post once; assemble each feed at read time. Writes are O(1) — but reads get slow and grow with how many accounts you follow.'},
+     {k:'point',i:'🔀',t:'<b>Hybrid (the standard answer)</b>: push for normal users, pull for celebrities. At read time, merge the pre-populated inbox with freshly-pulled celebrity posts.'}
+   ]},
+   {t:'htmlviz',h:'Fan-out — push the many, pull the few',
+    html:`<style>
+.nfz{display:grid;gap:10px}
+.nfz-sec{display:grid;gap:8px;padding:11px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary)}
+.nfz-h{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.nfz-tag{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px}
+.nfz-tag.good{background:var(--color-background-success);color:var(--color-text-success)}
+.nfz-tag.warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.nfz-tag.info{background:var(--color-background-info);color:var(--color-text-info)}
+.nfz-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.nfz-box{flex:1 1 108px;min-width:0;display:flex;flex-direction:column;justify-content:center;border:2px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-primary);padding:8px 9px;text-align:center}
+.nfz-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.nfz-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning)}
+.nfz-box.info{background:var(--color-background-info);border-color:var(--color-border-info)}
+.nfz-t{font-size:12px;font-weight:900;color:var(--color-text-primary);line-height:1.25}
+.nfz-s{font-size:10.5px;font-weight:700;color:var(--color-text-secondary);line-height:1.3;margin-top:3px}
+.nfz-arr{flex:0 0 auto;align-self:center;font-size:16px;font-weight:900;color:var(--color-text-tertiary)}
+.nfz-note{font-size:11px;font-weight:700;color:var(--color-text-secondary);text-align:center;line-height:1.4}
+.nfz-note b{color:var(--color-text-primary)}
+.nfz-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.nfz-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.nfz-flow{flex-direction:column;align-items:stretch}.nfz-arr{transform:rotate(90deg)}}
+</style>
+<div class="nfz">
+  <div class="nfz-sec"><div class="nfz-h">Push <span class="nfz-tag good">normal · ~500 followers</span></div><div class="nfz-flow"><div class="nfz-box good"><div class="nfz-t">User posts</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Queue</div><div class="nfz-s">one job per follower</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Workers</div><div class="nfz-s">write each inbox</div></div><div class="nfz-arr">→</div><div class="nfz-box good"><div class="nfz-t">Read = O(1)</div><div class="nfz-s">inbox pre-built</div></div></div></div>
+  <div class="nfz-sec"><div class="nfz-h">Pull <span class="nfz-tag warn">celebrity · 10M followers</span></div><div class="nfz-flow"><div class="nfz-box warn"><div class="nfz-t">User posts</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">Store 1 event</div><div class="nfz-s">O(1) write</div></div><div class="nfz-arr">→</div><div class="nfz-box warn"><div class="nfz-t">Read merges live</div><div class="nfz-s">sort accounts followed (slow)</div></div></div></div>
+  <div class="nfz-sec"><div class="nfz-h">Hybrid <span class="nfz-tag info">production standard</span></div><div class="nfz-flow"><div class="nfz-box good"><div class="nfz-t">followers &lt; threshold</div><div class="nfz-s">push to inboxes</div></div><div class="nfz-box warn"><div class="nfz-t">celebrity</div><div class="nfz-s">pull on read</div></div></div><div class="nfz-note">read → inbox = <b>pre-built rows + celebrity events</b> merged</div></div>
+  <div class="nfz-sec"><div class="nfz-h">Push delivery</div><div class="nfz-flow"><div class="nfz-box info"><div class="nfz-t">Notification svc</div><div class="nfz-s">batch device tokens</div></div><div class="nfz-arr">→</div><div class="nfz-box"><div class="nfz-t">APNs / FCM</div><div class="nfz-s">iOS · Android</div></div></div><div class="nfz-note"><b>Dedup</b> notification_id · <b>Coalesce</b> bursts → one push</div></div>
+  <div class="nfz-cap"><b>Push the many, pull the few.</b> Pre-populate normal inboxes for O(1) reads; celebrities store once and merge at read time. At-least-once delivery means dedup + coalesce before the push.</div>
+</div>`},
+   {t:'mcq',q:'A user with 10M followers posts. Pure fan-out-on-write means…',o:['O(1) total work','~10M inbox writes from one post','cheaper reads for everyone','no extra cost'],a:1,why:'Push writes one row per follower — fine for hundreds, catastrophic for celebrities. Pull/hybrid avoids the write explosion.'},
+   {t:'sort',q:'Which fan-out strategy fits?',buckets:['Fan-out on write (push)','Fan-out on read (pull)'],items:[
+     {text:'normal user, ~500 followers',b:0},{text:'celebrity, 10M followers',b:1},{text:'reads must be O(1)',b:0},{text:'writes must stay cheap',b:1}
+   ]},
+   {t:'mcq',q:'Why does hybrid fan-out win in production?',o:['it never writes any inbox','push keeps normal reads O(1) while pull avoids the celebrity write explosion','it removes the need for a cache','it makes every write strongly consistent'],a:1,why:'Pay write cost where it is cheap (normal users) and read cost where it is cheap (few celebrities), merging both at read time.'},
+   {t:'teach',h:'Delivery: dedup & coalesce',body:[
+     {k:'point',i:'📱',t:'<b>Channels</b>: mobile push via APNs (iOS) / FCM (Android) from stored device tokens; email (batch, respect limits); SMS (expensive — critical only); in-app via WebSocket/SSE.'},
+     {k:'point',i:'🔁',t:'<b>Dedup</b>: async workers and APNs retries make delivery at-least-once → store a sent notification_id and skip duplicates before sending (the idempotency idea, applied to delivery).'},
+     {k:'point',i:'🎚️',t:'<b>Coalesce</b>: collapse bursts — "5 people liked your post" beats 5 separate pushes. Better UX, fewer sends.'}
+   ]},
+   {t:'mcq',q:'At-least-once push delivery can send the same notification twice. Prevent it with…',o:['fire-and-forget','a stored notification_id checked before sending','more workers','SMS instead of push'],a:1,why:'Dedup on a stored id turns at-least-once into a single user-visible push.'},
+   {t:'match',q:'Fan-out / notification term → what it does.',pairs:[['Fan-out on write','Pre-populate every follower inbox'],['Fan-out on read','Store once, build the feed at read time'],['Dedup','Skip a duplicate via stored notification_id'],['Coalesce','Collapse a burst into one push']]},
+   {t:'recall',q:'Walk fan-out on write vs read, and when you go hybrid.',model:['Write (push): write each follower’s inbox on post → O(1) reads, but a celebrity post explodes into millions of writes.','Read (pull): store the post once, assemble feeds at read time → O(1) writes, but slow reads that grow with accounts followed.','Hybrid: push for normal users, pull for celebrities, merge at read time — plus dedup + coalesce on the delivery path.']}
+  ]},
+  {id:'pat-5',title:'Scaling reads & writes',steps:[
+   {t:'teach',h:'Scaling READS — copy the data',body:[
+     {k:'tldr',t:'Reads are the easy half: you can copy data as many times as you like and serve from the nearest/cheapest copy. Climb the ladder only as far as you need — each rung trades freshness for throughput.'},
+     {k:'point',i:'🔎',t:'<b>Index first.</b> Most "slow reads" are a missing index, not too little hardware — turn a table scan into a lookup before adding any machines.'},
+     {k:'point',i:'📑',t:'<b>Read replicas.</b> Leader takes writes; followers serve reads → multiplies read throughput. Cost: replication lag → stale reads (use read-your-writes for a user’s own data).'},
+     {k:'point',i:'⚡',t:'<b>Cache.</b> Keep the hot ~20% in memory (Redis) for sub-ms repeated lookups. Cost: invalidation and stampedes on hot keys (stale-while-revalidate / mutex).'},
+     {k:'point',i:'🌍',t:'<b>CDN / edge.</b> Push static assets and cacheable responses near users — the only real fix for cross-continent latency.'}
+   ]},
+   {t:'teach',h:'Scaling WRITES — split the authority',body:[
+     {k:'tldr',t:'Writes are the hard half: every write must reach the single source of truth, so you can’t just copy your way out. You either split the authority or shape the stream.'},
+     {k:'point',i:'🧩',t:'<b>Shard / partition by a good key.</b> Split data so writes land on different nodes; pick a high-cardinality key to avoid hot shards (the celebrity-key problem).'},
+     {k:'point',i:'📦',t:'<b>Batch &amp; buffer.</b> Coalesce many small writes and put a queue in front to absorb spikes, smoothing traffic to the DB’s sustainable rate.'},
+     {k:'point',i:'🧱',t:'<b>Denormalize / precompute.</b> Write data in the shape reads want (fan-out on write, materialized views) to move cost off the read path.'},
+     {k:'point',i:'🪵',t:'<b>Write-optimized storage.</b> LSM-tree engines (Cassandra, RocksDB) turn random writes into sequential appends for high ingest.'}
+   ]},
+   {t:'htmlviz',h:'Reads scale by copying · writes scale by splitting',
+    html:`<style>
+.srw{display:grid;gap:10px}
+.srw-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.srw-col{display:grid;gap:7px;align-content:start;padding:11px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary)}
+.srw-col.r{border-color:var(--color-border-info)}
+.srw-col.w{border-color:var(--color-border-warning)}
+.srw-ch{font-size:12.5px;font-weight:900;color:var(--color-text-primary);display:flex;align-items:baseline;flex-wrap:wrap;gap:7px}
+.srw-cs{font-size:10px;font-weight:800;color:var(--color-text-secondary)}
+.srw-step{border:1.5px solid var(--color-border-tertiary);border-radius:10px;background:var(--color-background-primary);padding:7px 9px}
+.srw-st{font-size:11.5px;font-weight:800;color:var(--color-text-primary);line-height:1.25}
+.srw-sd{font-size:10px;font-weight:600;color:var(--color-text-secondary);line-height:1.3;margin-top:2px}
+.srw-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.srw-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.srw-cols{grid-template-columns:1fr}}
+</style>
+<div class="srw">
+  <div class="srw-cols">
+    <div class="srw-col r">
+      <div class="srw-ch">📖 Scale READS <span class="srw-cs">cheap → heavy</span></div>
+      <div class="srw-step"><div class="srw-st">1 · Index</div><div class="srw-sd">scan → lookup; fix the query first</div></div>
+      <div class="srw-step"><div class="srw-st">2 · Read replicas</div><div class="srw-sd">route reads to followers; cost = lag</div></div>
+      <div class="srw-step"><div class="srw-st">3 · Cache</div><div class="srw-sd">hot keys in memory, sub-ms</div></div>
+      <div class="srw-step"><div class="srw-st">4 · CDN / edge</div><div class="srw-sd">static near users; kills cross-region RTT</div></div>
+    </div>
+    <div class="srw-col w">
+      <div class="srw-ch">✍️ Scale WRITES <span class="srw-cs">one source of truth</span></div>
+      <div class="srw-step"><div class="srw-st">Shard by key</div><div class="srw-sd">spread writes; high-cardinality key</div></div>
+      <div class="srw-step"><div class="srw-st">Batch + queue</div><div class="srw-sd">absorb bursts, smooth the rate</div></div>
+      <div class="srw-step"><div class="srw-st">Denormalize</div><div class="srw-sd">write in the shape reads want</div></div>
+      <div class="srw-step"><div class="srw-st">LSM-tree store</div><div class="srw-sd">random writes → sequential</div></div>
+    </div>
+  </div>
+  <div class="srw-cap"><b>Reads are easy — copy the data</b> (replicas, caches, CDN) and accept some staleness. <b>Writes are hard — there is one authority</b>, so you either split it (shard) or smooth/shape the stream (batch, denormalize, write-optimized store).</div>
+</div>`},
+   {t:'order',q:'Climb the read-scaling ladder: cheapest → heaviest.',items:['Add an index','Read replicas','Cache hot keys','CDN / edge']},
+   {t:'mcq',q:'A query on one table is slow. First move?',o:['add read replicas','add an index for that query','put it behind a CDN','shard the table'],a:1,why:'Most slow reads are a missing index — turn the scan into a lookup before adding hardware or replicas.'},
+   {t:'mcq',q:'Read replicas multiply read throughput. The main cost?',o:['writes get slower for everyone','replication lag → possibly stale reads','replicas can’t serve reads','guaranteed data loss'],a:1,why:'Followers lag the leader, so a read can be stale; route a user’s own reads to a fresh source (read-your-writes).'},
+   {t:'mcq',q:'Why can’t you scale writes just by copying the data?',o:['copies cost too much disk','every write must reach the single source of truth','reads block all writes','replicas are read-only by law'],a:1,why:'You can copy data for reads, but each write must hit the authority — so you split it (shard) or shape the stream (batch, denormalize).'},
+   {t:'sort',q:'Scales READS or WRITES?',buckets:['Scale reads','Scale writes'],items:[
+     {text:'add an index',b:0},{text:'denormalize / precompute',b:1},{text:'cache hot keys',b:0},{text:'LSM-tree storage engine',b:1}
+   ]},
+   {t:'cloze',q:'Fill the scaling rule.',distract:['lock','index'],text:[
+     'Scale reads by ',{blank:'copying',alt:['copy']},' the data — replicas, ',{blank:'cache',alt:['caches']},', CDN — at the cost of staleness. Scale writes by ',
+     {blank:'sharding',alt:['shard','partitioning']},' on a good key, or by ',{blank:'batching',alt:['batch','buffering']},' / shaping the write stream.'
+   ]},
+   {t:'recall',q:'Why are reads easier to scale than writes?',model:['Reads: data can be copied freely → add replicas, caches, and CDNs and serve from the nearest copy; the only cost is staleness.','Writes: there is one source of truth every write must reach → you can’t copy your way out.','So writes scale by splitting the authority (shard by key) or shaping the stream (batch/buffer, denormalize, write-optimized store).']}
   ]}
  ],
- boss:{title:'Patterns Boss',time:65,q:[
+ boss:{title:'Patterns Boss',time:90,q:[
    {q:'Start real-time updates with…',o:['WebSockets','HTTP polling','gRPC','a queue'],a:1},
+   {q:'One-way server→client live stream wants…',o:['WebSocket','Server-Sent Events','long polling forever','a cron job'],a:1},
    {q:'Slow work (video encode) should be…',o:['synchronous','an async worker job','in the DB','dropped'],a:1},
    {q:'First tool for contention is…',o:['distributed lock','DB transaction / CAS','2PC','sharding'],a:1},
    {q:'Scaling reads order:',o:['cache→replica→index','index→replica→cache','replica→index→cache','none'],a:1},
+   {q:'Scaling writes leans on…',o:['a bigger single box','sharding by a good key','a global lock','more indexes'],a:1},
    {q:'Large blobs use…',o:['app streaming','presigned URLs + CDN','the DB','email'],a:1},
    {q:'Proximity search needs a…',o:['B-tree','geospatial index','bloom filter','queue'],a:1},
    {q:'Fast keyword search uses…',o:['a SQL LIKE scan','an inverted index','a B-tree on id','a bloom filter'],a:1},
-   {q:'Safe retries need…',o:['more replicas','an idempotency key','a bigger cache','2PC'],a:1}
+   {q:'Safe retries need…',o:['more replicas','an idempotency key','a bigger cache','2PC'],a:1},
+   {q:'A new random id per retry…',o:['is best practice','defeats dedup → duplicates','speeds things up','is required'],a:1},
+   {q:'Workflow across services prefers…',o:['2PC','an orchestrated saga','one big txn','a global lock'],a:1}
  ]}
 },
 {
