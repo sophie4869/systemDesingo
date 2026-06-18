@@ -2456,6 +2456,26 @@ const UNITS=[
      {k:'point',i:'📌',t:'<b>Sticky routing</b>: always route a given key (user / API token) to the same node so its counter is authoritative — turns the distributed problem into a local one.'},
      {k:'note',t:'Always return <b>429 + Retry-After</b> (plus limit/remaining/reset headers), and rate-limit at the edge/gateway before requests reach expensive backends.'}
    ]},
+   {t:'htmlviz',h:'Distributed limiter — three fleet shapes',
+    html:`<style>
+.drv{display:grid;gap:10px}
+.drv-row{display:grid;grid-template-columns:98px 1fr;gap:9px;align-items:center}
+.drv-l{font-size:12px;font-weight:900;color:var(--color-text-secondary);line-height:1.3}
+.drv-boxes{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.drv-box{border:2px solid var(--color-border-tertiary);border-radius:12px;background:var(--color-background-secondary);padding:8px 10px;font-size:12px;font-weight:900;color:var(--color-text-secondary);text-align:center}
+.drv-box.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.drv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.drv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.drv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.drv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.drv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="drv">
+  <div class="drv-row"><div class="drv-l">Wrong:<br>per-node</div><div class="drv-boxes"><span class="drv-box bad">GW1<br>100</span><span class="drv-box bad">GW2<br>100</span><span class="drv-box bad">GW3<br>100</span><span class="drv-arr">=</span><span class="drv-box bad">300 total</span></div></div>
+  <div class="drv-row"><div class="drv-l">Accurate:<br>Redis</div><div class="drv-boxes"><span class="drv-box">GW1</span><span class="drv-box">GW2</span><span class="drv-box">GW3</span><span class="drv-arr">→</span><span class="drv-box info">shared Lua<br>100 global</span></div></div>
+  <div class="drv-row"><div class="drv-l">Fast:<br>quotas</div><div class="drv-boxes"><span class="drv-box good">GW1<br>35</span><span class="drv-box good">GW2<br>35</span><span class="drv-box good">GW3<br>30</span><span class="drv-arr">←</span><span class="drv-box info">budget<br>100</span></div></div>
+  <div class="drv-cap"><b>The design choice is accuracy vs latency/resilience.</b> Redis is exact but a hop and hotspot. Quotas are local and fast, but approximate and need periodic rebalance.</div>
+</div>`},
    {t:'match',q:'Distributed limiter → its trait.',pairs:[['Accurate, but a hotspot / SPOF','Centralized (Redis)'],['Approximate, resilient, low-latency','Quota distribution'],['Pin a key to one node → becomes local','Sticky routing']]},
    {t:'cloze',q:'Fill the distributed-limit blanks.',distract:['cache','shard'],text:[
      'Per-instance counters give an effective limit of ',{blank:'N×R',alt:['NxR','N*R']},'. Use a shared ',
@@ -2690,6 +2710,23 @@ const UNITS=[
      {k:'point',i:'✅',t:'Only retry <b>idempotent + retryable</b> errors (timeout, 503 — never a 400), and cap them with a <b>retry budget</b> (≤10% of requests).'},
      {k:'callout',c:'warn',t:'Retry at ONE layer only — 3 layers × 3 retries = 27× amplification in an incident.'}
    ]},
+   {t:'htmlviz',h:'Retry jitter — spread the herd',
+    html:`<style>
+.rjv{display:grid;gap:10px}
+.rjv-row{display:grid;grid-template-columns:86px 1fr;gap:9px;align-items:center}
+.rjv-l{font-size:12px;font-weight:900;color:var(--color-text-secondary)}
+.rjv-track{height:44px;border-radius:12px;background:var(--color-background-secondary);border:1.5px solid var(--color-border-tertiary);position:relative;overflow:hidden}
+.rjv-dot{position:absolute;top:10px;width:22px;height:22px;border-radius:50%;background:var(--color-background-danger);border:2px solid var(--color-text-danger)}
+.rjv-dot.ok{background:var(--color-background-success);border-color:var(--color-border-success)}
+.rjv-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--color-border-tertiary)}
+.rjv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.rjv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="rjv">
+  <div class="rjv-row"><div class="rjv-l">No jitter</div><div class="rjv-track"><span class="rjv-tick" style="left:25%"></span><span class="rjv-tick" style="left:50%"></span><span class="rjv-tick" style="left:75%"></span><span class="rjv-dot" style="left:48%"></span><span class="rjv-dot" style="left:50%"></span><span class="rjv-dot" style="left:52%"></span><span class="rjv-dot" style="left:54%"></span></div></div>
+  <div class="rjv-row"><div class="rjv-l">Full jitter</div><div class="rjv-track"><span class="rjv-tick" style="left:25%"></span><span class="rjv-tick" style="left:50%"></span><span class="rjv-tick" style="left:75%"></span><span class="rjv-dot ok" style="left:18%"></span><span class="rjv-dot ok" style="left:35%"></span><span class="rjv-dot ok" style="left:62%"></span><span class="rjv-dot ok" style="left:80%"></span></div></div>
+  <div class="rjv-cap"><b>Backoff without jitter synchronizes clients.</b> They all wake up at the same retry boundary and re-overload the dependency. Full jitter picks a random delay inside the backoff window, spreading retries across time.</div>
+</div>`},
    {t:'mcq',q:'Why add jitter to backoff?',o:['retry faster','prevent synchronized retry storms','make idempotent','cut latency'],a:1,why:'Randomness spreads retries so a recovering service isn’t re-stampeded.'},
    {t:'match',q:'Retry failure mode → the fix.',pairs:[
      ['Clients that failed together all retry at the same instant','Jitter — randomize each delay'],
@@ -3006,12 +3043,11 @@ const UNITS=[
   {id:'data-1',title:'Pipelines & storage',steps:[
    {t:'teach',h:'ETL vs ELT',body:[
      {k:'vs',a:{h:'ETL',t:'transform <b>before</b> load — clean, join, aggregate, then load structured results. Good when transforms are expensive or data must be sanitised first.'},b:{h:'ELT',t:'load raw <b>first</b>, transform in-warehouse with SQL. The modern default — cheap columnar storage, and you can re-run transforms without re-ingesting.'}},
-     {k:'point',i:'🏛️',t:'<b>Where it lands</b>: <b>warehouse</b> = structured, SQL, analytics-tuned (Snowflake/BigQuery); <b>data lake</b> = raw files in object storage, schema-on-read, cheap; <b>lakehouse</b> = open table formats (Delta/Iceberg) adding ACID + schema on a lake.'}
+     {k:'point',i:'🏛️',t:'<b>Where it lands</b>: a <b>warehouse</b> = structured, SQL, analytics-tuned (Snowflake/BigQuery); a <b>data lake</b> = cheap raw files in object storage, schema-on-read.'}
    ]},
    {t:'sort',q:'ETL or ELT?',buckets:['ETL — transform first','ELT — load raw first'],items:[
      {text:'sanitise PII before storing',b:0},{text:'cheap columnar warehouse',b:1},{text:'re-run transforms on raw data',b:1},{text:'expensive transform, run once',b:0}
    ]},
-   {t:'mcq',q:'Open table formats (Delta Lake, Iceberg) that add ACID + schema on top of a data lake are called a…',o:['warehouse','data lake','lakehouse','cache'],a:2,why:'A lakehouse layers warehouse-like guarantees (ACID, schema) over cheap object-storage files — lake flexibility with warehouse reliability.'},
    {t:'teach',h:'Storage tiers',body:[
      {k:'point',i:'💽',t:'<b>Block</b> (EBS): one VM, low-latency DB volumes.'},
      {k:'point',i:'📂',t:'<b>File</b> (EFS/NFS): shared POSIX across many workers.'},
@@ -3239,6 +3275,25 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: users, tweets(snowflake id, author, text, ts), follows(follower, followee), timeline cache.','API: POST /tweets; GET /feed?cursor=&limit; POST/DELETE /follows. Cursor (keyset) pagination.']},
    {t:'mcq',q:'Feed delivery for NORMAL users?',o:['fanout-on-read (assemble each time)','fanout-on-write (precompute timelines)','recompute nightly','no caching'],a:1,why:'Reads dominate, so precompute each user’s timeline on write — cheap reads.'},
+   {t:'htmlviz',h:'Feed fanout — push normal, pull celebrities',
+    html:`<style>
+.ffv{display:grid;gap:10px}
+.ffv-flow{display:grid;grid-template-columns:1fr 34px 1fr;gap:8px;align-items:center}
+.ffv-box{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.ffv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.ffv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.ffv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.ffv-s{font-size:11px;font-weight:800;line-height:1.35;margin-top:4px}
+.ffv-arr{text-align:center;font-size:22px;font-weight:900;color:var(--color-text-tertiary)}
+.ffv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.ffv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.ffv-flow{grid-template-columns:1fr}.ffv-arr{transform:rotate(90deg)}}
+</style>
+<div class="ffv">
+  <div class="ffv-flow"><div class="ffv-box good"><div class="ffv-t">Normal author posts</div><div class="ffv-s">push tweet id into follower timeline caches</div></div><div class="ffv-arr">→</div><div class="ffv-box good"><div class="ffv-t">Feed read</div><div class="ffv-s">single cached timeline lookup</div></div></div>
+  <div class="ffv-flow"><div class="ffv-box warn"><div class="ffv-t">Celebrity posts</div><div class="ffv-s">do not write 50M timelines</div></div><div class="ffv-arr">→</div><div class="ffv-box warn"><div class="ffv-t">Read-time merge</div><div class="ffv-s">merge celebrity ids into feed on read</div></div></div>
+  <div class="ffv-cap"><b>Hybrid fanout</b> keeps ordinary reads cheap while avoiding the celebrity write explosion. Time-sortable tweet IDs make the read-time merge straightforward.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['Fanout-on-write workers','Timeline cache (Redis)','Follow-graph store','Object store + CDN for media','A global lock service'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · The hard bottleneck?',o:['posting tweets','celebrity fanout (1 post → millions of writes)','following users','storing media'],a:1,why:'Fanning out a celebrity’s post to 50M timelines is too expensive on write.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Hybrid fanout: push for normal users, pull/merge celebrity tweets at read time.','Time-sortable IDs (Snowflake) give ordering for free.','Failure: replication lag → read-your-writes for your own posts; viral spikes → cache + read-time merge.']}
@@ -3261,6 +3316,25 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: events, seats(status[AVAILABLE|HELD|BOOKED], held_by, hold_expires_at, version), bookings.','API: hold(seat), confirm(seat), release(seat).']},
    {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with the DB: UPDATE … WHERE status=AVAILABLE (compare-and-set). Reach for distributed locks only if data spans systems.'},
+   {t:'htmlviz',h:'Seat booking — CAS hold lifecycle',
+    html:`<style>
+.sbv{display:grid;gap:10px}
+.sbv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.sbv-state{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px 12px;text-align:center;min-width:92px}
+.sbv-state.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.sbv-state.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.sbv-state.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.sbv-t{font-size:13px;font-weight:900}
+.sbv-s{font-size:10.5px;font-weight:800;margin-top:3px}
+.sbv-arr{font-size:20px;font-weight:900;color:var(--color-text-tertiary)}
+.sbv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.sbv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="sbv">
+  <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">status check</div></div><div class="sbv-arr">CAS hold</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">held_by + TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">final owner</div></div></div>
+  <div class="sbv-cap"><b>The hold is one conditional DB update:</b> AVAILABLE → HELD only if the row is still available. Confirm is also conditional: still held by you, not expired, expected version.</div>
+  <div class="sbv-cap">If payment stalls or the client disappears, the TTL releases HELD back to AVAILABLE. Use a version/fencing token so stale retries cannot confirm an expired hold.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['Relational DB (ACID)','Seat hold with TTL','Payment via saga','Virtual waiting room / queue for spikes','A cache as the source of truth'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['browsing seats','contention on popular seats / hot DB rows at on-sale','payment','email confirmation'],a:1,why:'Everyone grabs the same seats at 10:00 — hot rows. Shed load with a waiting-room queue.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Optimistic CAS on seat status + a hold TTL that auto-releases abandoned holds; the confirm is conditional (only if still HELD by you). Add a hold_version/fencing token if a stale client can resume and retry.','Waiting-room queue to serialize/shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → TTL releases it back to AVAILABLE.']}

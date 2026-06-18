@@ -519,6 +519,24 @@ a{color:var(--accent);text-decoration:none}
           <p>One leader takes all writes and propagates them to followers via a replication log. Reads can go to followers — potentially stale — or to the leader for a consistent read.</p>
           <p><strong>Sync vs async:</strong> Synchronous means the leader waits for at least one follower to acknowledge before confirming the write — more durable, but write latency roughly doubles. Asynchronous means the leader replies immediately and replicates in the background — fast, but if the leader crashes before a follower catches up, those writes are lost.</p>
           <p><strong>The sneaky lag issues:</strong> read-after-write inconsistency (you write to the leader but immediately read from a lagging follower, so you don't see your own write); monotonic read violations (two reads hit different followers at different lag points — time seems to go backwards); causality violations across clients. These are the bugs that are hard to reproduce in testing but very real in production.</p>
+          <div class="rlv" onclick="event.stopPropagation()">
+<style>
+.rlv{display:grid;gap:10px;margin:.75rem 0}
+.rlv-line{display:grid;grid-template-columns:112px 1fr;gap:9px;align-items:center}
+.rlv-name{font-size:12px;font-weight:700;color:var(--color-text-secondary);line-height:1.3}
+.rlv-events{display:flex;gap:6px;flex-wrap:wrap}
+.rlv-pill{border:2px solid var(--color-border-tertiary);background:var(--color-background-secondary);border-radius:9px;padding:7px 9px;font-size:12px;font-weight:700;color:var(--color-text-secondary)}
+.rlv-pill.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.rlv-pill.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.rlv-pill.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.rlv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.rlv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="rlv-line"><div class="rlv-name">Read-your-writes</div><div class="rlv-events"><span class="rlv-pill good">write profile v2</span><span class="rlv-pill bad">read follower v1</span><span class="rlv-pill info">fix: leader/home reads</span></div></div>
+            <div class="rlv-line"><div class="rlv-name">Monotonic reads</div><div class="rlv-events"><span class="rlv-pill good">read F1: v5</span><span class="rlv-pill bad">read F2: v3</span><span class="rlv-pill info">fix: sticky replica</span></div></div>
+            <div class="rlv-line"><div class="rlv-name">Consistent prefix</div><div class="rlv-events"><span class="rlv-pill bad">reply first</span><span class="rlv-pill">question later</span><span class="rlv-pill info">fix: causal order</span></div></div>
+            <div class="rlv-cap"><b>Async lag creates different user-visible bugs.</b> Route personal reads to a fresh source, keep a session on one replica, and preserve causal order when related writes replicate.</div>
+          </div>
           <div class="code">Leader  &rarr;  Follower 1 (sync)
         &rarr;  Follower 2 (async)
         &rarr;  Follower 3 (async)</div>
@@ -541,17 +559,30 @@ a{color:var(--accent);text-decoration:none}
         <div class="card-header"><div class="card-meta"><div class="card-title">Leaderless replication</div><div class="card-sub">Quorum reads and writes</div></div><span class="badge badge-teal">AP-friendly</span></div>
         <div class="card-body">
           <p>Any replica can accept writes. Use quorums: W + R &gt; N ensures at least one node with the latest write is always in the read set.</p>
-          <div class="code">N=3 replicas:   Node1    Node2    Node3
-
-Write (W=2):    write ──→ [Node1] [Node2]   (Node3 not written yet)
-Read  (R=2):              [Node2] [Node3] ←── read
-                              ↑
-                       overlap! Node2 has the latest write.
-
-W + R = 4 &gt; N = 3  →  guaranteed at least 1 node overlaps
-
-What if W=1, R=1? → W+R=2, not &gt; 3 → no overlap guaranteed
-  write hits Node1, read hits Node3 → stale read possible</div>
+          <div class="qov" onclick="event.stopPropagation()">
+<style>
+.qov{display:grid;gap:11px;margin:.75rem 0}
+.qov-row{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center}
+.qov-lbl{font-size:12px;font-weight:600;color:var(--color-text-secondary);line-height:1.35}
+.qov-nodes{display:flex;gap:8px;flex-wrap:wrap}
+.qov-node{width:48px;height:48px;border-radius:10px;background:var(--color-background-secondary);border:2px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--color-text-tertiary)}
+.qov-node.w{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.qov-node.r{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.qov-node.both{background:linear-gradient(135deg,var(--color-background-success) 0 50%,var(--color-background-info) 50%);border-color:var(--color-text-primary);color:var(--color-text-primary)}
+.qov-node.hint{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.qov-node.stale{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.qov-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.qov-cap b{color:var(--color-text-primary)}
+.qov-cap.bad{background:var(--color-background-danger);color:var(--color-text-danger)}
+.qov-cap.bad b{color:var(--color-text-danger)}
+</style>
+            <div class="qov-row"><div class="qov-lbl">Strict quorum<br>N=3 W=2 R=2</div><div class="qov-nodes"><span class="qov-node both">A</span><span class="qov-node w">B</span><span class="qov-node r">C</span></div></div>
+            <div class="qov-cap"><b>A is in both sets.</b> Since W+R=4>N=3, the write set and read set cannot be disjoint.</div>
+            <div class="qov-row"><div class="qov-lbl">Too weak<br>N=3 W=1 R=1</div><div class="qov-nodes"><span class="qov-node w">A</span><span class="qov-node">B</span><span class="qov-node stale">C</span></div></div>
+            <div class="qov-cap bad"><b>No overlap is guaranteed.</b> The write can land on A while the read hits C, so the read can be stale.</div>
+            <div class="qov-row"><div class="qov-lbl">Sloppy quorum</div><div class="qov-nodes"><span class="qov-node w">A</span><span class="qov-node hint">H</span><span class="qov-node r">B</span><span class="qov-node r">C</span></div></div>
+            <div class="qov-cap"><b>H is a stand-in.</b> Availability improves during a partition, but home reads can miss the write until hinted handoff finishes.</div>
+          </div>
           <p><strong>Sloppy quorum:</strong> during a partition, accept writes on non-home nodes to stay available. The write is stored with a hint indicating which home node it belongs to. When the home node recovers, the write is handed off — this is hinted handoff.</p>
           <p>Sloppy quorum breaks the W+R&gt;N guarantee — reads may be stale until hinted handoff completes. A conscious AP tradeoff.</p>
           <div class="tag-row"><span class="tag">Dynamo paper</span><span class="tag">Cassandra</span><span class="tag">Riak</span><span class="tag">version vectors</span></div>
@@ -562,8 +593,23 @@ What if W=1, R=1? → W+R=2, not &gt; 3 → no overlap guaranteed
         <div class="card-header"><div class="card-meta"><div class="card-title">Chain replication</div><div class="card-sub">Ordered chain: strong consistency + throughput</div></div><span class="badge badge-purple">Internals</span></div>
         <div class="card-body">
           <p>The idea: replicas form an ordered chain, and writes flow one direction through it. All writes go to the head, propagate node by node, and only get acknowledged once the tail confirms. All reads go to the tail. Because the tail only sees fully-propagated writes, reads are linearizable.</p>
-          <div class="code">Write &rarr; HEAD &rarr; node &rarr; node &rarr; TAIL &rarr; ack
-Read  &rarr;                              TAIL</div>
+          <div class="crv" onclick="event.stopPropagation()">
+<style>
+.crv{display:grid;gap:10px;margin:.75rem 0}
+.crv-chain{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.crv-node{min-width:70px;border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.crv-node.head{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.crv-node.tail{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.crv-node.dirty{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.crv-n{font-size:13px;font-weight:800}
+.crv-s{font-size:10.5px;font-weight:700;margin-top:3px}
+.crv-arr{font-size:20px;font-weight:800;color:var(--color-text-tertiary)}
+.crv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.crv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="crv-chain"><div class="crv-node head"><div class="crv-n">HEAD</div><div class="crv-s">writes enter</div></div><div class="crv-arr">→</div><div class="crv-node dirty"><div class="crv-n">MIDDLE</div><div class="crv-s">may be dirty</div></div><div class="crv-arr">→</div><div class="crv-node tail"><div class="crv-n">TAIL</div><div class="crv-s">acked writes</div></div></div>
+            <div class="crv-cap"><b>Plain chain:</b> ack only after the tail has the write; linearizable reads go to the tail. <b>CRAQ:</b> clean nodes answer reads directly; dirty nodes ask the tail for the committed value.</div>
+          </div>
           <p>This naturally splits load: the head handles write ingestion, the tail handles reads — better throughput than routing everything through one leader. Failure recovery is clean too — head, tail, and middle nodes each have a well-defined recovery rule. The downside: a node failure stalls the whole chain until a separate control plane reconfigures it.</p>
           <p><strong>CRAQ</strong> (Chain Replication with Apportioned Queries) extends this so any node can serve reads. A clean node answers directly; a dirty node asks the tail for the committed version. You get read scaling without sacrificing linearizability.</p>
           <div class="tag-row"><span class="tag">van Renesse &amp; Schneider 2004</span><span class="tag">CRAQ</span><span class="tag">object storage</span></div>
@@ -587,10 +633,26 @@ Read  &rarr;                              TAIL</div>
         <div class="card-body">
           <p>Anti-entropy is a background process that continuously compares replicas and syncs any differences. It ensures eventual convergence even for keys that nobody is actively reading — as opposed to read repair, which only fixes things when a read happens to trigger a comparison.</p>
           <p><strong>Merkle trees</strong> make this efficient. Hash each key+value at the leaves, then hash upward so each parent hashes its children. To compare two replicas, just compare root hashes. If they match, done — the replicas are identical. If not, descend the tree to pinpoint exactly which key range diverged and sync only that. That's O(log N) to find the divergence instead of O(N) comparing everything.</p>
-          <div class="code">leaf hash = hash(key + value + timestamp)
-           &uarr; must include value/version —
-             hashing just the key is useless
-             (all replicas have the same keys)</div>
+          <div class="mkv" onclick="event.stopPropagation()">
+<style>
+.mkv{display:grid;gap:11px;margin:.75rem 0}
+.mkv-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mkv-tree{background:var(--color-background-secondary);border:2px solid var(--color-border-tertiary);border-radius:10px;padding:12px}
+.mkv-title{font-size:12px;font-weight:700;color:var(--color-text-primary);margin-bottom:9px}
+.mkv-row{display:flex;justify-content:center;gap:7px;margin:6px 0;flex-wrap:wrap}
+.mkv-h{font-family:var(--font-mono);font-size:11px;font-weight:700;border-radius:7px;padding:5px 8px;background:#fff;border:1.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.mkv-h.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.mkv-h.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.mkv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.mkv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.mkv-pair{grid-template-columns:1fr}}
+</style>
+            <div class="mkv-pair">
+              <div class="mkv-tree"><div class="mkv-title">Replica A</div><div class="mkv-row"><span class="mkv-h bad">root X</span></div><div class="mkv-row"><span class="mkv-h good">left A1</span><span class="mkv-h bad">right A2</span></div><div class="mkv-row"><span class="mkv-h good">k1</span><span class="mkv-h good">k2</span><span class="mkv-h bad">k3:v7</span><span class="mkv-h good">k4</span></div></div>
+              <div class="mkv-tree"><div class="mkv-title">Replica B</div><div class="mkv-row"><span class="mkv-h bad">root Y</span></div><div class="mkv-row"><span class="mkv-h good">left A1</span><span class="mkv-h bad">right B2</span></div><div class="mkv-row"><span class="mkv-h good">k1</span><span class="mkv-h good">k2</span><span class="mkv-h bad">k3:v8</span><span class="mkv-h good">k4</span></div></div>
+            </div>
+            <div class="mkv-cap"><b>Equal hashes prune whole ranges.</b> The left subtree matches, so only the right subtree is checked. Leaf hashes must include key + value/version; hashing just keys would hide value drift.</div>
+          </div>
           <div class="tag-row"><span class="tag">Cassandra</span><span class="tag">Riak</span><span class="tag">read repair</span></div>
         </div>
       </div>
@@ -1446,6 +1508,24 @@ round 2: ~4 know
         <div class="card-header"><div class="card-meta"><div class="card-title">Kafka internals</div><div class="card-sub">Partitions, offsets, consumer groups, ISR</div></div><span class="badge badge-teal">Internals</span></div>
         <div class="card-body">
           <p><strong>Topics and partitions:</strong> a topic is split into partitions — each is an ordered, immutable log. Ordering is guaranteed only within a partition, not across them. The partition key (e.g. user_id) determines where a message lands, so all events for one user always go to the same partition and stay in order.</p>
+          <div class="kfv" onclick="event.stopPropagation()">
+<style>
+.kfv{display:grid;gap:10px;margin:.75rem 0}
+.kfv-row{display:grid;grid-template-columns:42px 1fr 78px;gap:8px;align-items:center}
+.kfv-p{font-size:12px;font-weight:700;color:var(--color-text-tertiary)}
+.kfv-log{display:flex;gap:5px;min-width:0;flex-wrap:wrap}
+.kfv-msg{min-width:28px;height:28px;border-radius:7px;background:var(--color-background-secondary);border:1.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--color-text-secondary)}
+.kfv-msg.hot{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.kfv-cons{font-size:11px;font-weight:700;color:#fff;background:var(--color-text-info);border-radius:9px;padding:6px 8px;text-align:center}
+.kfv-cons.idle{background:var(--color-border-primary);color:var(--color-text-secondary)}
+.kfv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.kfv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="kfv-row"><div class="kfv-p">P0</div><div class="kfv-log"><span class="kfv-msg hot">u7:0</span><span class="kfv-msg hot">u7:1</span><span class="kfv-msg hot">u7:2</span><span class="kfv-msg">u7:3</span></div><div class="kfv-cons">C1<br>offset 3</div></div>
+            <div class="kfv-row"><div class="kfv-p">P1</div><div class="kfv-log"><span class="kfv-msg">u9:0</span><span class="kfv-msg">u9:1</span><span class="kfv-msg">u9:2</span></div><div class="kfv-cons">C2<br>offset 2</div></div>
+            <div class="kfv-row"><div class="kfv-p">P2</div><div class="kfv-log"><span class="kfv-msg">u4:0</span><span class="kfv-msg">u4:1</span></div><div class="kfv-cons idle">C3 idle</div></div>
+            <div class="kfv-cap"><b>Ordering is per partition.</b> All events for key u7 land in P0. Commit offsets after processing for at-least-once; commit before processing for at-most-once.</div>
+          </div>
           <div class="kcg-root" id="kcgViz" onclick="event.stopPropagation()">
 <style>
 .kcg-root{margin:.6rem 0}
@@ -1509,6 +1589,29 @@ round 2: ~4 know
   INSERT INTO outbox (event) VALUES (...)
 COMMIT
 &rarr; relay/CDC tails the outbox &rarr; publish to Kafka</div>
+          <div class="obv" onclick="event.stopPropagation()">
+<style>
+.obv{display:grid;gap:10px;margin:.75rem 0}
+.obv-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:7px;align-items:center}
+.obv-box{min-height:66px;border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:9px;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.obv-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.obv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning)}
+.obv-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.obv-s{font-size:11px;font-weight:600;color:var(--color-text-secondary);line-height:1.35}
+.obv-arr{text-align:center;color:var(--color-text-tertiary);font-size:22px;font-weight:800}
+.obv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.obv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.obv-flow{grid-template-columns:1fr}.obv-arr{transform:rotate(90deg)}}
+</style>
+            <div class="obv-flow">
+              <div class="obv-box good"><div class="obv-t">1. Local DB txn</div><div class="obv-s">business row<br>+ outbox row</div></div>
+              <div class="obv-arr">→</div>
+              <div class="obv-box warn"><div class="obv-t">2. Relay / CDC</div><div class="obv-s">poll outbox<br>or tail WAL</div></div>
+              <div class="obv-arr">→</div>
+              <div class="obv-box"><div class="obv-t">3. Broker</div><div class="obv-s">publish event<br>retry safely</div></div>
+            </div>
+            <div class="obv-cap"><b>If the service crashes after commit, the event is not lost.</b> The outbox row remains in the DB for the relay to publish later.</div>
+          </div>
           <p><strong>CDC (Change Data Capture):</strong> tools like Debezium tail the DB's WAL/binlog and emit a change stream — often used <em>as</em> the relay, or to turn a DB into an event source without app changes. Delivery is at-least-once, so consumers must dedupe.</p>
           <div class="tag-row"><span class="tag">Debezium</span><span class="tag">no distributed txn needed</span><span class="tag">at-least-once</span></div>
         </div>
@@ -1623,6 +1726,25 @@ COMMIT
         <div class="card-header"><div class="card-meta"><div class="card-title">Cache stampede (thundering herd)</div><div class="card-sub">When a popular key expires</div></div><span class="badge badge-red">Failure mode</span></div>
         <div class="card-body">
           <p>When a popular cached key expires, thousands of concurrent requests miss the cache simultaneously and all hit the database — potentially crashing it before the cache is repopulated.</p>
+          <div class="csv" onclick="event.stopPropagation()">
+<style>
+.csv{display:grid;gap:10px;margin:.75rem 0}
+.csv-lane{display:grid;grid-template-columns:76px 1fr 84px;gap:8px;align-items:center}
+.csv-l{font-size:12px;font-weight:700;color:var(--color-text-tertiary)}
+.csv-reqs{display:flex;gap:4px;flex-wrap:wrap}
+.csv-dot{width:22px;height:22px;border-radius:50%;background:var(--color-background-info);border:1.5px solid var(--color-border-info)}
+.csv-dot.bad{background:var(--color-background-danger);border-color:var(--color-text-danger)}
+.csv-dot.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.csv-target{border-radius:10px;padding:9px 10px;text-align:center;font-size:12px;font-weight:700}
+.csv-target.bad{background:var(--color-background-danger);color:var(--color-text-danger)}
+.csv-target.good{background:var(--color-background-success);color:var(--color-text-success)}
+.csv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.csv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="csv-lane"><div class="csv-l">No guard</div><div class="csv-reqs"><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span></div><div class="csv-target bad">DB storm</div></div>
+            <div class="csv-lane"><div class="csv-l">Mutex</div><div class="csv-reqs"><span class="csv-dot good"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span></div><div class="csv-target good">1 rebuild</div></div>
+            <div class="csv-cap"><b>Singleflight/mutex collapses the herd.</b> One request rebuilds; the rest wait or serve stale. Jittered TTLs and stale-while-revalidate reduce the chance of the herd forming.</div>
+          </div>
           <p><strong>Solutions:</strong></p>
           <p><strong>Mutex lock:</strong> only the first request to miss fetches from DB; all others wait on a lock. Adds latency for waiters, but prevents DB overload.</p>
           <p><strong>Probabilistic early expiration (PER):</strong> before the TTL expires, randomly decide to refresh early based on remaining TTL and fetch cost. Smoothly pre-warms the cache.</p>
@@ -1892,6 +2014,25 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
           <p><strong>Centralized store (Redis):</strong> all nodes increment a shared counter (atomic <code>INCR</code>/Lua script, or a token-bucket Lua). Accurate, but adds a network hop and makes Redis a hotspot/SPOF. Use local pre-checks + async sync to reduce load.</p>
           <p><strong>Local + quota distribution:</strong> a coordinator hands each node a slice of the global budget; nodes enforce locally and periodically rebalance. Lower latency, approximate, resilient — the approach behind large-scale limiters.</p>
           <p><strong>Sticky routing:</strong> route a given key (user/API token) consistently to one node so its counter is authoritative — turns a distributed problem into a local one.</p>
+          <div class="drv" onclick="event.stopPropagation()">
+<style>
+.drv{display:grid;gap:10px;margin:.75rem 0}
+.drv-row{display:grid;grid-template-columns:108px 1fr;gap:9px;align-items:center}
+.drv-l{font-size:12px;font-weight:700;color:var(--color-text-secondary);line-height:1.3}
+.drv-boxes{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.drv-box{border:2px solid var(--color-border-tertiary);border-radius:10px;background:var(--color-background-secondary);padding:8px 10px;font-size:12px;font-weight:700;color:var(--color-text-secondary);text-align:center}
+.drv-box.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.drv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.drv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.drv-arr{font-size:18px;font-weight:800;color:var(--color-text-tertiary)}
+.drv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.drv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="drv-row"><div class="drv-l">Wrong: per-node</div><div class="drv-boxes"><span class="drv-box bad">GW1<br>100</span><span class="drv-box bad">GW2<br>100</span><span class="drv-box bad">GW3<br>100</span><span class="drv-arr">=</span><span class="drv-box bad">300 total</span></div></div>
+            <div class="drv-row"><div class="drv-l">Accurate: Redis</div><div class="drv-boxes"><span class="drv-box">GW1</span><span class="drv-box">GW2</span><span class="drv-box">GW3</span><span class="drv-arr">→</span><span class="drv-box info">shared Lua<br>100 global</span></div></div>
+            <div class="drv-row"><div class="drv-l">Fast: quotas</div><div class="drv-boxes"><span class="drv-box good">GW1<br>35</span><span class="drv-box good">GW2<br>35</span><span class="drv-box good">GW3<br>30</span><span class="drv-arr">←</span><span class="drv-box info">budget<br>100</span></div></div>
+            <div class="drv-cap"><b>Redis is exact but a hop and hotspot.</b> Quotas are local and resilient, but approximate and need periodic rebalance.</div>
+          </div>
           <div class="note"><strong>Always return the right signals:</strong> respond <code>429 Too Many Requests</code> with a <code>Retry-After</code> header and rate-limit headers (limit/remaining/reset). And rate-limit at the edge/API gateway before requests reach expensive backends.</div>
           <div class="tag-row"><span class="tag">Redis INCR + TTL</span><span class="tag">quota distribution</span><span class="tag">429 + Retry-After</span></div>
         </div>
@@ -2177,6 +2318,22 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
           <p><strong>1. Exponential backoff:</strong> wait 1s, 2s, 4s, 8s… so you back off as the dependency struggles, instead of pounding it.</p>
           <p><strong>2. Jitter:</strong> add randomness to each delay. Without it, all clients that failed together retry together — a synchronized <em>retry storm</em> / thundering herd. <code>sleep = random(0, base * 2^attempt)</code> (AWS "full jitter").</p>
           <p><strong>3. Only retry idempotent/retryable errors</strong>, cap attempts, and use a <em>retry budget</em> (e.g. retries ≤ 10% of requests) so retries can't more than fractionally add to load.</p>
+          <div class="rjv" onclick="event.stopPropagation()">
+<style>
+.rjv{display:grid;gap:10px;margin:.75rem 0}
+.rjv-row{display:grid;grid-template-columns:86px 1fr;gap:9px;align-items:center}
+.rjv-l{font-size:12px;font-weight:700;color:var(--color-text-secondary)}
+.rjv-track{height:44px;border-radius:10px;background:var(--color-background-secondary);border:1.5px solid var(--color-border-tertiary);position:relative;overflow:hidden}
+.rjv-dot{position:absolute;top:10px;width:22px;height:22px;border-radius:50%;background:var(--color-background-danger);border:2px solid var(--color-text-danger)}
+.rjv-dot.ok{background:var(--color-background-success);border-color:var(--color-border-success)}
+.rjv-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--color-border-tertiary)}
+.rjv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.rjv-cap b{color:var(--color-text-primary)}
+</style>
+            <div class="rjv-row"><div class="rjv-l">No jitter</div><div class="rjv-track"><span class="rjv-tick" style="left:25%"></span><span class="rjv-tick" style="left:50%"></span><span class="rjv-tick" style="left:75%"></span><span class="rjv-dot" style="left:48%"></span><span class="rjv-dot" style="left:50%"></span><span class="rjv-dot" style="left:52%"></span><span class="rjv-dot" style="left:54%"></span></div></div>
+            <div class="rjv-row"><div class="rjv-l">Full jitter</div><div class="rjv-track"><span class="rjv-tick" style="left:25%"></span><span class="rjv-tick" style="left:50%"></span><span class="rjv-tick" style="left:75%"></span><span class="rjv-dot ok" style="left:18%"></span><span class="rjv-dot ok" style="left:35%"></span><span class="rjv-dot ok" style="left:62%"></span><span class="rjv-dot ok" style="left:80%"></span></div></div>
+            <div class="rjv-cap"><b>Backoff without jitter synchronizes clients.</b> Full jitter picks a random delay inside the backoff window, spreading retries across time.</div>
+          </div>
           <div class="note warn"><strong>Retry amplification:</strong> if every layer retries 3&times;, a 3-layer call stack can multiply one user request into 27 backend calls during an incident. Retry at one layer, fail fast at the others.</div>
           <div class="tag-row"><span class="tag">full jitter</span><span class="tag">retry budget</span><span class="tag">idempotent only</span></div>
         </div>
@@ -2802,8 +2959,8 @@ Processing time = when the stream processor sees the event
           <p><strong>ETL (Extract-Transform-Load):</strong> extract from source, transform (clean, join, aggregate), then load structured results into a warehouse. Classic approach — data arrives ready to query. Good when transformations are expensive or data must be sanitized before storage.</p>
           <p><strong>ELT (Extract-Load-Transform):</strong> load raw data into the warehouse first, transform there with SQL. Modern default with cheap columnar storage (BigQuery, Snowflake, Redshift) — raw data is cheap to keep, and the warehouse can transform on-demand. Enables re-running transformations on raw data without re-ingesting from the source.</p>
           <p><strong>CDC as a pipeline:</strong> Debezium tails the WAL &rarr; publishes change events to Kafka &rarr; stream processor or batch job writes to a warehouse or data lake. Enables near-real-time analytics on operational data without adding load to the production DB or introducing dual writes.</p>
-          <p><strong>Data lake vs data warehouse vs lakehouse:</strong> warehouse = structured, SQL, optimized for analytics (Snowflake, BigQuery); data lake = raw files in object storage (S3/GCS), schema-on-read, cheap, heterogeneous formats; lakehouse = open table formats (Delta Lake, Apache Iceberg, Hudi) that layer ACID transactions and schema management on top of a data lake.</p>
-          <div class="tag-row"><span class="tag">ELT = modern default</span><span class="tag">CDC &rarr; Kafka &rarr; warehouse</span><span class="tag">lakehouse = Delta / Iceberg</span></div>
+          <p><strong>Warehouse vs data lake:</strong> a <em>warehouse</em> is structured and SQL-optimized for analytics (Snowflake, BigQuery); a <em>data lake</em> is cheap raw files in object storage (S3/GCS), schema-on-read. <em>("Lakehouse" — Delta/Iceberg — just layers ACID + schema on a lake; recognize the term, don't dwell on it.)</em></p>
+          <div class="tag-row"><span class="tag">ELT = modern default</span><span class="tag">CDC &rarr; Kafka &rarr; warehouse</span><span class="tag">warehouse = SQL · lake = raw/cheap</span></div>
         </div>
       </div>
 
@@ -3050,6 +3207,24 @@ tweets(tweet_id PK /* Snowflake = time-sortable */, author_id, text, created_at)
 follows(follower_id, followee_id, PRIMARY KEY(follower_id, followee_id))
         + secondary index on (followee_id)  -- "who follows X?"</div>
         <p><strong>Timeline access:</strong> "tweets from everyone I follow, newest first." Naive = look up follows, then scatter-gather their tweets → slow at read time.</p>
+        <div class="ffv" onclick="event.stopPropagation()">
+<style>
+.ffv{display:grid;gap:10px;margin:.75rem 0}
+.ffv-flow{display:grid;grid-template-columns:1fr 34px 1fr;gap:8px;align-items:center}
+.ffv-box{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.ffv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.ffv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.ffv-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.ffv-s{font-size:11px;font-weight:700;line-height:1.35;margin-top:4px}
+.ffv-arr{text-align:center;font-size:22px;font-weight:800;color:var(--color-text-tertiary)}
+.ffv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.ffv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.ffv-flow{grid-template-columns:1fr}.ffv-arr{transform:rotate(90deg)}}
+</style>
+          <div class="ffv-flow"><div class="ffv-box good"><div class="ffv-t">Normal author posts</div><div class="ffv-s">push tweet id into follower timeline caches</div></div><div class="ffv-arr">→</div><div class="ffv-box good"><div class="ffv-t">Feed read</div><div class="ffv-s">single cached timeline lookup</div></div></div>
+          <div class="ffv-flow"><div class="ffv-box warn"><div class="ffv-t">Celebrity posts</div><div class="ffv-s">do not write 50M timelines</div></div><div class="ffv-arr">→</div><div class="ffv-box warn"><div class="ffv-t">Read-time merge</div><div class="ffv-s">merge celebrity ids into feed on read</div></div></div>
+          <div class="ffv-cap"><b>Hybrid fanout</b> keeps ordinary reads cheap while avoiding the celebrity write explosion.</div>
+        </div>
         <p><strong>Fix:</strong> <strong>fanout-on-write</strong> — on each post, append the tweet id to every follower's precomputed timeline (cache or timeline table). Reads become a single lookup. For <strong>celebrities</strong>, 1 post → 50M writes is too expensive, so use a <strong>hybrid</strong>: don't fan out celebrity tweets; merge them in at read time. A time-sortable <code>tweet_id</code> gives ordering for free.</p>
       </div>
     </div>
@@ -3068,6 +3243,23 @@ UPDATE seats SET status='HELD', held_by=:u,
        hold_expires_at=now()+'10 min', version=version+1
 WHERE seat_id=:s AND status='AVAILABLE';
 -- 0 rows affected => someone beat you to it</div>
+        <div class="sbv" onclick="event.stopPropagation()">
+<style>
+.sbv{display:grid;gap:10px;margin:.75rem 0}
+.sbv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.sbv-state{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px 12px;text-align:center;min-width:92px}
+.sbv-state.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.sbv-state.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.sbv-state.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.sbv-t{font-size:13px;font-weight:700}
+.sbv-s{font-size:10.5px;font-weight:700;margin-top:3px}
+.sbv-arr{font-size:20px;font-weight:800;color:var(--color-text-tertiary)}
+.sbv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.sbv-cap b{color:var(--color-text-primary)}
+</style>
+          <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">status check</div></div><div class="sbv-arr">CAS hold</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">held_by + TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">final owner</div></div></div>
+          <div class="sbv-cap"><b>Hold and confirm are conditional writes.</b> Expired holds release back to AVAILABLE; version/fencing prevents stale clients from confirming an old hold.</div>
+        </div>
         <p><strong>Why it works:</strong> the conditional <code>WHERE status='AVAILABLE'</code> makes the hold atomic in a single DB — no distributed lock needed. A background sweep (or lazy check) returns expired holds to <code>AVAILABLE</code> using <code>hold_expires_at</code> (a fencing-style expiry). Confirm flips <code>HELD→BOOKED</code> only if <code>held_by</code> matches and the hold hasn't expired. Lean on the database's atomicity before reaching for anything distributed.</p>
       </div>
     </div>
