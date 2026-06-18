@@ -1750,7 +1750,7 @@ const UNITS=[
      {k:'point',i:'🍪',t:'<b>Session token</b>: server issues an opaque token, stored in DB/Redis, looked up each request. Instantly revocable; costs a lookup. Best for server-rendered web apps.'},
      {k:'point',i:'🎫',t:'<b>JWT</b>: self-contained signed claims — verify the signature, no DB lookup (stateless). Can\'t revoke before expiry → short TTL + refresh token.'},
      {k:'point',i:'🔑',t:'<b>API key</b>: long-lived random string for server-to-server / B2B. No user context. Store only a <b>hash</b>; show the raw key once, revoke by deleting the hash.'},
-     {k:'point',i:'🤝',t:'<b>OAuth 2.0 / OIDC</b>: delegation — let a third-party app act for a user without their password. Auth-Code + PKCE (apps), Client-Credentials (machine). Short access + long refresh tokens.'}
+     {k:'point',i:'🤝',t:'<b>OAuth 2.0 / OIDC</b>: delegation — let a third-party app act for a user with <b>scoped</b> access, without their password. Issues short-lived access tokens + a long-lived refresh token.'}
    ]},
    {t:'match',q:'Auth method → when to use it.',pairs:[
      ['Server-rendered web app, instant logout/revoke','Session token (Redis)'],
