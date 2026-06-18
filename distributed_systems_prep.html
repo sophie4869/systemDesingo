@@ -2208,7 +2208,52 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
         <div class="card-body">
           <p><strong>The three pillars:</strong> metrics (cheap aggregate time-series — rates, latencies, saturation — good for dashboards and alerts); logs (discrete events with rich detail — expensive at volume, but essential for debugging); traces (one request's path across all services, with timing per hop — essential in microservices for finding where the latency actually is).</p>
           <p><strong>What to alert on</strong> — pick a framework and stick to it:</p>
-          <p><strong>Four Golden Signals (Google SRE):</strong> Latency, Traffic, Errors, Saturation. <strong>RED</strong> (for request-driven services): Rate, Errors, Duration. <strong>USE</strong> (for resources): Utilization, Saturation, Errors.</p>
+          <div class="obsf-wrap" onclick="event.stopPropagation()" style="margin:14px 0;">
+          <style>
+            .obsf{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;font-family:inherit;margin:2px 0}
+            .obsf-col{display:grid;gap:9px;align-content:start}
+            .obsf-hd{padding:11px 8px;border-radius:11px;text-align:center;font-weight:800;font-size:13.5px;border:1.5px solid var(--bd);background:var(--bg);color:var(--c)}
+            .obsf-cap{text-align:center;color:var(--color-text-secondary);font-size:11.5px;font-weight:600;margin:-2px 0 2px}
+            .obsf-cell{min-height:54px;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:8px;border-radius:11px;border:1.5px solid var(--bd);background:var(--bg)}
+            .obsf-cell b{color:var(--c);font-size:13px;font-weight:800}
+            .obsf-cell span{color:var(--c);opacity:.82;font-weight:600;font-size:11px;margin-top:2px}
+            .obsf-fill{min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;border-radius:11px;border:1.5px dashed var(--color-border-primary);color:var(--color-text-secondary);font-size:11.5px;font-weight:600}
+            .obsf-foot{text-align:center;color:var(--color-text-secondary);font-size:11px;margin-top:3px}
+            .obsf-ind{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+            .obsf-grn{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+            .obsf-org{--c:#ea580c;--bg:#fff7ed;--bd:#fed7aa}
+            @media(max-width:640px){.obsf{grid-template-columns:1fr}.obsf-fill{display:none}.obsf-foot{margin-bottom:6px}}
+          </style>
+          <div class="obsf">
+            <div class="obsf-col obsf-ind">
+              <div class="obsf-hd">Four golden signals</div>
+              <div class="obsf-cap">Any service · Google SRE</div>
+              <div class="obsf-cell"><b>Latency</b><span>How long requests take</span></div>
+              <div class="obsf-cell"><b>Traffic</b><span>Demand on the system</span></div>
+              <div class="obsf-cell"><b>Errors</b><span>Failure rate of requests</span></div>
+              <div class="obsf-cell"><b>Saturation</b><span>How "full" the service is</span></div>
+              <div class="obsf-foot">Broadest coverage</div>
+            </div>
+            <div class="obsf-col obsf-grn">
+              <div class="obsf-hd">RED</div>
+              <div class="obsf-cap">Request-driven services</div>
+              <div class="obsf-cell"><b>Rate</b><span>Requests per second</span></div>
+              <div class="obsf-cell"><b>Errors</b><span>Failed request rate</span></div>
+              <div class="obsf-cell"><b>Duration</b><span>Latency distribution</span></div>
+              <div class="obsf-fill">3 signals only</div>
+              <div class="obsf-foot">APIs &amp; microservices</div>
+            </div>
+            <div class="obsf-col obsf-org">
+              <div class="obsf-hd">USE</div>
+              <div class="obsf-cap">Infrastructure resources</div>
+              <div class="obsf-cell"><b>Utilization</b><span>% of capacity in use</span></div>
+              <div class="obsf-cell"><b>Saturation</b><span>Queue / overflow depth</span></div>
+              <div class="obsf-cell"><b>Errors</b><span>Error events on resource</span></div>
+              <div class="obsf-fill">3 signals only</div>
+              <div class="obsf-foot">CPUs, disks, queues</div>
+            </div>
+          </div>
+          </div>
           <div class="note"><strong>Always measure tail latency, not averages:</strong> p99 and p99.9 are what users actually feel — averages hide the slow requests. And at scale, when a single request fans out to many backends, the overall latency is governed by the slowest one. Always quote percentiles in interviews.</div>
           <div class="tag-row"><span class="tag">RED / USE / Golden Signals</span><span class="tag">distributed tracing</span><span class="tag">p99 &gt; average</span></div>
         </div>

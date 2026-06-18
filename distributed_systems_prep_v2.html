@@ -2515,6 +2515,51 @@ const UNITS=[
      {k:'point',i:'🚦',t:'<b>RED</b> (Rate, Errors, Duration) for services; <b>USE</b> (Utilization, Saturation, Errors) for resources. Alert on SLO burn, not raw CPU.'},
      {k:'point',i:'🧵',t:'Propagate a <b>trace/correlation ID</b> through every hop so you can follow a single request end-to-end.'}
    ]},
+   {t:'htmlviz',h:'Golden signals · RED · USE',
+    html:`<style>
+      .obsf{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;font-family:inherit;margin:2px 0}
+      .obsf-col{display:grid;gap:9px;align-content:start}
+      .obsf-hd{padding:11px 8px;border-radius:11px;text-align:center;font-weight:800;font-size:13.5px;border:1.5px solid var(--bd);background:var(--bg);color:var(--c)}
+      .obsf-cap{text-align:center;color:var(--color-text-secondary);font-size:11.5px;font-weight:600;margin:-2px 0 2px}
+      .obsf-cell{min-height:54px;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:8px;border-radius:11px;border:1.5px solid var(--bd);background:var(--bg)}
+      .obsf-cell b{color:var(--c);font-size:13px;font-weight:800}
+      .obsf-cell span{color:var(--c);opacity:.82;font-weight:600;font-size:11px;margin-top:2px}
+      .obsf-fill{min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;border-radius:11px;border:1.5px dashed var(--color-border-primary);color:var(--color-text-secondary);font-size:11.5px;font-weight:600}
+      .obsf-foot{text-align:center;color:var(--color-text-secondary);font-size:11px;margin-top:3px}
+      .obsf-ind{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+      .obsf-grn{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+      .obsf-org{--c:#ea580c;--bg:#fff7ed;--bd:#fed7aa}
+      @media(max-width:640px){.obsf{grid-template-columns:1fr}.obsf-fill{display:none}.obsf-foot{margin-bottom:6px}}
+    </style>
+    <div class="obsf">
+      <div class="obsf-col obsf-ind">
+        <div class="obsf-hd">Four golden signals</div>
+        <div class="obsf-cap">Any service</div>
+        <div class="obsf-cell"><b>Latency</b><span>How long requests take</span></div>
+        <div class="obsf-cell"><b>Traffic</b><span>Demand on the system</span></div>
+        <div class="obsf-cell"><b>Errors</b><span>Failure rate of requests</span></div>
+        <div class="obsf-cell"><b>Saturation</b><span>How "full" the service is</span></div>
+        <div class="obsf-foot">Broadest coverage</div>
+      </div>
+      <div class="obsf-col obsf-grn">
+        <div class="obsf-hd">RED</div>
+        <div class="obsf-cap">Request-driven services</div>
+        <div class="obsf-cell"><b>Rate</b><span>Requests per second</span></div>
+        <div class="obsf-cell"><b>Errors</b><span>Failed request rate</span></div>
+        <div class="obsf-cell"><b>Duration</b><span>Latency distribution</span></div>
+        <div class="obsf-fill">3 signals only</div>
+        <div class="obsf-foot">APIs &amp; microservices</div>
+      </div>
+      <div class="obsf-col obsf-org">
+        <div class="obsf-hd">USE</div>
+        <div class="obsf-cap">Infrastructure resources</div>
+        <div class="obsf-cell"><b>Utilization</b><span>% of capacity in use</span></div>
+        <div class="obsf-cell"><b>Saturation</b><span>Queue / overflow depth</span></div>
+        <div class="obsf-cell"><b>Errors</b><span>Error events on resource</span></div>
+        <div class="obsf-fill">3 signals only</div>
+        <div class="obsf-foot">CPUs, disks, queues</div>
+      </div>
+    </div>`},
    {t:'match',q:'Observability — what is it?',pairs:[['Aggregate trends, dashboards & alerts','Metrics'],['Discrete events for debugging','Logs'],['One request across services','Traces'],['Rate · Errors · Duration (services)','RED'],['Utilization · Saturation · Errors (resources)','USE']]},
    {t:'mcq',q:'A bulkhead protects you by…',o:['retrying faster','isolating resource pools so one dependency can’t starve the rest','adding caches','sharding data'],a:1,why:'Separate pools per dependency contain failures — a hung dependency exhausts only its own pool.'},
    {t:'mcq',q:'Under overload, load shedding means…',o:['retry everything','drop/reject low-priority work to protect the core','scale to zero','ignore errors'],a:1,why:'Serving a subset cleanly beats collapsing under everything; shed early and by priority.'},
