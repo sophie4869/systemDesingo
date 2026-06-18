@@ -101,6 +101,12 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .act:active{transform:translateY(2px)}
 .act.hot{border-color:var(--red);color:var(--red-d);background:var(--red-bg)}
 .optrow{display:flex;align-items:center;gap:7px;margin:6px 18px 4px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
+.speedrow{display:flex;gap:10px;align-items:stretch;margin:8px 18px 4px}
+.speedbtn{flex:1;background:#F5ECFD;border-color:#A560E8;color:#7C3AED}
+.lenpicker{display:flex;gap:3px;align-items:center;background:#fff;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:4px}
+.lenpill{min-width:36px;padding:8px 0;border:none;border-radius:10px;background:transparent;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit}
+.lenpill.on{background:#A560E8;color:#fff}
+.bonusline{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:-10px 0 22px;font-size:13px;font-weight:800;color:var(--purple-d)}
 .optrow input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
 
 .unit{margin:8px 0 4px;scroll-margin-top:118px}
@@ -3557,9 +3563,30 @@ const UNITS=[
      {k:'point',i:'💥',t:'<b>Ignoring failure</b> — never saying what happens when the cache, a node, or the leader dies.'}
    ]},
    {t:'recall',q:'Name the non-functional requirements you should always probe.',model:['Consistency vs availability, scale (DAU/QPS/read:write), latency targets.','Durability, security/compliance, fault tolerance — quantify the top 3–5 that matter here.']}
+  ]},
+  {id:'fw-2',title:'Requirements & NFRs',steps:[
+   {t:'teach',h:'Functional vs non-functional',body:[
+     {k:'tldr',t:'Functional = WHAT it does (the top ~3 features). Non-functional = HOW WELL it must do them — scale, latency, consistency, durability. The architecture is mostly a response to the NFRs, so always quantify the 3–5 that matter here.'},
+     {k:'point',i:'✅',t:'<b>Functional (FR)</b>: user-facing actions — "post a tweet", "search products", "book a seat". Pick the top ~3; don’t enumerate every feature.'},
+     {k:'point',i:'📐',t:'<b>Non-functional (NFR)</b>: scale, latency, consistency vs availability, durability, security/compliance, fault tolerance.'},
+     {k:'callout',c:'warn',t:'"Make it scalable and fast" is not an NFR — it’s a wish. A real NFR carries a <b>number</b>: 100M DAU, 50k QPS peak, p99 &lt; 200ms, 99.99% uptime, zero data loss.'}
+   ]},
+   {t:'sort',q:'Functional or non-functional?',buckets:['Functional','Non-functional'],items:[
+     {text:'users can post a tweet',b:0},{text:'feed loads in < 200ms',b:1},{text:'follow another user',b:0},{text:'handle 100M daily users',b:1},{text:'search posts by keyword',b:0},{text:'survive a data-center outage',b:1}
+   ]},
+   {t:'mcq',q:'A candidate says "the system should be highly scalable." Why is that weak?',o:['scalability never matters','it isn’t quantified — no DAU/QPS/latency number to design against','you should never mention scale','it’s actually a functional requirement'],a:1,why:'An NFR only guides design once it has a number. "Scalable" → 100M DAU, 50k QPS peak, p99 < 200ms — those figures decide sharding, caching, and replication.'},
+   {t:'match',q:'NFR → how you pin it down with the interviewer.',pairs:[['Scale','DAU, peak QPS, read:write ratio'],['Latency','a p99 target in ms'],['Availability','how many 9s / tolerable downtime'],['Consistency','can a read be stale, or must it be exact?'],['Durability','is losing this data ever acceptable?']]},
+   {t:'mcq',q:'For a payments system, which NFR dominates?',o:['lowest possible latency above all','correctness / strong consistency — never double-charge or lose money','maximum availability even if inconsistent','a polished UI'],a:1,why:'Money systems put correctness and consistency above availability — better to reject a charge than double-charge. Contrast a social feed, where availability + eventual consistency win. The dominant NFR flips by product.'},
+   {t:'build',q:'Pick what makes a NON-functional requirement useful in an interview.',options:['A concrete number (DAU, QPS, p99)','The word "scalable"','States the consistency vs availability choice','"It should be fast"','Names a tolerable failure / downtime'],correct:[0,2,4]},
+   {t:'cloze',q:'Fill the requirements checklist.',distract:['features','colours'],text:[
+     'List the top ~3 ',{blank:'functional',alt:['FR','functional requirements']},' requirements (what it does), then quantify the ',{blank:'non-functional',alt:['NFR','non-functional requirements']},' ones — scale, ',{blank:'latency',alt:['p99','latency target']},', consistency vs availability, durability. Each needs a ',{blank:'number',alt:['metric','figure']},', not an adjective.'
+   ]},
+   {t:'recall',q:'Walk the requirements phase: what do you nail down before drawing any boxes?',model:['Top ~3 functional requirements — the core user actions, not an exhaustive list.','The NFRs that shape the design, each quantified: scale (DAU/QPS/read:write), latency (p99), consistency vs availability, durability, security/compliance.','Restate the scope back to the interviewer so you’re provably solving the right problem.']}
   ]}
  ],
  boss:{title:'Framework Boss',time:60,q:[
+   {q:'"Highly scalable" becomes a real NFR once you…',o:['add more servers','attach numbers (DAU, QPS, p99)','draw a diagram','pick NoSQL'],a:1},
+   {q:'For a payments system the dominant NFR is…',o:['lowest latency','correctness / strong consistency','max availability','UI polish'],a:1},
    {q:'Prioritise how many functional requirements?',o:['all of them','the top ~3','none','10+'],a:1},
    {q:'Current user should come from…',o:['request body','the auth token','a path param','user-typed input'],a:1},
    {q:'Capacity math is worth doing when…',o:['always','it changes the design','never','only at start'],a:1},
@@ -3593,10 +3620,55 @@ const UNITS=[
   ]},
   {id:'decide-2',title:'Which datastore?',steps:[
    {t:'teach',h:'Match data to store',body:[
-     {k:'tldr',t:'Pick by <b>access pattern + consistency need</b>, never by brand: relational (ACID/joins) · wide-column (write-heavy/time-series) · search (full-text) · graph (multi-hop) · columnar/OLAP (big aggregates over few columns, ≠ wide-column point access). Drill the fit below.'}
+     {k:'tldr',t:'Pick by <b>access pattern + consistency need</b>, never by brand:<br>· relational (ACID/joins; Spanner/CockroachDB scale it globally)<br>· key-value (cache/sessions)<br>· wide-column (write-heavy at scale; Cassandra, Bigtable)<br>· time-series (metrics, append-by-time; InfluxDB, Timescale)<br>· search (full-text)<br>· graph (multi-hop)<br>· columnar/OLAP (big aggregates over few columns, ≠ wide-column point access)<br>Drill the fit below.'}
    ]},
-   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres)'],['Write-heavy time-series','Wide-column (Cassandra)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)'],['Cache / sessions','Key-value (Redis)']]},
+   {t:'match',q:'Match the workload to its datastore.',pairs:[['ACID txns + joins','Relational (Postgres / Spanner)'],['Write-heavy at huge scale','Wide-column (Cassandra / Bigtable)'],['Metrics & events over time','Time-series (InfluxDB / Timescale)'],['Analytics: scan billions of rows, few columns','Columnar / OLAP (ClickHouse)'],['Full-text search','Elasticsearch'],['Multi-hop relationships','Graph (Neo4j)'],['Cache / sessions','Key-value (Redis)']]},
    {t:'mcq',q:'Dashboards aggregating billions of rows over just a few columns. Which store?',o:['relational (Postgres)','columnar / OLAP (ClickHouse, BigQuery)','key-value (Redis)','graph (Neo4j)'],a:1,why:'Columnar engines read only the needed columns and compress them well — built for big aggregates, unlike row stores or point-lookup KV/graph engines.'},
+   {t:'teach',h:'Why columnar compresses so well',body:[
+     {k:'tldr',t:'A row store keeps a whole row together; a columnar store keeps each column together. Because one column is a single type — and often repetitive — it compresses far harder, so a scan reads far fewer bytes off disk.'},
+     {k:'callout',c:'mem',t:'Don’t confuse with <b>wide-column</b> (Cassandra): that’s row-oriented per partition, tuned for fast point lookups/writes. <b>Columnar/OLAP</b> stores each column separately for big scans — the opposite optimization.'}
+   ]},
+   {t:'htmlviz',h:'How the encodings look',
+    html:`<style>
+.enc{display:grid;gap:12px}
+.enc-row{display:grid;gap:8px;padding:11px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary)}
+.enc-h{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.enc-flow{display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px}
+.enc-grp{display:grid;gap:4px}
+.enc-lbl{font-size:9.5px;font-weight:800;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.enc-col{display:flex;flex-wrap:wrap;gap:3px;align-items:center;max-width:260px}
+.enc-cell{font-family:ui-monospace,monospace;font-size:11px;font-weight:800;padding:3px 7px;border-radius:6px;border:1px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.enc-pair{font-family:ui-monospace,monospace;font-size:11.5px;font-weight:900;padding:4px 9px;border-radius:7px;border:1.5px solid}
+.enc-arr{align-self:center;font-size:16px;font-weight:900;color:var(--color-text-tertiary)}
+.enc-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.5;padding:9px 12px;background:var(--color-background-primary);border-radius:10px}
+.enc-cap b{color:var(--color-text-primary)}
+.enc-cap code,.enc-cell code{font-family:ui-monospace,monospace}
+.c0{background:var(--color-background-info);color:var(--color-text-info);border-color:var(--color-border-info)}
+.c1{background:var(--color-background-success);color:var(--color-text-success);border-color:var(--color-border-success)}
+.c2{background:var(--color-background-warning);color:var(--color-text-warning);border-color:var(--color-border-warning)}
+@media(max-width:520px){.enc-flow{flex-direction:column}.enc-arr{transform:rotate(90deg)}}
+</style>
+<div class="enc">
+  <div class="enc-row">
+    <div class="enc-h">🏃 Run-length encoding — best on a sorted / repetitive column</div>
+    <div class="enc-flow">
+      <div class="enc-grp"><div class="enc-lbl">raw column (9 rows)</div><div class="enc-col"><span class="enc-cell c0">US</span><span class="enc-cell c0">US</span><span class="enc-cell c0">US</span><span class="enc-cell c0">US</span><span class="enc-cell c1">FR</span><span class="enc-cell c1">FR</span><span class="enc-cell c1">FR</span><span class="enc-cell c2">DE</span><span class="enc-cell c2">DE</span></div></div>
+      <div class="enc-arr">→</div>
+      <div class="enc-grp"><div class="enc-lbl">stored as</div><div class="enc-col"><span class="enc-pair c0">US ×4</span><span class="enc-pair c1">FR ×3</span><span class="enc-pair c2">DE ×2</span></div></div>
+    </div>
+    <div class="enc-cap">9 values → <b>3 (value, count) pairs</b>. A million-row run of <code>"US"</code> collapses to a single pair.</div>
+  </div>
+  <div class="enc-row">
+    <div class="enc-h">📖 Dictionary encoding — best on low-cardinality strings</div>
+    <div class="enc-flow">
+      <div class="enc-grp"><div class="enc-lbl">raw column</div><div class="enc-col"><span class="enc-cell c0">active</span><span class="enc-cell c1">pending</span><span class="enc-cell c0">active</span><span class="enc-cell c2">closed</span><span class="enc-cell c0">active</span><span class="enc-cell c1">pending</span></div></div>
+      <div class="enc-arr">→</div>
+      <div class="enc-grp"><div class="enc-lbl">int codes + dictionary</div><div class="enc-col"><span class="enc-cell c0">0</span><span class="enc-cell c1">1</span><span class="enc-cell c0">0</span><span class="enc-cell c2">2</span><span class="enc-cell c0">0</span><span class="enc-cell c1">1</span></div><div class="enc-col" style="margin-top:2px"><span class="enc-pair c0">0=active</span><span class="enc-pair c1">1=pending</span><span class="enc-pair c2">2=closed</span></div></div>
+    </div>
+    <div class="enc-cap">Each string is stored <b>once</b> in the dictionary; the column becomes tiny <b>int codes</b> — smaller on disk and fast to scan &amp; aggregate.</div>
+  </div>
+</div>`},
+   {t:'mcq',q:'Why does columnar storage compress far better than row storage?',o:['it silently drops old data','each column is one often-repetitive type → run-length & dictionary encoding crush it','it just uses stronger gzip','the rows are encrypted'],a:1,why:'Storing a column together means a single type and lots of repetition: RLE collapses runs into value×count, and dictionary encoding maps low-cardinality strings to small int codes — so scans read far fewer bytes.'},
    {t:'sort',q:'Strong or eventual consistency?',buckets:['Strong','Eventual'],items:[
      {text:'account balance',b:0},{text:'like / view counts',b:1},{text:'inventory',b:0},{text:'search index',b:1}
    ]},
