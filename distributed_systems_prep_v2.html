@@ -2121,6 +2121,27 @@ const UNITS=[
      {k:'point',i:'🎲',t:'Fix 2: jittered TTLs so keys don’t all expire together.'},
      {k:'point',i:'♻️',t:'Fix 3: stale-while-revalidate — serve old, refresh in background.'}
    ]},
+   {t:'htmlviz',h:'Cache stampede — one expiry, many misses',
+    html:`<style>
+.csv{display:grid;gap:10px}
+.csv-lane{display:grid;grid-template-columns:70px 1fr 74px;gap:8px;align-items:center}
+.csv-l{font-size:12px;font-weight:900;color:var(--color-text-tertiary)}
+.csv-reqs{display:flex;gap:4px;flex-wrap:wrap}
+.csv-dot{width:22px;height:22px;border-radius:50%;background:var(--color-background-info);border:1.5px solid var(--color-border-info)}
+.csv-dot.bad{background:var(--color-background-danger);border-color:var(--color-text-danger)}
+.csv-dot.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.csv-target{border-radius:12px;padding:9px 10px;text-align:center;font-size:12px;font-weight:900}
+.csv-target.bad{background:var(--color-background-danger);color:var(--color-text-danger)}
+.csv-target.good{background:var(--color-background-success);color:var(--color-text-success)}
+.csv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.csv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="csv">
+  <div class="csv-lane"><div class="csv-l">No guard</div><div class="csv-reqs"><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span><span class="csv-dot bad"></span></div><div class="csv-target bad">DB storm</div></div>
+  <div class="csv-cap">A hot key expires. Every request misses at once, so the database gets the whole crowd before the cache is repopulated.</div>
+  <div class="csv-lane"><div class="csv-l">Mutex</div><div class="csv-reqs"><span class="csv-dot good"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span><span class="csv-dot"></span></div><div class="csv-target good">1 rebuild</div></div>
+  <div class="csv-cap"><b>Mutex or singleflight:</b> one request rebuilds the value; waiters reuse the result. Jittered TTLs prevent many keys expiring together, and stale-while-revalidate serves old data while refreshing in the background.</div>
+</div>`},
    {t:'teach',h:'Bloom filters',body:[
      {k:'tldr',t:'A tiny probabilistic set: answers "definitely NOT here" or "maybe here".'},
      {k:'point',i:'✅',t:'<b>No false negatives</b> — a "no" is certain; a "yes" might be wrong.'},
@@ -2569,6 +2590,32 @@ const UNITS=[
      {k:'cause',a:'A dependency starts failing/slow',b:'Breaker OPENS → fail fast, stop the cascade'},
      {k:'point',i:'🔁',t:'CLOSED → (too many fails) OPEN → (cooldown) HALF-OPEN → test → CLOSED/OPEN.'}
    ]},
+   {t:'htmlviz',h:'Circuit breaker — the state machine',
+    html:`<style>
+.cbv{display:grid;gap:10px}
+.cbv-states{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr;gap:6px;align-items:center}
+.cbv-state{border:2px solid var(--color-border-primary);border-radius:14px;padding:11px 8px;text-align:center;background:var(--color-background-secondary);min-height:70px}
+.cbv-state.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.cbv-state.bad{background:var(--color-background-danger);border-color:var(--color-text-danger);color:var(--color-text-danger)}
+.cbv-state.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.cbv-name{font-size:13px;font-weight:900}
+.cbv-sub{font-size:11px;font-weight:800;margin-top:4px;line-height:1.25}
+.cbv-arr{text-align:center;color:var(--color-text-tertiary);font-size:22px;font-weight:900}
+.cbv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.cbv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.cbv-states{grid-template-columns:1fr}.cbv-arr{transform:rotate(90deg)}}
+</style>
+<div class="cbv">
+  <div class="cbv-states">
+    <div class="cbv-state good"><div class="cbv-name">CLOSED</div><div class="cbv-sub">calls pass<br>count failures</div></div>
+    <div class="cbv-arr">→</div>
+    <div class="cbv-state bad"><div class="cbv-name">OPEN</div><div class="cbv-sub">fail fast<br>no dependency calls</div></div>
+    <div class="cbv-arr">→</div>
+    <div class="cbv-state warn"><div class="cbv-name">HALF-OPEN</div><div class="cbv-sub">allow a few<br>trial calls</div></div>
+  </div>
+  <div class="cbv-cap"><b>Too many failures opens the breaker.</b> After a cooldown, a few trial calls decide the next state: success closes it; failure opens it again.</div>
+  <div class="cbv-cap">The point is to free caller threads and give a sick dependency room to recover instead of making the cascade worse.</div>
+</div>`},
    {t:'match',q:'Reliability term → meaning.',pairs:[['Measured number (e.g. p99 latency)','SLI'],['Internal target','SLO'],['Customer promise with penalties','SLA'],['100% − SLO (downtime you can spend)','Error budget']]},
    {t:'cloze',q:'Fill the resilience blanks.',distract:['retry','shard'],text:[
      'A circuit breaker ',{blank:'opens',alt:['open']},' after too many failures and ',{blank:'fails fast',alt:['fail fast','fail-fast']},
@@ -2906,11 +2953,13 @@ const UNITS=[
   {id:'data-1',title:'Pipelines & storage',steps:[
    {t:'teach',h:'Batch vs stream; ELT',body:[
      {k:'vs',a:{h:'Batch',t:'process big chunks on a schedule. High throughput, high latency.'},b:{h:'Stream',t:'process events as they arrive (Flink/Kafka Streams). Low latency.'}},
+     {k:'point',i:'🏛️',t:'<b>Where it lands</b>: <b>warehouse</b> = structured, SQL, analytics-tuned (Snowflake/BigQuery); <b>data lake</b> = raw files in object storage, schema-on-read, cheap; <b>lakehouse</b> = open table formats (Delta/Iceberg) adding ACID + schema on a lake.'},
      {k:'note',t:'Modern default is ELT: load raw into a warehouse (BigQuery/Snowflake), transform with SQL.'}
    ]},
    {t:'sort',q:'Batch or streaming?',buckets:['Batch','Streaming'],items:[
      {text:'nightly report',b:0},{text:'fraud alert in seconds',b:1},{text:'huge throughput, latency ok',b:0},{text:'live dashboard',b:1}
    ]},
+   {t:'mcq',q:'Open table formats (Delta Lake, Iceberg) that add ACID + schema on top of a data lake are called a…',o:['warehouse','data lake','lakehouse','cache'],a:2,why:'A lakehouse layers warehouse-like guarantees (ACID, schema) over cheap object-storage files — lake flexibility with warehouse reliability.'},
    {t:'teach',h:'Storage tiers',body:[
      {k:'point',i:'💽',t:'<b>Block</b> (EBS): one VM, low-latency DB volumes.'},
      {k:'point',i:'📂',t:'<b>File</b> (EFS/NFS): shared POSIX across many workers.'},
