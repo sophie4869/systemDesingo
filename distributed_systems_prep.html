@@ -320,8 +320,11 @@ a{color:var(--accent);text-decoration:none}
     <div class="nav-item" onclick="showSection('replication',this)"><span class="nav-dot"></span>Replication</div>
     <div class="nav-item" onclick="showSection('consensus',this)"><span class="nav-dot"></span>Consensus</div>
     <div class="nav-item" onclick="showSection('transactions',this)"><span class="nav-dot"></span>Transactions</div>
+    <div class="nav-item" onclick="showSection('concurrency',this)"><span class="nav-dot"></span>Concurrency control</div>
     <div class="nav-item" onclick="showSection('partitioning',this)"><span class="nav-dot"></span>Partitioning</div>
+    <div class="nav-item" onclick="showSection('apidesign',this)"><span class="nav-dot"></span>Data models &amp; encoding</div>
     <div class="nav-item" onclick="showSection('time',this)"><span class="nav-dot"></span>Time &amp; ordering</div>
+    <div class="nav-item" onclick="showSection('trouble',this)"><span class="nav-dot"></span>Distributed trouble</div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Building blocks</div>
@@ -329,24 +332,20 @@ a{color:var(--accent);text-decoration:none}
     <div class="nav-item" onclick="showSection('caching',this)"><span class="nav-dot"></span>Caching</div>
     <div class="nav-item" onclick="showSection('loadbalancing',this)"><span class="nav-dot"></span>Load balancing</div>
     <div class="nav-item" onclick="showSection('ratelimiting',this)"><span class="nav-dot"></span>Rate limiting</div>
-    <div class="nav-item" onclick="showSection('apidesign',this)"><span class="nav-dot"></span>API design</div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Operating at scale</div>
     <div class="nav-item" onclick="showSection('scalability',this)"><span class="nav-dot"></span>Scalability &amp; numbers</div>
     <div class="nav-item" onclick="showSection('reliability',this)"><span class="nav-dot"></span>Reliability &amp; resilience</div>
-    <div class="nav-item" onclick="showSection('pipelines',this)"><span class="nav-dot"></span>Data pipelines</div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">ML infrastructure</div>
-    <div class="nav-item" onclick="showSection('mlinfra',this)"><span class="nav-dot"></span>ML systems</div>
+    <div class="nav-item" onclick="showSection('pipelines',this)"><span class="nav-dot"></span>Batch &amp; stream</div>
+    <div class="nav-item" onclick="showSection('mlinfra',this)"><span class="nav-dot"></span>Data &amp; ML infra</div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Practice</div>
     <div class="nav-item" onclick="showSection('patterns',this)"><span class="nav-dot"></span>Common patterns</div>
     <div class="nav-item" onclick="showSection('framework',this)"><span class="nav-dot"></span>Interview framework</div>
     <div class="nav-item" onclick="showSection('decisions',this)"><span class="nav-dot"></span>Design decisions</div>
-    <div class="nav-item" onclick="showSection('exercises',this)"><span class="nav-dot"></span>Exercises &amp; drills</div>
+    <div class="nav-item" onclick="showSection('exercises',this)"><span class="nav-dot"></span>Mock designs</div>
     <div class="nav-item" onclick="showSection('quiz',this)"><span class="nav-dot"></span>Quiz</div>
   </div>
   <div class="sidebar-footer">
@@ -1019,6 +1018,46 @@ a{color:var(--accent);text-decoration:none}
       </div>
 
       <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Idempotency &amp; at-least-once delivery</div><div class="card-sub">Safe retry semantics</div></div><span class="badge badge-red">Critical</span></div>
+        <div class="card-body">
+          <p>Networks duplicate messages. Clients retry on timeout not knowing if the first attempt succeeded. Design operations to be idempotent: applying the same operation multiple times has the same effect as once.</p>
+          <p><strong>Idempotency keys:</strong> client generates a UUID per request. Server stores the key and result. On retry, returns the stored result without re-executing.</p>
+          <p><strong>Natural idempotency:</strong> PUT (set to this value) is naturally idempotent; POST (create) is not.</p>
+          <p><strong>Conditional writes:</strong> write only if current version matches — rejects duplicate writes that would update an already-updated record.</p>
+          <p>Exactly-once delivery is possible but expensive — it's usually implemented as at-least-once delivery + idempotent consumers, which is equivalent and much cheaper.</p>
+          <div class="tag-row"><span class="tag">UUID idempotency key</span><span class="tag">at-least-once + idempotent = exactly-once</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">TCC (Try-Confirm-Cancel)</div><div class="card-sub">Reservation-based distributed transactions</div></div><span class="badge badge-purple">Pattern</span></div>
+        <div class="card-body">
+          <p>A business-level alternative to 2PC and a more structured saga. Each participant exposes three operations:</p>
+          <p><strong>Try:</strong> reserve resources without committing (e.g. hold inventory, freeze funds). <strong>Confirm:</strong> commit using the reserved resources — must be idempotent and must not fail. <strong>Cancel:</strong> release the reservation.</p>
+          <div class="code">Try   &rarr; reserve 1 seat, hold $50
+Confirm &rarr; convert hold into a real booking + charge
+Cancel  &rarr; release seat, unfreeze $50</div>
+          <p>Unlike 2PC, locks are application-level reservations (not DB row locks), so resources aren't held by a blocking protocol. Unlike a raw saga, the "Try" phase verifies feasibility up front, reducing the chance of needing compensation. The cost: every service must implement all three phases and a reservation TTL to auto-cancel abandoned tries.</p>
+          <div class="tag-row"><span class="tag">payments</span><span class="tag">booking systems</span><span class="tag">reservation pattern</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Design a payment service that handles distributed transactions across order, payment, and inventory microservices')">Design a payment system <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
+
+  <!-- Concurrency Control -->
+  <div id="section-concurrency" class="section">
+    <div class="section-intro">
+      <h2>Concurrency control</h2>
+      <p>Once many transactions run at once, anomalies appear. Know the zoo of read/write phenomena and the mechanisms — locking, MVCC, OCC — databases use to stop them.</p>
+    </div>
+    <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Isolation levels</div><div class="card-sub">Read phenomena and their prevention</div></div><span class="badge badge-amber">ACID</span></div>
         <div class="card-body">
           <style>
@@ -1172,34 +1211,9 @@ a{color:var(--accent);text-decoration:none}
         </div>
       </div>
 
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Idempotency &amp; at-least-once delivery</div><div class="card-sub">Safe retry semantics</div></div><span class="badge badge-red">Critical</span></div>
-        <div class="card-body">
-          <p>Networks duplicate messages. Clients retry on timeout not knowing if the first attempt succeeded. Design operations to be idempotent: applying the same operation multiple times has the same effect as once.</p>
-          <p><strong>Idempotency keys:</strong> client generates a UUID per request. Server stores the key and result. On retry, returns the stored result without re-executing.</p>
-          <p><strong>Natural idempotency:</strong> PUT (set to this value) is naturally idempotent; POST (create) is not.</p>
-          <p><strong>Conditional writes:</strong> write only if current version matches — rejects duplicate writes that would update an already-updated record.</p>
-          <p>Exactly-once delivery is possible but expensive — it's usually implemented as at-least-once delivery + idempotent consumers, which is equivalent and much cheaper.</p>
-          <div class="tag-row"><span class="tag">UUID idempotency key</span><span class="tag">at-least-once + idempotent = exactly-once</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">TCC (Try-Confirm-Cancel)</div><div class="card-sub">Reservation-based distributed transactions</div></div><span class="badge badge-purple">Pattern</span></div>
-        <div class="card-body">
-          <p>A business-level alternative to 2PC and a more structured saga. Each participant exposes three operations:</p>
-          <p><strong>Try:</strong> reserve resources without committing (e.g. hold inventory, freeze funds). <strong>Confirm:</strong> commit using the reserved resources — must be idempotent and must not fail. <strong>Cancel:</strong> release the reservation.</p>
-          <div class="code">Try   &rarr; reserve 1 seat, hold $50
-Confirm &rarr; convert hold into a real booking + charge
-Cancel  &rarr; release seat, unfreeze $50</div>
-          <p>Unlike 2PC, locks are application-level reservations (not DB row locks), so resources aren't held by a blocking protocol. Unlike a raw saga, the "Try" phase verifies feasibility up front, reducing the chance of needing compensation. The cost: every service must implement all three phases and a reservation TTL to auto-cancel abandoned tries.</p>
-          <div class="tag-row"><span class="tag">payments</span><span class="tag">booking systems</span><span class="tag">reservation pattern</span></div>
-        </div>
-      </div>
-
     </div>
     <div class="section-footer">
-      <button class="ask-btn" onclick="sendQ('Design a payment service that handles distributed transactions across order, payment, and inventory microservices')">Design a payment system <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="ask-btn" onclick="sendQ('Quiz me on isolation levels and concurrency control — give me an anomaly and ask which level or mechanism prevents it')">Drill isolation &amp; locking <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
 
@@ -1438,6 +1452,21 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
         </div>
       </div>
 
+
+    </div>
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Explain how Spanner achieves external consistency globally and why TrueTime makes this possible')">Deep dive into Spanner <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Distributed Trouble -->
+  <div id="section-trouble" class="section">
+    <div class="section-intro">
+      <h2>Distributed trouble</h2>
+      <p>Networks drop packets, nodes pause, and there is no global clock — so you can never be sure a peer is dead, only unresponsive. How distributed systems detect failure and spread state despite partial failures.</p>
+    </div>
+    <div class="cards">
+
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Failure detection</div><div class="card-sub">Timeouts, gossip, Phi accrual</div></div><span class="badge badge-red">Operations</span></div>
         <div class="card-body">
@@ -1468,7 +1497,7 @@ round 2: ~4 know
 
     </div>
     <div class="section-footer">
-      <button class="ask-btn" onclick="sendQ('Explain how Spanner achieves external consistency globally and why TrueTime makes this possible')">Deep dive into Spanner <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="ask-btn" onclick="sendQ('Quiz me on failure detection and gossip — how do nodes decide a peer is down, and how does membership spread without a coordinator?')">Drill failure detection <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
 
@@ -2956,10 +2985,21 @@ each step independently deployable &amp; rollback-safe</div>
   <!-- API Design -->
   <div id="section-apidesign" class="section">
     <div class="section-intro">
-      <h2>API design</h2>
-      <p>A good API is the contract between your system and its clients. In interviews, defining clear endpoints, pagination, and auth before drawing architecture boxes keeps the design grounded and prevents mid-interview redesigns.</p>
+      <h2>Data models &amp; encoding</h2>
+      <p>How data is shaped, serialized, and exposed: pick a data model, encode it on the wire (and evolve that schema safely), then design the API contract and auth around it.</p>
     </div>
     <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Data models &amp; wire encoding</div><div class="card-sub">Shape the data, then serialize it</div></div><span class="badge badge-blue">Foundational</span></div>
+        <div class="card-body">
+          <p><strong>Pick a data model by relationship shape:</strong> <em>Relational</em> (tables + joins) for many-to-many and ad-hoc queries; <em>Document</em> (nested JSON per entity) for one-to-many with locality and a flexible schema; <em>Graph</em> (nodes + edges) for many-to-many with multi-hop traversals. (Which <em>store</em> implements it is a <strong>Design decisions</strong> question.)</p>
+          <p><strong>Wire formats:</strong> <em>JSON / XML</em> are human-readable and universal but verbose and weakly typed; <em>Protobuf / Avro / Thrift</em> carry a schema and encode to compact, fast binary — preferred for internal service-to-service and high-volume pipelines.</p>
+          <p><strong>Schema evolution:</strong> producers and consumers deploy independently, so changes must be <strong>backward-compatible</strong> (new code reads old data) and <strong>forward-compatible</strong> (old code reads new data). The rule: only add <em>optional</em> fields and never reuse a field tag/number. Avro and Protobuf are built around this.</p>
+          <div class="note"><strong>Why it matters:</strong> a system runs mixed versions during every rollout. If a new required field breaks old readers, the deploy takes the fleet down — schema compatibility is what makes zero-downtime releases possible.</div>
+          <div class="tag-row"><span class="tag">relational / document / graph</span><span class="tag">binary &gt; JSON at scale</span><span class="tag">backward + forward compatible</span></div>
+        </div>
+      </div>
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">REST vs gRPC vs GraphQL</div><div class="card-sub">Choosing the right protocol</div></div><span class="badge badge-blue">Core</span></div>
@@ -3024,7 +3064,7 @@ Keyset (fast):
   <!-- Data Pipelines -->
   <div id="section-pipelines" class="section">
     <div class="section-intro">
-      <h2>Data pipelines</h2>
+      <h2>Batch &amp; stream</h2>
       <p>Moving, transforming, and aggregating data at scale. Relevant for analytics, ML feature engineering, and event-driven architectures. The central question: do you need results in milliseconds or is minutes/hours acceptable?</p>
     </div>
     <div class="cards">
@@ -3233,7 +3273,7 @@ Processing time = when the stream processor sees the event
   <!-- ML Infrastructure -->
   <div id="section-mlinfra" class="section">
     <div class="section-intro">
-      <h2>ML systems</h2>
+      <h2>Data &amp; ML infra</h2>
       <p>Interviewers may frame standard distributed systems problems in an ML infrastructure context, or ask directly about feature stores, model serving, or training pipelines. These are engineering problems first — ML knowledge is not required to answer them well.</p>
     </div>
     <div class="cards">
@@ -3315,7 +3355,7 @@ Processing time = when the stream processor sees the event
   <!-- Exercises -->
   <div id="section-exercises" class="section">
     <div class="section-intro">
-      <h2>Exercises &amp; drills</h2>
+      <h2>Mock designs</h2>
       <p>Active practice beats re-reading. Drill estimation and key numbers with the interactive tools, then work the open-ended prompts — attempt each yourself out loud before revealing the worked solution.</p>
     </div>
 
