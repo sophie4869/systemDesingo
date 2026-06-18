@@ -1377,7 +1377,7 @@ Cancel  &rarr; release seat, unfreeze $50</div>
 
 Neither V(A) &le; V(B) nor V(B) &le; V(A)
 &rarr; A and B are concurrent — no causal relationship</div>
-          <p>This gives you the full happened-before relation — you can now tell the difference between "A caused B" and "A and B happened independently." Dynamo and Riak use this for conflict detection. The practical downside: vector size grows with the number of processes. In practice, systems use version vectors — one counter per key rather than per process — as a cheaper approximation.</p>
+          <p>This gives you the full happened-before relation — you can now tell the difference between "A caused B" and "A and B happened independently." Dynamo and Riak use this for conflict detection. The practical downside: vector size grows with the number of processes. In practice, systems use version vectors — the same per-replica counters, but scoped to a single key/object rather than the whole process history — so the vector only grows with the number of replicas, not the global event count.</p>
           <div class="tag-row"><span class="tag">Dynamo</span><span class="tag">Riak</span><span class="tag">concurrent detection</span></div>
         </div>
       </div>
@@ -1472,7 +1472,7 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
         <div class="card-body">
           <p>The fundamental problem: in an asynchronous network you can never perfectly distinguish a crashed node from one that's just slow. FLP in practice — all failure detectors are making a judgment call, not stating a certainty.</p>
           <p><strong>Heartbeat + timeout:</strong> the simple approach. If no heartbeat arrives within the timeout, assume dead. Hard to tune: too short a timeout and you get false positives and unnecessary failovers; too long and failure detection is slow.</p>
-          <p><strong>Gossip protocol:</strong> nodes randomly swap membership state with a few peers each round. Failure information propagates in O(log N) rounds across the cluster. Cassandra and DynamoDB use this — it's decentralised and keeps working even as nodes fail.</p>
+          <p><strong>Gossip protocol:</strong> nodes randomly swap membership state with a few peers each round. Failure information propagates in O(log N) rounds across the cluster. The Dynamo paper, Cassandra, and Riak use this — it's decentralised and keeps working even as nodes fail. (AWS's DynamoDB <em>product</em> is a different internal design — don't conflate it with the Dynamo paper.)</p>
           <p><strong>&Phi; accrual detector (Cassandra):</strong> instead of a binary alive/dead verdict, it outputs a continuous suspicion value &Phi; that you threshold yourself based on your false-positive tolerance. It adapts to actual network conditions rather than using a fixed timeout — so it gets tighter when the network is healthy and more lenient when latency spikes.</p>
           <div class="tag-row"><span class="tag">gossip</span><span class="tag">phi accrual</span><span class="tag">partial synchrony</span></div>
         </div>
@@ -1489,7 +1489,7 @@ Neither V(A) &le; V(B) nor V(B) &le; V(A)
 round 1: ~2 know
 round 2: ~4 know
 …        → O(log N) rounds to reach all N</div>
-          <p><strong>Why it's used:</strong> no single point of failure, no coordinator to overload, and it degrades gracefully as nodes come and go. It carries membership + failure suspicion (often feeding a Φ-accrual detector) and metadata. Used in <strong>Cassandra</strong>, <strong>DynamoDB/Riak</strong>, <strong>Consul/Serf</strong> (SWIM variant), and Redis Cluster.</p>
+          <p><strong>Why it's used:</strong> no single point of failure, no coordinator to overload, and it degrades gracefully as nodes come and go. It carries membership + failure suspicion (often feeding a Φ-accrual detector) and metadata. Used in <strong>Cassandra</strong>, <strong>Riak</strong>, <strong>Consul/Serf</strong> (SWIM variant), and Redis Cluster.</p>
           <div class="note"><strong>Tradeoff:</strong> eventually consistent membership — there's propagation delay, so two nodes can briefly disagree on who's up. Fine for membership/discovery; not a substitute for consensus when you need a single authoritative decision (use Raft/ZooKeeper for that).</div>
           <div class="tag-row"><span class="tag">O(log N) convergence</span><span class="tag">anti-entropy vs rumour</span><span class="tag">SWIM</span><span class="tag">Cassandra / Consul</span></div>
         </div>
@@ -1603,7 +1603,7 @@ round 2: ~4 know
 })();</script>
           <p><strong>Consumer groups:</strong> Kafka distributes partitions across consumers in a group, and each partition is assigned to exactly one consumer. Your parallelism is capped at the partition count — add more consumers than partitions and the extras sit idle.</p>
           <p><strong>Offsets and delivery semantics:</strong> each consumer group tracks the offset it's processed up to. Commit the offset after processing → at-least-once (safe, might reprocess on crash). Commit before → at-most-once (might miss some). For exactly-once, use Kafka transactions to atomically commit both the offset and the output write.</p>
-          <p><strong>Replication and ISR:</strong> each partition has a leader and follower replicas. The in-sync replica set (ISR) is the set of followers currently caught up to the leader. acks=all means the producer waits for all ISR to acknowledge — paired with min.insync.replicas, this is how you tune the durability vs latency trade-off.</p>
+          <p><strong>Replication and ISR:</strong> each partition has a leader and follower replicas. The in-sync replica set (ISR) is the set of replicas — <em>including the leader</em> — currently caught up to the leader. acks=all means the producer waits for all ISR to acknowledge — paired with min.insync.replicas, this is how you tune the durability vs latency trade-off.</p>
           <div class="note warn"><strong>Hot partition / ordering tradeoff:</strong> more partitions = more parallelism but a hot key still serializes onto one partition. You can't have global ordering <em>and</em> high parallelism — pick per-key ordering.</div>
           <div class="tag-row"><span class="tag">per-partition order</span><span class="tag">consumer rebalance</span><span class="tag">acks=all + min.insync</span></div>
         </div>
@@ -2124,14 +2124,14 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
         <div class="card-body">
           <table class="tbl"><tr><th>Operation</th><th>Time</th></tr>
           <tr><td>L1 cache reference</td><td>~1 ns</td></tr>
-          <tr><td>Branch mispredict</td><td>~3 ns</td></tr>
-          <tr><td>L2 cache reference</td><td>~4 ns</td></tr>
-          <tr><td>Mutex lock/unlock</td><td>~17 ns</td></tr>
+          <tr><td>Branch mispredict</td><td>~5 ns</td></tr>
+          <tr><td>L2 cache reference</td><td>~7 ns</td></tr>
+          <tr><td>Mutex lock/unlock</td><td>~25 ns</td></tr>
           <tr><td>Main memory reference</td><td>~100 ns</td></tr>
           <tr><td>Compress 1KB (Zippy)</td><td>~2 &micro;s</td></tr>
+          <tr><td>Read 1MB sequentially from memory</td><td>~3 &micro;s</td></tr>
           <tr><td>Send 1KB over 1 Gbps</td><td>~10 &micro;s</td></tr>
           <tr><td>SSD random read</td><td>~16 &micro;s</td></tr>
-          <tr><td>Read 1MB sequentially from memory</td><td>~3 &micro;s</td></tr>
           <tr><td>Read 1MB from SSD</td><td>~50 &micro;s</td></tr>
           <tr><td>Round trip within datacenter</td><td>~0.5 ms</td></tr>
           <tr><td>Read 1MB from disk (HDD)</td><td>~1–2 ms</td></tr>
