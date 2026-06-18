@@ -345,6 +345,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="nav-label">Practice</div>
     <div class="nav-item" onclick="showSection('patterns',this)"><span class="nav-dot"></span>Common patterns</div>
     <div class="nav-item" onclick="showSection('framework',this)"><span class="nav-dot"></span>Interview framework</div>
+    <div class="nav-item" onclick="showSection('decisions',this)"><span class="nav-dot"></span>Design decisions</div>
     <div class="nav-item" onclick="showSection('exercises',this)"><span class="nav-dot"></span>Exercises &amp; drills</div>
     <div class="nav-item" onclick="showSection('quiz',this)"><span class="nav-dot"></span>Quiz</div>
   </div>
@@ -2885,6 +2886,33 @@ each step independently deployable &amp; rollback-safe</div>
       </div>
 
       <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Common mistakes</div><div class="card-sub">Easy ways to lose points</div></div><span class="badge badge-red">Pitfalls</span></div>
+        <div class="card-body">
+          <p><strong>Designing before clarifying.</strong> Jumping to a diagram without nailing requirements signals you don't probe ambiguity.</p>
+          <p><strong>Over-engineering.</strong> Reaching for Kafka, microservices, and global multi-region when the prompt is 1K users. Start simple, scale when asked.</p>
+          <p><strong>Hand-waving the hard part.</strong> Saying "and then we shard" without explaining the key, hot-spots, or rebalancing. The deep dive is where you're actually scored.</p>
+          <p><strong>Ignoring failure.</strong> No SPOF analysis, no mention of what happens when a node/region dies. Always ask "what breaks, and what then?"</p>
+          <p><strong>One-way conversation.</strong> Not checking in with the interviewer, or not listening to their hints — they're steering you toward what they want to probe.</p>
+          <p><strong>Forgetting non-functional requirements.</strong> Correct but slow, or fast but inconsistent, can both be wrong. Tie choices back to the stated SLOs.</p>
+          <div class="tag-row"><span class="tag">simple first</span><span class="tag">analyze failure</span><span class="tag">listen to hints</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Give me a full system design interview question and act as the interviewer — push me on requirements, scale, and the deep dive')">Run a mock interview <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Design Decisions -->
+  <div id="section-decisions" class="section">
+    <div class="section-intro">
+      <h2>Design decisions</h2>
+      <p>Most designs come down to a handful of recurring forks. Memorize the deciding question, commit, and justify — interviewers grade the reasoning, not the pick.</p>
+    </div>
+    <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Decision matrix: common tradeoffs</div><div class="card-sub">Quick "which one?" reference</div></div><span class="badge badge-gray">Reference</span></div>
         <div class="card-body">
           <p>The recurring forks in almost every design. Memorize the <em>deciding question</em>, not a default answer.</p>
@@ -2919,22 +2947,9 @@ each step independently deployable &amp; rollback-safe</div>
         </div>
       </div>
 
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Common mistakes</div><div class="card-sub">Easy ways to lose points</div></div><span class="badge badge-red">Pitfalls</span></div>
-        <div class="card-body">
-          <p><strong>Designing before clarifying.</strong> Jumping to a diagram without nailing requirements signals you don't probe ambiguity.</p>
-          <p><strong>Over-engineering.</strong> Reaching for Kafka, microservices, and global multi-region when the prompt is 1K users. Start simple, scale when asked.</p>
-          <p><strong>Hand-waving the hard part.</strong> Saying "and then we shard" without explaining the key, hot-spots, or rebalancing. The deep dive is where you're actually scored.</p>
-          <p><strong>Ignoring failure.</strong> No SPOF analysis, no mention of what happens when a node/region dies. Always ask "what breaks, and what then?"</p>
-          <p><strong>One-way conversation.</strong> Not checking in with the interviewer, or not listening to their hints — they're steering you toward what they want to probe.</p>
-          <p><strong>Forgetting non-functional requirements.</strong> Correct but slow, or fast but inconsistent, can both be wrong. Tie choices back to the stated SLOs.</p>
-          <div class="tag-row"><span class="tag">simple first</span><span class="tag">analyze failure</span><span class="tag">listen to hints</span></div>
-        </div>
-      </div>
-
     </div>
     <div class="section-footer">
-      <button class="ask-btn" onclick="sendQ('Give me a full system design interview question and act as the interviewer — push me on requirements, scale, and the deep dive')">Run a mock interview <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="ask-btn" onclick="sendQ('Quiz me on database and tradeoff decisions — give me a workload and ask which store and approach I would pick and why')">Drill decision-making <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
 
