@@ -3097,6 +3097,21 @@ const UNITS=[
    {t:'mcq',q:'A feature store mainly prevents…',o:['data loss','train/serve skew','hot keys','latency'],a:1,why:'Same feature definitions/values offline and online keep training and inference consistent.'},
    {t:'recall',q:'What problem does a feature store solve?',model:['Training and inference can compute features differently → train/serve skew → bad predictions.','A feature store serves consistent features for both: an offline store for training, a low-latency online store for inference.']}
   ]},
+  {id:'data-serve',title:'Model serving',steps:[
+   {t:'teach',h:'Serving a model is a serving problem',body:[
+     {k:'point',i:'📦',t:'Treat the model as a <b>black box</b>: input tensor in → output tensor out. Loaded weights are <b>read-only</b>, so any replica serves any request — scale out behind a load balancer.'},
+     {k:'point',i:'🚦',t:'Ship new versions safely with a <b>canary</b> (route X% of traffic, watch metrics) or a <b>blue/green</b> swap — exactly like deploying any stateless service.'}
+   ]},
+   {t:'teach',h:'Squeeze the GPU',body:[
+     {k:'point',i:'🎚️',t:'<b>Dynamic batching</b>: collect requests for a few ms, run one GPU pass over the batch, fan results back. GPUs are far more efficient batched — tune <b>batch size vs latency</b>.'},
+     {k:'point',i:'🧠',t:'<b>Cache predictions</b> keyed by a hash of the input — a big win for repeated queries (popular items, autocomplete).'},
+     {k:'callout',c:'warn',t:'Model too big for one GPU? In order of complexity: <b>quantization</b> (int8/fp16, ~2–4× smaller) → <b>tensor parallelism</b> (split weight matrices) → <b>pipeline parallelism</b> (layers across GPUs).'}
+   ]},
+   {t:'mcq',q:'Why batch requests together on a GPU?',o:['lower memory use','much higher GPU throughput','to avoid caching','for consistency'],a:1,why:'A GPU processes many examples per forward pass far more efficiently than one at a time; dynamic batching trades a few ms of latency for big throughput gains.'},
+   {t:'mcq',q:'A model is too large for one GPU. Cheapest first option?',o:['tensor parallelism','quantization (int8/fp16)','pipeline parallelism','a bigger cache'],a:1,why:'Quantization shrinks the model ~2–4× with the least system complexity; reach for tensor/pipeline parallelism only when it still will not fit.'},
+   {t:'match',q:'Serving technique → what it buys.',pairs:[['Dynamic batching','GPU throughput'],['Prediction cache','skip recompute for repeats'],['Quantization','fit a bigger model in memory'],['Canary deploy','validate a new model on X% of traffic']]},
+   {t:'recall',q:'How do you serve a model at low latency and high throughput?',model:['Stateless replicas behind a load balancer (weights are read-only); deploy new versions via canary / blue-green.','Dynamic batching for GPU throughput; cache predictions by input hash for repeats.','If the model exceeds one GPU: quantize first, then tensor / pipeline parallelism. Treat the model as a black box — the rest is ordinary distributed serving.']}
+  ]},
   {id:'data-3',title:'Training & experiments',steps:[
    {t:'teach',h:'The training pipeline',body:[
      {k:'point',i:'🛠️',t:'Stages: ingest → feature engineering → train → evaluate → register → deploy. Orchestrated (Airflow/Kubeflow) and re-runnable.'},
@@ -3107,6 +3122,12 @@ const UNITS=[
      {k:'keyt',term:'Experiment tracking',def:'log each run’s params, dataset version, code commit, and metrics (MLflow/W&B) so results are comparable and reproducible.'},
      {k:'point',i:'🧪',t:'Validate online with A/B tests or shadow/canary deploys before full rollout; watch for data/concept drift and retrain.'}
    ]},
+   {t:'teach',h:'Distributed training',body:[
+     {k:'vs',a:{h:'Data parallelism',t:'every worker holds a full model copy and trains on a different data shard; gradients are merged via <b>AllReduce</b>. The default.'},b:{h:'Model parallelism',t:'split the model across GPUs when it will not fit on one — more communication, harder. For very large models.'}},
+     {k:'point',i:'💾',t:'<b>Checkpoint</b> model state to object storage every few minutes; on a crash or preemption, resume from the last checkpoint instead of step 0 — write-ahead logging for training.'}
+   ]},
+   {t:'mcq',q:'Default way to train across many machines when the model fits on one GPU?',o:['model parallelism','data parallelism — shard data, AllReduce gradients','pipeline parallelism','single GPU only'],a:1,why:'Data parallelism replicates the model and shards the data, averaging gradients with AllReduce. Model parallelism is only needed when the model itself is too big for one device.'},
+   {t:'mcq',q:'A 72-hour training job loses a worker to preemption. Avoid restarting from scratch by…',o:['adding workers','periodic checkpoints to object storage → resume','using a bigger GPU','retrying the whole job'],a:1,why:'Durable checkpoints let a restarted worker resume from the last saved step — the same durable-snapshot idea as a WAL.'},
    {t:'mcq',q:'Reproducible training requires versioning…',o:['only the code','data, code, AND model artifacts','only the model','only hyperparameters'],a:1,why:'A run is reproducible only if the exact data, code, and resulting artifact are all pinned and recorded.'},
    {t:'recall',q:'What does experiment tracking give you, and why version data + code + model?',model:['Experiment tracking logs each run’s params, dataset version, code commit, and metrics so runs are comparable and reproducible.','Versioning data + code + model artifacts lets you reproduce a result, compare candidates fairly, and roll back a bad model.','Promote via a registry (staging → prod) and validate online with shadow/canary or A/B before full rollout.']}
   ]}
@@ -3119,7 +3140,10 @@ const UNITS=[
    {q:'Online feature serving uses…',o:['a warehouse','low-latency KV store','tape','a CSV'],a:1},
    {q:'Model checkpoints belong in…',o:['block disk','object storage','RAM only','the DB'],a:1},
    {q:'Reproducible training versions…',o:['only code','data + code + model','only data','nothing'],a:1},
-   {q:'Experiment tracking logs…',o:['only the winner','params, data version, metrics per run','just errors','CPU usage'],a:1}
+   {q:'Experiment tracking logs…',o:['only the winner','params, data version, metrics per run','just errors','CPU usage'],a:1},
+   {q:'Dynamic batching on a GPU buys…',o:['lower per-request latency','higher throughput / utilization','smaller models','consistency'],a:1},
+   {q:'Model too big for one GPU — cheapest first fix?',o:['quantization (int8/fp16)','more replicas','a cache','shard the DB'],a:1},
+   {q:'Default multi-machine training when the model fits one GPU?',o:['model parallelism','data parallelism + AllReduce','pipeline only','no training'],a:1}
  ]}
 },
 {
