@@ -2573,37 +2573,71 @@ each step independently deployable &amp; rollback-safe</div>
           <p><strong>Fan-out on write (push model):</strong> when a user posts, immediately write a notification entry to every follower's inbox. Fast reads (inbox is pre-populated). Prohibitive for celebrities — a user with 10M followers triggers 10M writes on a single post.</p>
           <p><strong>Fan-out on read (pull model):</strong> store the event once; followers compute their feed/inbox at read time. Cheap writes, expensive reads — and read latency grows with the number of people you follow.</p>
           <p><strong>Hybrid (the standard answer):</strong> fan-out on write for normal users (&lt; some follower threshold); fan-out on read for high-follower "celebrity" accounts. Readers merge their pre-populated inbox with any celebrity events at read time.</p>
-          <div class="code">── FAN-OUT ON WRITE (normal user, e.g. 500 followers) ──────────────────
-  User posts
-    &rarr; Notification Service
-      &rarr; Message Queue (one job per follower)
-        &rarr; Worker 1 &rarr; write to follower_1 inbox
-        &rarr; Worker 2 &rarr; write to follower_2 inbox
-        &rarr; ...
-        &rarr; Worker N &rarr; write to follower_500 inbox
-  Read: follower opens app &rarr; fetch pre-populated inbox (fast, O(1))
-
-── FAN-OUT ON READ (celebrity, e.g. 10 M followers) ────────────────────
-  User posts
-    &rarr; Notification Service
-      &rarr; store single event row (cheap, O(1) write)
-  Read: follower opens app &rarr; query "events from accounts I follow"
-        &rarr; merge + sort on the fly (slow, O(accounts followed))
-
-── HYBRID (production standard) ────────────────────────────────────────
-  if follower_count &lt; threshold (e.g. 10 k):
-    fan-out on write  &rarr;  async workers populate inboxes
-  else (celebrity):
-    store event only  &rarr;  followers pull on read
-  At read time: inbox = pre-populated rows + celebrity events merged
-
-── MOBILE PUSH DELIVERY ────────────────────────────────────────────────
-  Notification Service
-    &rarr; batch device tokens
-      &rarr; APNs  (iOS)   — handles delivery, retries, token refresh
-      &rarr; FCM   (Android)
-  Dedup: store notification_id; skip if already sent
-  Coalesce bursts: "5 people liked your post" &gt; 5 separate pushes</div>
+          <div class="nfv" onclick="event.stopPropagation()">
+<style>
+.nfv{display:grid;gap:11px;margin:.75rem 0}
+.nfv-sec{display:grid;gap:8px;padding:11px;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);background:var(--color-background-primary)}
+.nfv-h{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;font-weight:800;color:var(--color-text-primary)}
+.nfv-tag{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px}
+.nfv-tag.good{background:var(--color-background-success);color:var(--color-text-success)}
+.nfv-tag.warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.nfv-tag.info{background:var(--color-background-info);color:var(--color-text-info)}
+.nfv-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:7px}
+.nfv-box{flex:1 1 110px;min-width:0;display:flex;flex-direction:column;justify-content:center;border:2px solid var(--color-border-primary);border-radius:11px;background:var(--color-background-secondary);padding:8px 9px;text-align:center}
+.nfv-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.nfv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning)}
+.nfv-box.info{background:var(--color-background-info);border-color:var(--color-border-info)}
+.nfv-t{font-size:12px;font-weight:800;color:var(--color-text-primary);line-height:1.25}
+.nfv-s{font-size:10.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.3;margin-top:3px}
+.nfv-arr{flex:0 0 auto;align-self:center;font-size:16px;font-weight:900;color:var(--color-text-tertiary)}
+.nfv-note{font-size:11px;font-weight:600;color:var(--color-text-secondary);text-align:center;line-height:1.4}
+.nfv-note b{color:var(--color-text-primary)}
+.nfv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.55;padding:9px 12px;background:var(--color-background-secondary);border-radius:9px}
+.nfv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.nfv-flow{flex-direction:column;align-items:stretch}.nfv-arr{transform:rotate(90deg)}}
+</style>
+            <div class="nfv-sec">
+              <div class="nfv-h">Fan-out on WRITE <span class="nfv-tag good">normal · ~500 followers</span></div>
+              <div class="nfv-flow">
+                <div class="nfv-box good"><div class="nfv-t">User posts</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box"><div class="nfv-t">Queue</div><div class="nfv-s">one job per follower</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box"><div class="nfv-t">Workers</div><div class="nfv-s">write each follower inbox</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box good"><div class="nfv-t">Read = O(1)</div><div class="nfv-s">inbox pre-populated</div></div>
+              </div>
+            </div>
+            <div class="nfv-sec">
+              <div class="nfv-h">Fan-out on READ <span class="nfv-tag warn">celebrity · 10M followers</span></div>
+              <div class="nfv-flow">
+                <div class="nfv-box warn"><div class="nfv-t">User posts</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box"><div class="nfv-t">Store 1 event row</div><div class="nfv-s">O(1) write</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box warn"><div class="nfv-t">Read merges live</div><div class="nfv-s">query + sort accounts followed (slow)</div></div>
+              </div>
+            </div>
+            <div class="nfv-sec">
+              <div class="nfv-h">HYBRID <span class="nfv-tag info">production standard</span></div>
+              <div class="nfv-flow">
+                <div class="nfv-box good"><div class="nfv-t">followers &lt; threshold</div><div class="nfv-s">push — workers populate inboxes</div></div>
+                <div class="nfv-box warn"><div class="nfv-t">celebrity</div><div class="nfv-s">pull — store once, merge on read</div></div>
+              </div>
+              <div class="nfv-note">read time → inbox = <b>pre-populated rows + celebrity events</b> merged</div>
+            </div>
+            <div class="nfv-sec">
+              <div class="nfv-h">Mobile push delivery</div>
+              <div class="nfv-flow">
+                <div class="nfv-box info"><div class="nfv-t">Notification svc</div><div class="nfv-s">batch device tokens</div></div>
+                <div class="nfv-arr">→</div>
+                <div class="nfv-box"><div class="nfv-t">APNs (iOS)</div><div class="nfv-s">delivery · retries · token refresh</div></div>
+                <div class="nfv-box"><div class="nfv-t">FCM (Android)</div></div>
+              </div>
+              <div class="nfv-note"><b>Dedup</b> sent notification_id · <b>Coalesce</b> "5 people liked your post" &gt; 5 separate pushes</div>
+            </div>
+            <div class="nfv-cap"><b>One event → millions of recipients.</b> Push for the many (pre-populate normal inboxes → O(1) reads), pull for the few (celebrities store once, merge at read time). At-least-once delivery from workers / APNs retries means you must dedup and coalesce before the push.</div>
+          </div>
           <p><strong>Deduplication:</strong> at-least-once delivery (from async workers or APNs retries) can send duplicate push notifications. Store a sent-notification ID and deduplicate before delivery. Also coalesce bursts: "5 people liked your post" beats 5 separate pushes.</p>
           <div class="tag-row"><span class="tag">APNs / FCM</span><span class="tag">fan-out on write vs read</span><span class="tag">celebrity = hybrid threshold</span><span class="tag">dedup + coalesce</span></div>
         </div>
