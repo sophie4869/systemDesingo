@@ -3160,10 +3160,17 @@ const UNITS=[
    {t:'teach',h:'More playbooks',body:[
      {k:'point',i:'📖',t:'<b>Scaling reads</b>: index → replicas → cache/CDN.'},
      {k:'point',i:'✍️',t:'<b>Scaling writes</b>: shard by a good key; batch; buffer bursts.'},
-     {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3 + CDN.'},
+     {k:'point',i:'🎞️',t:'<b>Large blobs</b>: presigned URL direct to S3 (multipart / resumable for huge files), serve via CDN — keep the bytes off the app tier.'},
      {k:'point',i:'📍',t:'<b>Proximity</b>: geospatial index (geohash/quadtree).'}
    ]},
    {t:'mcq',q:'Large file uploads should…',o:['stream through app servers','use presigned URLs direct to blob storage','go in the DB','be base64'],a:1,why:'Keep gigabytes off the app tier; serve via CDN.'},
+   {t:'teach',h:'Three more to recognise',body:[
+     {k:'point',i:'🔎',t:'<b>Full-text search</b>: build an <b>inverted index</b> (term → doc ids) or use a search engine (Elasticsearch) — never a SQL LIKE %x% scan over every row.'},
+     {k:'point',i:'🔁',t:'<b>Safe retries / dedupe</b>: an <b>idempotency key</b> per request — the server stores the result and returns it on a retry, turning at-least-once into an exactly-once effect.'},
+     {k:'point',i:'🪜',t:'<b>Multi-step workflow</b> across services: an orchestrated <b>saga</b> with compensating actions instead of distributed 2PC; make every step idempotent.'}
+   ]},
+   {t:'match',q:'Problem → pattern, round 2.',pairs:[['Search posts by keyword','Inverted index / search engine'],['Retry a charge safely','Idempotency key'],['Order → pay → ship across services','Orchestrated saga']]},
+   {t:'mcq',q:'Keyword search over millions of documents is fastest with…',o:['a SQL LIKE %term% scan','an inverted index (term → doc ids)','a B-tree on the row id','a full table scan'],a:1,why:'An inverted index maps each term to the docs containing it, so a keyword lookup touches only matches instead of every row; search engines (Elasticsearch) build and serve these.'},
    {t:'recall',q:'For a feed, when fanout-on-write vs fanout-on-read?',model:['Fanout-on-write (push): precompute timelines — cheap reads, expensive for celebrities.','Fanout-on-read (pull): assemble at read time — cheap writes, costly reads.','Hybrid: push for normal users, pull/merge for celebrities.']}
   ]}
  ],
@@ -3173,7 +3180,9 @@ const UNITS=[
    {q:'First tool for contention is…',o:['distributed lock','DB transaction / CAS','2PC','sharding'],a:1},
    {q:'Scaling reads order:',o:['cache→replica→index','index→replica→cache','replica→index→cache','none'],a:1},
    {q:'Large blobs use…',o:['app streaming','presigned URLs + CDN','the DB','email'],a:1},
-   {q:'Proximity search needs a…',o:['B-tree','geospatial index','bloom filter','queue'],a:1}
+   {q:'Proximity search needs a…',o:['B-tree','geospatial index','bloom filter','queue'],a:1},
+   {q:'Fast keyword search uses…',o:['a SQL LIKE scan','an inverted index','a B-tree on id','a bloom filter'],a:1},
+   {q:'Safe retries need…',o:['more replicas','an idempotency key','a bigger cache','2PC'],a:1}
  ]}
 },
 {
