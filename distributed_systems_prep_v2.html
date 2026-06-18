@@ -3480,11 +3480,18 @@ const UNITS=[
 .fsv-arr{text-align:center;font-size:22px;font-weight:900;color:var(--color-text-tertiary)}
 .fsv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
 .fsv-cap b{color:var(--color-text-primary)}
+.fsv-pit{border:2px solid var(--color-border-warning);background:var(--color-background-warning);border-radius:14px;padding:10px;display:grid;gap:8px;color:var(--color-text-warning)}
+.fsv-line{position:relative;height:28px;background:var(--color-background-primary);border-radius:999px;border:1px solid var(--color-border-warning);overflow:hidden}
+.fsv-dot{position:absolute;top:6px;width:16px;height:16px;border-radius:50%;background:var(--color-text-success)}
+.fsv-dot.future{background:var(--color-text-danger);opacity:.35}
+.fsv-cut{position:absolute;top:0;bottom:0;left:64%;border-left:3px solid var(--color-text-warning)}
+.fsv-cut span{position:absolute;top:4px;left:6px;font-size:10px;font-weight:900;white-space:nowrap;color:var(--color-text-warning)}
 @media(max-width:460px){.fsv-top,.fsv-split{grid-template-columns:1fr}.fsv-arr{transform:rotate(90deg)}}
 </style>
 <div class="fsv">
   <div class="fsv-top"><div class="fsv-box"><div class="fsv-t">Sources</div><div class="fsv-s">DB events, streams, logs</div></div><div class="fsv-arr">→</div><div class="fsv-box warn"><div class="fsv-t">Shared feature definitions</div><div class="fsv-s">one transformation contract</div></div></div>
   <div class="fsv-split"><div class="fsv-box good"><div class="fsv-t">Offline store</div><div class="fsv-s">history + point-in-time joins for training</div></div><div class="fsv-box info"><div class="fsv-t">Online store</div><div class="fsv-s">latest values, sub-10ms inference lookups</div></div></div>
+  <div class="fsv-pit"><div class="fsv-t">Point-in-time training lookup</div><div class="fsv-line"><span class="fsv-dot" style="left:14%"></span><span class="fsv-dot" style="left:38%"></span><span class="fsv-cut"><span>label time T</span></span><span class="fsv-dot future" style="left:78%"></span></div><div class="fsv-s">Query offline history for <b>feature X, user Y, as of T</b>. Pick the latest value with event_time ≤ T and ignore future values, or offline metrics leak information production will not have.</div></div>
   <div class="fsv-cap"><b>Same logic, two materializations.</b> The offline path preserves historical correctness; the online path serves fresh low-latency features so training and production do not drift apart.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
