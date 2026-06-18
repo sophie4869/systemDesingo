@@ -458,6 +458,28 @@ const UNITS=[
      {k:'point',i:'🎯',t:'If W+R>N, the read set and write set <b>must overlap</b> on ≥1 node that has the latest write.'},
      {k:'callout',c:'warn',t:'It’s a guarantee only IF: the write hit a full quorum, same replica set (no sloppy quorum), no concurrent conflicting write, and reads reconcile by version/timestamp. Otherwise you can still read stale.'}
    ]},
+   {t:'htmlviz',h:'Quorum overlap — when freshness is forced',
+    html:`<style>
+.qov{display:grid;gap:11px}
+.qov-row{display:grid;grid-template-columns:86px 1fr;gap:10px;align-items:center}
+.qov-lbl{font-size:12px;font-weight:900;color:var(--color-text-secondary)}
+.qov-nodes{display:flex;gap:8px;flex-wrap:wrap}
+.qov-node{width:48px;height:48px;border-radius:14px;background:var(--color-background-secondary);border:2px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.qov-node.w{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.qov-node.r{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.qov-node.both{background:linear-gradient(135deg,var(--color-background-success) 0 50%,var(--color-background-info) 50%);border-color:var(--color-text-primary);color:var(--color-text-primary)}
+.qov-node.hint{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.qov-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.qov-cap b{color:var(--color-text-primary)}
+</style>
+<div class="qov">
+  <div class="qov-row"><div class="qov-lbl">Strict quorum<br>N=3 W=2 R=2</div><div class="qov-nodes"><span class="qov-node both">A</span><span class="qov-node w">B</span><span class="qov-node r">C</span></div></div>
+  <div class="qov-cap"><b>A is in both sets.</b> Because W+R=4>N=3, the write set and read set cannot be disjoint. At least one read replica has the latest version.</div>
+  <div class="qov-row"><div class="qov-lbl">Too weak<br>N=3 W=1 R=1</div><div class="qov-nodes"><span class="qov-node w">A</span><span class="qov-node">B</span><span class="qov-node r">C</span></div></div>
+  <div class="qov-cap">W+R=2 is not greater than N. The write can land on A while the read hits C, so stale reads are possible.</div>
+  <div class="qov-row"><div class="qov-lbl">Sloppy quorum</div><div class="qov-nodes"><span class="qov-node w">A</span><span class="qov-node hint">H</span><span class="qov-node r">B</span><span class="qov-node r">C</span></div></div>
+  <div class="qov-cap"><b>H is a stand-in, not a home replica.</b> Availability improves during a partition, but the home read quorum may not overlap the real write holders until hinted handoff completes.</div>
+</div>`},
    {t:'mcq',q:'N=3, W=2, R=2. One write replica failed. Can a read still see the latest value?',o:['Yes — W+R=4>3 forces overlap','No, quorum is broken','only with hinted handoff','only if all 3 reply'],a:0,why:'4>3 means every read quorum overlaps the write quorum on at least one node.'},
    {t:'teach',h:'Staying up under partitions',body:[
      {k:'keyt',term:'Sloppy quorum',def:'take writes on stand-in nodes during a partition (stay available).'},
@@ -1878,6 +1900,29 @@ const UNITS=[
      {k:'vs',a:{h:'Commit AFTER processing',t:'at-least-once — a crash reprocesses the message'},b:{h:'Commit BEFORE processing',t:'at-most-once — a crash skips it'}},
      {k:'note',t:'Exactly-once = a Kafka transaction committing the offset + output write atomically.'}
    ]},
+   {t:'htmlviz',h:'Kafka partitions — ordering, offsets, and idle consumers',
+    html:`<style>
+.kfv{display:grid;gap:10px}
+.kfv-topic{display:grid;gap:7px}
+.kfv-row{display:grid;grid-template-columns:42px 1fr 74px;gap:8px;align-items:center}
+.kfv-p{font-size:12px;font-weight:900;color:var(--color-text-tertiary)}
+.kfv-log{display:flex;gap:5px;min-width:0}
+.kfv-msg{min-width:28px;height:28px;border-radius:8px;background:var(--color-background-secondary);border:1.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:var(--color-text-secondary)}
+.kfv-msg.hot{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.kfv-cons{font-size:11px;font-weight:900;color:#fff;background:var(--color-text-info);border-radius:10px;padding:6px 8px;text-align:center}
+.kfv-cons.idle{background:var(--color-border-primary);color:var(--color-text-secondary)}
+.kfv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.kfv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="kfv">
+  <div class="kfv-topic">
+    <div class="kfv-row"><div class="kfv-p">P0</div><div class="kfv-log"><span class="kfv-msg hot">u7:0</span><span class="kfv-msg hot">u7:1</span><span class="kfv-msg hot">u7:2</span><span class="kfv-msg">u7:3</span></div><div class="kfv-cons">C1<br>offset 3</div></div>
+    <div class="kfv-row"><div class="kfv-p">P1</div><div class="kfv-log"><span class="kfv-msg">u9:0</span><span class="kfv-msg">u9:1</span><span class="kfv-msg">u9:2</span></div><div class="kfv-cons">C2<br>offset 2</div></div>
+    <div class="kfv-row"><div class="kfv-p">P2</div><div class="kfv-log"><span class="kfv-msg">u4:0</span><span class="kfv-msg">u4:1</span></div><div class="kfv-cons idle">C3 idle</div></div>
+  </div>
+  <div class="kfv-cap"><b>Ordering is per partition.</b> All events for key u7 land in P0, so C1 sees u7:0 → u7:1 → u7:2. A consumer group can run at most one active consumer per partition; extra consumers sit idle until partitions are added.</div>
+  <div class="kfv-cap"><b>Offset commit timing changes semantics.</b> Commit after processing means a crash replays work (at-least-once). Commit before processing means a crash skips work (at-most-once).</div>
+</div>`},
    {t:'teach',h:'Kafka: durability & retention',body:[
      {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the followers currently <b>caught up</b> to the leader. A laggard drops out, then rejoins once it catches up.'},
      {k:'point',i:'🎚️',t:'<code>acks=all</code> + <code>min.insync.replicas</code>: commit only once that many ISR replicas hold the write — the durability ↔ latency knob.'},
@@ -1909,6 +1954,31 @@ const UNITS=[
      {k:'point',i:'📦',t:'<b>Outbox</b>: write business row + outbox row in one txn; a relay publishes it.'},
      {k:'point',i:'🔌',t:'<b>CDC</b> (Debezium) tails the WAL to emit the change stream.'}
    ]},
+   {t:'htmlviz',h:'Outbox + CDC — make publish retryable',
+    html:`<style>
+.obv{display:grid;gap:10px}
+.obv-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:7px;align-items:center}
+.obv-box{min-height:66px;border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.obv-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.obv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning)}
+.obv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.obv-s{font-size:11px;font-weight:700;color:var(--color-text-secondary);line-height:1.35}
+.obv-arr{text-align:center;color:var(--color-text-tertiary);font-size:22px;font-weight:900}
+.obv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.obv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.obv-flow{grid-template-columns:1fr}.obv-arr{transform:rotate(90deg)}}
+</style>
+<div class="obv">
+  <div class="obv-flow">
+    <div class="obv-box good"><div class="obv-t">1. Local DB txn</div><div class="obv-s">write order row<br>+ outbox row</div></div>
+    <div class="obv-arr">→</div>
+    <div class="obv-box warn"><div class="obv-t">2. Relay / CDC</div><div class="obv-s">poll outbox or tail WAL<br>publish at-least-once</div></div>
+    <div class="obv-arr">→</div>
+    <div class="obv-box"><div class="obv-t">3. Broker</div><div class="obv-s">event becomes replayable<br>consumer is idempotent</div></div>
+  </div>
+  <div class="obv-cap"><b>The atomic part is only the database transaction.</b> If the service crashes after commit, the outbox row is still there. The relay can publish later, retry safely, and mark the row sent.</div>
+  <div class="obv-cap">This removes the lost-event crash gap without needing a distributed transaction between the app database and the broker.</div>
+</div>`},
    {t:'mcq',q:'The transactional outbox solves…',o:['cache misses','the dual-write problem','leader election','hot keys'],a:1,why:'One local txn writes both the data and the event; a relay/CDC publishes reliably.'},
    {t:'teach',h:'Backpressure',body:[
      {k:'tldr',t:'Consumers can’t keep up → slow the producer, don’t crash.'},
@@ -2751,11 +2821,7 @@ const UNITS=[
    {t:'recall',q:'Why prefer event time over processing time?',model:['Event time reflects when things actually happened, so results are correct regardless of delays or replays.','Processing time depends on when the system happened to see the event — it drifts with lag and reprocessing.']}
   ]},
   {id:'batch-3',title:'Architectures & tiering',steps:[
-   {t:'teach',h:'Lambda vs Kappa',body:[
-     {k:'vs',a:{h:'Lambda',t:'two paths — a batch layer for accurate, reprocessable results + a speed layer for fresh approximate ones; serving merges them. Powerful, but you maintain TWO codebases.'},b:{h:'Kappa',t:'one streaming path; reprocess by replaying the log. Simpler — one codebase — if streaming alone meets accuracy needs.'}},
-     {k:'note',t:'Kappa is the modern default when your stream processor can replay; Lambda lingers where batch tools are much cheaper/more accurate for the bulk path.'}
-   ]},
-   {t:'htmlviz',h:'Lambda vs Kappa — the data flow',
+   {t:'htmlviz',h:'Lambda vs Kappa',
     html:`<style>
       .lk{display:grid;gap:12px;font-family:inherit}
       .lk-card{border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);border-radius:12px;padding:11px 12px}
@@ -2771,6 +2837,7 @@ const UNITS=[
       .lk-amber{--c:#b45309;--bg:#fffbeb;--bd:#fde68a}
       .lk-note{font-size:10.5px;color:var(--color-text-secondary);font-weight:600;margin-top:8px;line-height:1.5}
       .lk-note b{color:var(--color-text-primary)}
+      .lk-tip{font-size:11px;color:var(--color-text-success);font-weight:700;background:var(--color-background-success);border-radius:10px;padding:9px 12px;line-height:1.5}
     </style>
     <div class="lk">
       <div class="lk-card">
@@ -2789,7 +2856,7 @@ const UNITS=[
           <div class="lk-arr">▸</div>
           <div class="lk-node lk-blue">query</div>
         </div>
-        <div class="lk-note">Two codebases run the same logic; the <b>batch</b> layer later corrects the <b>speed</b> layer's approximations. Accurate, but double the ops.</div>
+        <div class="lk-note">Two parallel paths — a <b>batch</b> layer (accurate, reprocessable) and a <b>speed</b> layer (fresh, approximate); serving merges them. Powerful, but you maintain <b>two codebases</b> that can drift.</div>
       </div>
       <div class="lk-card">
         <div class="lk-h" style="color:#059669">Kappa <span class="lk-badge" style="background:#ecfdf5;color:#059669">stream only</span></div>
@@ -2804,8 +2871,9 @@ const UNITS=[
           <div class="lk-arr">▸</div>
           <div class="lk-node lk-blue">query</div>
         </div>
-        <div class="lk-note"><b>Reprocess</b> = reset the consumer offset to 0 and replay the whole log through the <b>same</b> processor. One codebase, simpler ops — needs a durable, long-retention log.</div>
+        <div class="lk-note">One streaming path. <b>Reprocess</b> = reset the offset to 0 and replay the whole log through the <b>same</b> processor — one codebase, simpler ops. Needs a durable, long-retention log.</div>
       </div>
+      <div class="lk-tip">💡 Kappa is the modern default when your processor can replay; Lambda lingers where batch tools are much cheaper / more accurate for the bulk path.</div>
     </div>`},
    {t:'teach',h:'Data lifecycle tiering',body:[
      {k:'point',i:'🔥',t:'<b>Hot</b>: recent, frequently-read — fast store (SSD/in-memory/standard object).'},
