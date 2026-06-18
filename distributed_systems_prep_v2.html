@@ -2660,10 +2660,64 @@ const UNITS=[
     </div>
     <div class="wm-cap">Events stream in <b>out of order</b> (see the arrival numbers). The <b>watermark</b> is the engine's promise: “I’ve seen everything with event-time ≤ 9s.” Any window ending ≤ 9s can now safely fire. Event #6 has event-time 2s but arrived <b>after</b> the watermark passed it → it's <b>late</b> (dropped, or sent to a side-output). Bigger lateness allowance = more correct, but more delay.</div>
     `},
-   {t:'teach',h:'Correctness',body:[
-     {k:'point',i:'💾',t:'Stateful operators checkpoint their state for fault tolerance.'},
-     {k:'point',i:'🎯',t:'Exactly-once = checkpoints + idempotent/transactional sinks.'}
+   {t:'teach',h:'Handling late data',body:[
+     {k:'point',i:'🪂',t:'<b>Allowed lateness</b>: keep a window open a little past the watermark so late events still <b>update</b> its result, then finalize.'},
+     {k:'point',i:'📥',t:'<b>Side-output</b>: route anything later than that to a separate stream / dead-letter — fix it offline instead of dropping silently.'},
+     {k:'callout',c:'note',t:'The default is to <b>drop</b> late events. The watermark sets the cutoff; allowed-lateness and side-outputs are how you avoid losing them.'}
    ]},
+   {t:'teach',h:'Recovering stateful operators',body:[
+     {k:'point',i:'📸',t:'A <b>checkpoint</b> is a consistent snapshot of every operator\'s state <b>plus the source offsets</b>, taken periodically.'},
+     {k:'point',i:'🚧',t:'The engine injects a <b>barrier</b> into the stream; each operator snapshots as the barrier passes (Flink / Chandy-Lamport) — async, no global pause.'},
+     {k:'point',i:'♻️',t:'On crash: <b>restore</b> the last snapshot, <b>rewind</b> the source to its offset, and <b>replay</b>. No state lost.'}
+   ]},
+   {t:'htmlviz',h:'Checkpoint → crash → replay',
+    html:`<style>
+      .ckp{display:grid;gap:12px;font-family:inherit}
+      .ckp-row{border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary);padding:11px 12px}
+      .ckp-h{font-weight:800;color:var(--color-text-primary);font-size:12.5px;margin-bottom:9px}
+      .ckp-flow{display:flex;align-items:stretch;gap:5px;flex-wrap:wrap}
+      .ckp-node{flex:1;min-width:62px;text-align:center;border:1.5px solid var(--bd);background:var(--bg);color:var(--c);border-radius:10px;padding:8px 5px;font-weight:800;font-size:11.5px;display:flex;flex-direction:column;justify-content:center}
+      .ckp-node small{display:block;font-weight:600;font-size:9px;opacity:.85;margin-top:2px}
+      .ckp-arr{align-self:center;color:var(--color-text-secondary);font-weight:800;flex:0 0 auto;font-size:13px}
+      .ckp-blue{--c:#4f46e5;--bg:#eef2ff;--bd:#c7d2fe}
+      .ckp-amber{--c:#b45309;--bg:#fffbeb;--bd:#fde68a}
+      .ckp-green{--c:#059669;--bg:#ecfdf5;--bd:#a7f3d0}
+      .ckp-red{--c:#dc2626;--bg:#fef2f2;--bd:#fecaca}
+      .ckp-note{font-size:10.5px;color:var(--color-text-secondary);font-weight:600;margin-top:8px;line-height:1.5}
+      .ckp-note b{color:var(--color-text-primary)}
+    </style>
+    <div class="ckp">
+      <div class="ckp-row">
+        <div class="ckp-h">📸 Checkpoint — every few seconds</div>
+        <div class="ckp-flow">
+          <div class="ckp-node ckp-blue">Source<small>offset 1200</small></div>
+          <div class="ckp-arr">▸</div>
+          <div class="ckp-node ckp-amber">Operator<small>state snapshot</small></div>
+          <div class="ckp-arr">▸</div>
+          <div class="ckp-node ckp-blue">Sink</div>
+        </div>
+        <div class="ckp-note">A <b>barrier</b> flows downstream with the data; as it passes each operator, that operator saves its <b>state + the source offset</b> — no stop-the-world.</div>
+      </div>
+      <div class="ckp-row">
+        <div class="ckp-h">💥 Crash → recover</div>
+        <div class="ckp-flow">
+          <div class="ckp-node ckp-red">Crash</div>
+          <div class="ckp-arr">▸</div>
+          <div class="ckp-node ckp-amber">Restore<small>last snapshot</small></div>
+          <div class="ckp-arr">▸</div>
+          <div class="ckp-node ckp-blue">Rewind source<small>offset 1200</small></div>
+          <div class="ckp-arr">▸</div>
+          <div class="ckp-node ckp-green">Replay → sink<small>idempotent / txn</small></div>
+        </div>
+        <div class="ckp-note">Restore state, <b>rewind the source</b> to the checkpoint's offset, and replay. Replays re-emit records — so the <b>sink must be idempotent or transactional</b> to apply each effect once.</div>
+      </div>
+    </div>`},
+   {t:'teach',h:'Exactly-once = “effectively once”',body:[
+     {k:'point',i:'⚠️',t:'Recovery <b>replays</b> from the last checkpoint, so a naive sink would write some records <b>twice</b>.'},
+     {k:'point',i:'✅',t:'Fix the output: an <b>idempotent</b> sink (dedupe by key) or a <b>transactional</b> sink (2-phase commit — output commits only when the checkpoint does).'},
+     {k:'callout',c:'mem',t:'It\'s exactly-once <b>processing</b>, not delivery — the wire still duplicates; you just apply each effect once.'}
+   ]},
+   {t:'mcq',q:'After a crash, how does a stream job avoid losing or double-counting state?',o:['start from scratch','restore the last checkpoint, rewind the source to its offset, and replay','ignore the failed records','switch to processing time'],a:1,why:'The checkpoint pairs operator state with source offsets, so restoring state and replaying from that offset reprocesses exactly the un-checkpointed tail — an idempotent/transactional sink makes the replayed effects apply once.'},
    {t:'cloze',q:'Fill the streaming blanks.',distract:['offset','partition'],text:[
      'Group by ',{blank:'event time',alt:['event-time']},', not processing time. ',{blank:'Watermarks',alt:['watermark']},
      ' bound lateness, and ',{blank:'tumbling'},' windows are fixed and non-overlapping. Checkpoints give ',{blank:'exactly-once'},' processing.'
