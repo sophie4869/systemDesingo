@@ -3320,6 +3320,27 @@ const UNITS=[
    ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: conversations, messages(conv_id, msg_id snowflake, sender, body), members(last_read_id).','API: POST send {client_msg_id, text} (idempotency); GET history?before=; WS subscribe for realtime + receipts.']},
    {t:'mcq',q:'Real-time delivery uses…',o:['HTTP polling forever','persistent WebSocket + pub/sub fanout','email','a nightly batch'],a:1,why:'WebSocket (or SSE) pushes messages instantly; pub/sub fans out to the recipient’s connection. Poll only as fallback.'},
+   {t:'htmlviz',h:'Chat delivery — persist, then fan out',
+    html:`<style>
+.ctv{display:grid;gap:10px}
+.ctv-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:8px;align-items:center}
+.ctv-box{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.ctv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.ctv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.ctv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.ctv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.ctv-s{font-size:11px;font-weight:800;line-height:1.35;margin-top:4px}
+.ctv-arr{text-align:center;font-size:20px;font-weight:900;color:var(--color-text-tertiary)}
+.ctv-side{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ctv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.ctv-cap b{color:var(--color-text-primary)}
+@media(max-width:460px){.ctv-flow,.ctv-side{grid-template-columns:1fr}.ctv-arr{transform:rotate(90deg)}}
+</style>
+<div class="ctv">
+  <div class="ctv-flow"><div class="ctv-box good"><div class="ctv-t">Sender</div><div class="ctv-s">POST message + client_msg_id</div></div><div class="ctv-arr">→</div><div class="ctv-box info"><div class="ctv-t">Message service</div><div class="ctv-s">dedupe + persist</div></div><div class="ctv-arr">→</div><div class="ctv-box warn"><div class="ctv-t">Pub/Sub</div><div class="ctv-s">route by conversation</div></div></div>
+  <div class="ctv-side"><div class="ctv-box info"><div class="ctv-t">WS gateway ring</div><div class="ctv-s">recipient connection lives on one gateway</div></div><div class="ctv-box"><div class="ctv-t">Offline path</div><div class="ctv-s">durable history + push notification</div></div></div>
+  <div class="ctv-cap"><b>Persist before fanout.</b> WebSocket delivery is a fast notification path, not the source of truth; reconnecting clients catch up from message history.</div>
+</div>`},
    {t:'build',q:'4 · High-level components.',options:['WebSocket gateway servers','Pub/Sub for fanout','Message store (wide-column)','Presence + push-notification service','A relational DB with cross-shard joins'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['storing messages','millions of persistent connections + large-group fanout','presence','read receipts'],a:1,why:'Holding millions of live connections is stateful and hard; route by consistent hashing.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Stateful gateways in a consistent-hash ring; pub/sub routes to the recipient’s gateway.','Idempotency keys (client_msg_id) for at-least-once; per-conversation snowflake gives ordering.','Failure: a gateway dies → client reconnects elsewhere; undelivered messages are persisted + redelivered.']}

@@ -2463,6 +2463,26 @@ each step independently deployable &amp; rollback-safe</div>
         <div class="card-body">
           <p>When the server must push state to clients as it changes. <strong>Protocol ladder:</strong> start with HTTP <em>polling</em> (simplest, often enough) → <em>long polling</em> → <em>Server-Sent Events</em> (one-way, auto-reconnect) → <em>WebSockets</em> (bidirectional, heaviest infra).</p>
           <p><strong>Server side:</strong> decouple producers from consumers with <em>Pub/Sub</em> for light fan-out (e.g. chat), or <em>stateful servers</em> arranged in a consistent-hash ring when per-connection processing is heavy (e.g. collaborative editing).</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+<style>
+.ctv{display:grid;gap:10px;margin:.75rem 0}
+.ctv-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:8px;align-items:center}
+.ctv-box{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.ctv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.ctv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.ctv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.ctv-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.ctv-s{font-size:11px;font-weight:700;line-height:1.35;margin-top:4px}
+.ctv-arr{text-align:center;font-size:20px;font-weight:800;color:var(--color-text-tertiary)}
+.ctv-side{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ctv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.ctv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.ctv-flow,.ctv-side{grid-template-columns:1fr}.ctv-arr{transform:rotate(90deg)}}
+</style>
+            <div class="ctv-flow"><div class="ctv-box good"><div class="ctv-t">Sender</div><div class="ctv-s">POST message + client_msg_id</div></div><div class="ctv-arr">→</div><div class="ctv-box info"><div class="ctv-t">Message service</div><div class="ctv-s">dedupe + persist</div></div><div class="ctv-arr">→</div><div class="ctv-box warn"><div class="ctv-t">Pub/Sub</div><div class="ctv-s">route by conversation</div></div></div>
+            <div class="ctv-side"><div class="ctv-box info"><div class="ctv-t">WS gateway ring</div><div class="ctv-s">recipient connection lives on one gateway</div></div><div class="ctv-box"><div class="ctv-t">Offline path</div><div class="ctv-s">durable history + push notification</div></div></div>
+            <div class="ctv-cap"><b>Persist before fanout.</b> WebSocket delivery is a fast notification path, not the source of truth; reconnecting clients catch up from message history.</div>
+          </div>
           <div class="note"><strong>Pitfall:</strong> reaching for WebSockets immediately. Default to polling and upgrade only when latency/overhead demands it.</div>
           <div class="tag-row"><span class="tag">polling → SSE → WebSocket</span><span class="tag">Pub/Sub vs stateful</span><span class="tag">WhatsApp, Google Docs</span></div>
         </div>
@@ -3285,6 +3305,26 @@ DELETE /v1/follows/{followee_id}       -> 204</div>
         <div class="code">POST /v1/conversations/{id}/messages  {client_msg_id, text} -> Message
 GET  /v1/conversations/{id}/messages?before=&limit=50      -> {items, next_cursor}
 WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</div>
+        <div class="ctv" onclick="event.stopPropagation()">
+<style>
+.ctv{display:grid;gap:10px;margin:.75rem 0}
+.ctv-flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1fr;gap:8px;align-items:center}
+.ctv-box{border:2px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:10px;text-align:center}
+.ctv-box.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.ctv-box.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.ctv-box.warn{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.ctv-t{font-size:13px;font-weight:700;color:var(--color-text-primary)}
+.ctv-s{font-size:11px;font-weight:700;line-height:1.35;margin-top:4px}
+.ctv-arr{text-align:center;font-size:20px;font-weight:800;color:var(--color-text-tertiary)}
+.ctv-side{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ctv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
+.ctv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.ctv-flow,.ctv-side{grid-template-columns:1fr}.ctv-arr{transform:rotate(90deg)}}
+</style>
+          <div class="ctv-flow"><div class="ctv-box good"><div class="ctv-t">Sender</div><div class="ctv-s">POST message + client_msg_id</div></div><div class="ctv-arr">→</div><div class="ctv-box info"><div class="ctv-t">Message service</div><div class="ctv-s">dedupe + persist</div></div><div class="ctv-arr">→</div><div class="ctv-box warn"><div class="ctv-t">Pub/Sub</div><div class="ctv-s">route by conversation</div></div></div>
+          <div class="ctv-side"><div class="ctv-box info"><div class="ctv-t">WS gateway ring</div><div class="ctv-s">recipient connection lives on one gateway</div></div><div class="ctv-box"><div class="ctv-t">Offline path</div><div class="ctv-s">durable history + push notification</div></div></div>
+          <div class="ctv-cap"><b>Persist before fanout.</b> WebSocket delivery is a fast notification path, not the source of truth; reconnecting clients catch up from message history.</div>
+        </div>
         <p><strong>Notes:</strong> <code>client_msg_id</code> is an <strong>idempotency key</strong> — on an at-least-once retry the server returns the existing message instead of creating a duplicate. Use a <strong>WebSocket</strong> (or SSE) for delivery, falling back to polling. Ordering is per-conversation; a time-sortable message id (e.g. Snowflake) gives order without a separate sort.</p>
       </div>
     </div>
