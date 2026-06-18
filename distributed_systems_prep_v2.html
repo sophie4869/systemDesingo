@@ -4076,13 +4076,13 @@ function renderHome(scrollToNext){
     +'<button class="act speedbtn" id="speedBtn">🎲 Speed run</button>'
     +'<div class="lenpicker">'+[10,15,20].map(n=>'<button class="lenpill'+(speedN===n?' on':'')+'" data-speedn="'+n+'">'+n+'</button>').join('')+'</div>'
     +'</div>';
-  const allUnitIds=UNITS.map(u=>u.id);
+  const allUnitIds=UNITS.filter(u=>u.id!=='mock').map(u=>u.id); // mock-design questions are guided per-design sequences — not standalone speed-mix material
   const speedSel=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits.filter(id=>allUnitIds.includes(id)):null; // null = all chapters
   h+='<div class="chapsummrow"><button class="chapsumm" id="chapToggle">🗂 Chapters: '+(speedSel?speedSel.length+' selected':'All')+' '+(S.speedPickerOpen?'▾':'▸')+'</button></div>';
   if(S.speedPickerOpen){
     h+='<div class="chapgrid">'
       +'<button class="chapchip'+(!speedSel?' on':'')+'" data-chap="__all">All</button>'
-      +UNITS.map(u=>'<button class="chapchip'+((!speedSel||speedSel.includes(u.id))?' on':'')+'" data-chap="'+u.id+'">'+u.icon+' '+(SHORT[u.id]||u.title)+'</button>').join('')
+      +UNITS.filter(u=>u.id!=='mock').map(u=>'<button class="chapchip'+((!speedSel||speedSel.includes(u.id))?' on':'')+'" data-chap="'+u.id+'">'+u.icon+' '+(SHORT[u.id]||u.title)+'</button>').join('')
       +'</div>';
   }
   h+='<div class="actions">'
@@ -4146,7 +4146,7 @@ function renderHome(scrollToNext){
   APP().querySelectorAll('[data-speedn]').forEach(b=>b.onclick=()=>{S.speedN=+b.dataset.speedn;save();renderHome();});
   const chapT=document.getElementById('chapToggle');if(chapT)chapT.onclick=()=>{S.speedPickerOpen=!S.speedPickerOpen;save();renderHome();};
   APP().querySelectorAll('[data-chap]').forEach(b=>b.onclick=()=>{
-    const id=b.dataset.chap, ids=UNITS.map(u=>u.id);
+    const id=b.dataset.chap, ids=UNITS.filter(u=>u.id!=='mock').map(u=>u.id);
     if(id==='__all'){S.speedUnits=null;}
     else{
       let cur=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits.slice():ids.slice(); // null(all) → start from every chapter
@@ -4200,7 +4200,7 @@ function startBoss(uid){
 function startRandomMix(n){
   n=n||15;
   const sel=(Array.isArray(S.speedUnits)&&S.speedUnits.length)?S.speedUnits:null; // null = all chapters
-  const units=sel?UNITS.filter(u=>sel.includes(u.id)):UNITS;
+  const units=(sel?UNITS.filter(u=>sel.includes(u.id)):UNITS).filter(u=>u.id!=='mock'); // never mix in guided mock-design questions
   const pool=units.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>isQuizStep(s.t)&&s.t!=='recall');
   if(pool.length<3){toast(sel?'Not enough questions in the chosen chapters — pick more.':'Not enough questions to mix yet.');return;}
   const steps=shuffle(pool).slice(0,Math.min(n,pool.length));
