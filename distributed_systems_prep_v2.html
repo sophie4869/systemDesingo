@@ -1889,7 +1889,7 @@ const UNITS=[
      {k:'tldr',t:'No central registry: each node tells a few RANDOM peers, and news spreads like a rumour.'},
      {k:'point',i:'📈',t:'Reaches all N nodes in ~<b>O(log N)</b> rounds — decentralised, no single point of failure.'},
      {k:'vs',a:{h:'Anti-entropy',t:'compare full state + reconcile (Merkle diff). Thorough, always converges.'},b:{h:'Rumour-mongering',t:'gossip a fresh change for a while, then stop. Fast + cheap.'}},
-     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, DynamoDB, Consul. Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
+     {k:'note',t:'Carries membership / failure suspicion. Used by Cassandra, Riak, Consul. Tradeoff: eventually-consistent membership — not a substitute for consensus.'}
    ]},
    {t:'mcq',q:'How does a gossip protocol spread state across the cluster?',o:['a leader pushes to everyone','each node tells random peers; spreads in ~O(log N) rounds','every node broadcasts to all each second','only via ZooKeeper'],a:1,why:'Decentralised epidemic spread — random peer exchange, O(log N) convergence, no coordinator or SPOF.'},
    {t:'recall',q:'What does TrueTime do differently from a normal clock?',model:['It exposes uncertainty as an interval [earliest, latest] instead of a single point.','Spanner waits out that interval (commit wait) so timestamps never disagree on order — external consistency.']}
@@ -1991,7 +1991,7 @@ const UNITS=[
   <div class="kfv-cap"><b>Offset commit timing changes semantics.</b> Commit after processing means a crash replays work (at-least-once). Commit before processing means a crash skips work (at-most-once).</div>
 </div>`},
    {t:'teach',h:'Kafka: durability & retention',body:[
-     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the followers currently <b>caught up</b> to the leader. A laggard drops out, then rejoins once it catches up.'},
+     {k:'point',i:'🛡️',t:'<b>ISR</b> (in-sync replicas): the replicas — <b>including the leader</b> — currently caught up to the leader. A laggard drops out, then rejoins once it catches up.'},
      {k:'point',i:'🎚️',t:'<code>acks=all</code> + <code>min.insync.replicas</code>: commit only once that many ISR replicas hold the write — the durability ↔ latency knob.'},
      {k:'point',i:'🗄️',t:'<b>Retention</b> keeps messages for a time/size window (replayable); <b>log compaction</b> keeps only the latest value per key.'},
      {k:'callout',c:'warn',t:'<b>Hot partition vs ordering:</b> more partitions = more parallelism, but a hot key serializes onto its one partition. You can’t have global ordering AND high parallelism — pick <b>per-key</b> ordering.'}
@@ -2875,6 +2875,11 @@ const UNITS=[
    {t:'recall',q:'Describe map and reduce in one line each.',model:['Map: transform each input record into key→value pairs (embarrassingly parallel).','Reduce: gather all values for a key (after a shuffle) and aggregate them into output.']}
   ]},
   {id:'batch-2',title:'Stream processing',steps:[
+   {t:'teach',h:'Micro-batch vs true streaming',body:[
+     {k:'vs',a:{h:'Micro-batch (Spark)',t:'buffer events into tiny batches (~seconds), run the batch engine on each. Simpler, reuses Spark; latency floored at the batch interval.'},b:{h:'True streaming (Flink)',t:'process each event as it arrives — lower latency, native event-time & windowing.'}},
+     {k:'callout',c:'mem',t:'The common follow-up: reach for <b>Flink over Spark</b> when you need sub-second latency or rich event-time windowing; micro-batch is fine for seconds-scale.'}
+   ]},
+   {t:'mcq',q:'You need sub-second event-time windowing. Spark Structured Streaming or Flink?',o:['Spark — micro-batch is always faster','Flink — true per-event streaming, lower latency','either, no difference','neither does windowing'],a:1,why:'Spark micro-batches floor latency at the batch interval; Flink processes per-event with native event-time windows.'},
    {t:'teach',h:'Time & windows',body:[
      {k:'point',i:'⏰',t:'<b>Event time</b> (when it happened) vs <b>processing time</b> (when seen). Prefer event time.'},
      {k:'point',i:'🪟',t:'Windows: tumbling (fixed, non-overlap), hopping (overlap), session (by activity gap).'},
@@ -4108,7 +4113,7 @@ function renderHome(scrollToNext){
       const revisit=lessonNeedsRevisit(l);
       h+='<div class="node-wrap '+off+'">'
         +'<button class="node '+cls+'" '+(frontier?'id="next-stage" ':'')+(open?('data-lesson="'+l.id+'"'):'')+title+' style="'+(open||done?('background:'+u.color):'')+'">'+(done?'':'★')+(open||done?'':'🔒')+'</button>'
-        +'<div class="node-label"'+(revisit?' title="New questions added since you finished this — revisit"':'')+'>'+(revisit?'<span class="revisit-dot"></span>':'')+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
+        +'<div class="node-label"'+(revisit?' title="New questions added since you finished this — click to jump straight to them"':'')+'>'+(revisit?'<span class="revisit-dot"></span>':'')+l.title+(done&&!perfect?' <span class="pct">'+(S.best[l.id]||0)+'%</span>':'')+'</div></div>';
     });
     // boss node
     const bopen=unlocked&&bossUnlocked(u);
@@ -4170,7 +4175,11 @@ function startLesson(id){
   const {u,l}=lessonById(id);
   const quizN=l.steps.filter(s=>isQuizStep(s.t)).length;
   const t=Math.max(60,quizN*25); // clock only ticks on quiz steps; learning steps are untimed
-  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
+  // Red-dot stage: revisiting a finished lesson that has a newly-added (unanswered) quiz →
+  // jump straight to the first unanswered quiz instead of replaying the whole lesson.
+  let startIdx=0;
+  if(S.done[id]){const j=l.steps.findIndex(s=>isQuizStep(s.t)&&!S.answered[sigOf(s)]);if(j>=0)startIdx=j;}
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:startIdx,frontier:startIdx,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
   renderStep(); // renderStep starts/pauses the timer per step
 }
 /* run the countdown only on a fresh quiz step (or in boss mode); pause it on learning/review steps */
