@@ -3397,10 +3397,11 @@ each step independently deployable &amp; rollback-safe</div>
           <tr><td>Streaming</td><td>Limited (SSE/chunked)</td><td>First-class (4 modes)</td><td>Subscriptions</td></tr>
           <tr><td>Browser native</td><td>Yes</td><td>Needs gRPC-Web proxy</td><td>Yes</td></tr>
           <tr><td>HTTP caching</td><td>Easy (GET)</td><td>Manual</td><td>Hard (all POST)</td></tr></table>
-          <div class="note"><strong>Interview default:</strong> REST unless you have a specific reason. Reaching for gRPC or GraphQL requires justification. "Internal service with high throughput and streaming" &rarr; gRPC. "Mobile and web apps needing different data subsets" &rarr; GraphQL. Mentioning the trade-off before picking signals seniority.</div>
-          <div class="tag-row"><span class="tag">REST = external default</span><span class="tag">gRPC = internal perf + streaming</span><span class="tag">GraphQL = flexible clients</span></div>
-        </div>
-      </div>
+	          <div class="note"><strong>Interview default:</strong> REST unless you have a specific reason. Reaching for gRPC or GraphQL requires justification. "Internal service with high throughput and streaming" &rarr; gRPC. "Mobile and web apps needing different data subsets" &rarr; GraphQL. Mentioning the trade-off before picking signals seniority.</div>
+	          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-grpc-proto-api')">gRPC/proto API drill</a>.</p>
+	          <div class="tag-row"><span class="tag">REST = external default</span><span class="tag">gRPC = internal perf + streaming</span><span class="tag">GraphQL = flexible clients</span></div>
+	        </div>
+	      </div>
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Pagination strategies</div><div class="card-sub">Offset, cursor, and keyset</div></div><span class="badge badge-red">Critical</span></div>
@@ -3629,11 +3630,76 @@ Keyset (fast):
                 <div class="dbsh-seg" style="background:#064e3b;color:#6ee7b7">Postgres<small>tables+joins</small></div>
               </div>
               <div class="dbsh-axis"><span>← less structure, more flexible</span><span>more structure, more queryable →</span></div>
-            </div>
-          </div>
-          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">SQL is the default</span><span class="tag">polyglot persistence</span></div>
-        </div>
-      </div>
+	            </div>
+	          </div>
+	          <div class="db-section-label" style="margin-top:18px">Secondary indexes in sharded databases</div>
+	          <p><strong>Local secondary indexes:</strong> each partition maintains an index over only its own rows. Writes stay local and fast, but reads by the secondary field require scatter-gather across partitions.</p>
+	          <p><strong>Global secondary indexes:</strong> the index is its own repartitioned copy keyed by the secondary field. Reads by that field become targeted, but writes update another structure, often asynchronously.</p>
+	          <p><strong>DynamoDB mental model:</strong> the main table is ordered by partition key + sort key. An <strong>LSI</strong> keeps the same partition key with a different sort key inside the same partition; a <strong>GSI</strong> is effectively a separate table repartitioned by a different key.</p>
+	          <div class="dynidx" onclick="event.stopPropagation()">
+	            <div class="dynidx-cols">
+	              <div class="dynidx-col c-main">
+	                <div class="dx-head">Main table</div>
+	                <div class="dx-pk">PK: follower_id</div>
+	                <table class="dx-tbl">
+	                  <thead><tr><th>follower_id</th><th>followee_id</th></tr></thead>
+	                  <tbody>
+	                    <tr class="dx-part"><td colspan="2">Partition: alice</td></tr>
+	                    <tr><td>alice</td><td>bob</td></tr>
+	                    <tr><td>alice</td><td>carol</td></tr>
+	                    <tr><td>alice</td><td>dan</td></tr>
+	                    <tr class="dx-part"><td colspan="2">Partition: bob</td></tr>
+	                    <tr><td>bob</td><td>alice</td></tr>
+	                    <tr><td>bob</td><td>carol</td></tr>
+	                  </tbody>
+	                </table>
+	                <div class="dx-q">✓ "who does alice follow?"</div>
+	              </div>
+	              <div class="dynidx-col c-lsi">
+	                <div class="dx-head">LSI</div>
+	                <div class="dx-pk">PK: follower_id · sort: created_at</div>
+	                <table class="dx-tbl">
+	                  <thead><tr><th>follower_id</th><th>created_at</th></tr></thead>
+	                  <tbody>
+	                    <tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr>
+	                    <tr><td>alice</td><td>2024-01-01</td></tr>
+	                    <tr><td>alice</td><td>2024-03-10</td></tr>
+	                    <tr><td>alice</td><td>2024-07-22</td></tr>
+	                    <tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr>
+	                    <tr><td>bob</td><td>2024-02-14</td></tr>
+	                    <tr><td>bob</td><td>2024-05-30</td></tr>
+	                  </tbody>
+	                </table>
+	                <div class="dx-q">✓ "who did alice follow most recently?"</div>
+	              </div>
+	              <div class="dynidx-col c-gsi">
+	                <div class="dx-head">GSI</div>
+	                <div class="dx-pk">PK: followee_id</div>
+	                <table class="dx-tbl">
+	                  <thead><tr><th>followee_id</th><th>follower_id</th></tr></thead>
+	                  <tbody>
+	                    <tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr>
+	                    <tr><td>carol</td><td>alice</td></tr>
+	                    <tr><td>carol</td><td>bob</td></tr>
+	                    <tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr>
+	                    <tr><td>alice</td><td>bob</td></tr>
+	                    <tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr>
+	                    <tr><td>bob</td><td>alice</td></tr>
+	                  </tbody>
+	                </table>
+	                <div class="dx-q">✓ "who follows carol?"</div>
+	              </div>
+	            </div>
+	            <div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by <code>followee_id</code></div>
+	            <div class="dx-why">
+	              <div class="dx-why-h">Why followee_id works as a GSI partition key</div>
+	              <p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>
+	              <p>The main table cannot answer "who follows carol?" without scatter-gather; the GSI groups those rows under one partition key.</p>
+	            </div>
+	          </div>
+	          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">SQL is the default</span><span class="tag">polyglot persistence</span></div>
+	        </div>
+	      </div>
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Database selection framework</div><div class="card-sub">Choosing the right store for the job</div></div><span class="badge badge-red">Critical</span></div>
@@ -3686,77 +3752,6 @@ Keyset (fast):
           <div class="note"><strong>Why they differ:</strong> an LSM flushes writes sequentially (cheap ingest), but background <strong>compaction</strong> rewrites data to merge levels (write amp) and a key sits across several levels until then (read + space amp; Bloom filters soften reads). A B-tree updates a page in place — steady write amp, and a read walks to a single leaf (low read amp).</div>
           <p>The practical rule: write-heavy workloads (time-series, logs, high-throughput ingest) → LSM. Read-heavy with complex queries and range scans → B-tree. This is the actual reason to pick Cassandra over Postgres — not "NoSQL is more scalable."</p>
           <div class="tag-row"><span class="tag">LSM = write-optimized</span><span class="tag">B-tree = read-optimized</span><span class="tag">compaction</span></div>
-        </div>
-      </div>
-
-      <div class="card wide" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Secondary indexes in sharded DBs</div><div class="card-sub">Local vs global index tradeoffs</div></div><span class="badge badge-purple">Query patterns</span></div>
-        <div class="card-body">
-          <p><strong>Local (document-based) secondary indexes:</strong> each partition maintains its own secondary index covering only its own data. Writes are local and fast. Reads require scatter-gather — query all partitions and merge results. Used by MongoDB.</p>
-          <p><strong>Global (term-based) secondary indexes:</strong> the index itself is partitioned by the indexed term. Reads go to one partition (fast). Writes must update multiple index partitions (slow, usually async). DynamoDB Global Secondary Indexes are async — reads can be stale immediately after a write.</p>
-          <p><strong>In DynamoDB specifically:</strong> the <strong>main table</strong> is stored and ordered by partition key + sort key. An <strong>LSI</strong> reuses the <em>same partition key</em> with a different sort key — it lives <em>inside the same partition</em>, sharing its storage (and 10&nbsp;GB limit). A <strong>GSI</strong> is a fully separate copy, <em>repartitioned by a different key</em> — essentially a new table behind the scenes, which is why it's updated asynchronously.</p>
-          <div class="dynidx" onclick="event.stopPropagation()">
-            <div class="dynidx-cols">
-              <div class="dynidx-col c-main">
-                <div class="dx-head">Main table</div>
-                <div class="dx-pk">PK: follower_id</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>follower_id</th><th>followee_id</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: alice</td></tr>
-                    <tr><td>alice</td><td>bob</td></tr>
-                    <tr><td>alice</td><td>carol</td></tr>
-                    <tr><td>alice</td><td>dan</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob</td></tr>
-                    <tr><td>bob</td><td>alice</td></tr>
-                    <tr><td>bob</td><td>carol</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who does alice follow?"</div>
-              </div>
-              <div class="dynidx-col c-lsi">
-                <div class="dx-head">LSI</div>
-                <div class="dx-pk">PK: follower_id · sort: created_at</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>follower_id</th><th>created_at</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr>
-                    <tr><td>alice</td><td>2024-01-01</td></tr>
-                    <tr><td>alice</td><td>2024-03-10</td></tr>
-                    <tr><td>alice</td><td>2024-07-22</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr>
-                    <tr><td>bob</td><td>2024-02-14</td></tr>
-                    <tr><td>bob</td><td>2024-05-30</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who did alice follow most recently?"</div>
-              </div>
-              <div class="dynidx-col c-gsi">
-                <div class="dx-head">GSI</div>
-                <div class="dx-pk">PK: followee_id</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>followee_id</th><th>follower_id</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr>
-                    <tr><td>carol</td><td>alice</td></tr>
-                    <tr><td>carol</td><td>bob</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr>
-                    <tr><td>alice</td><td>bob</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr>
-                    <tr><td>bob</td><td>alice</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who follows carol?"</div>
-              </div>
-            </div>
-            <div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by <code>followee_id</code></div>
-            <div class="dx-why">
-              <div class="dx-why-h">Why followee_id works as a GSI partition key</div>
-              <p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>
-              <p>The main table can't answer "who follows carol?" without a scatter-gather — carol's followers are scattered across many follower partitions. The GSI groups them under one partition key.</p>
-            </div>
-          </div>
-          <div class="tag-row"><span class="tag">DynamoDB GSI = global async</span><span class="tag">MongoDB = local scatter-gather</span></div>
         </div>
       </div>
 
@@ -4357,13 +4352,98 @@ WS   /v1/realtime    (one connection per client; JSON frames below)
           <div class="ctv-side"><div class="ctv-box info"><div class="ctv-t">WS gateway ring</div><div class="ctv-s">recipient connection lives on one gateway</div></div><div class="ctv-box"><div class="ctv-t">Offline path</div><div class="ctv-s">durable history + push notification</div></div></div>
           <div class="ctv-cap"><b>Persist before fanout.</b> WebSocket delivery is a fast notification path, not the source of truth; reconnecting clients catch up from message history.</div>
         </div>
-        <p><strong>Notes:</strong> <code>client_msg_id</code> is an <strong>idempotency key</strong> — on an at-least-once retry the server returns the existing message instead of creating a duplicate. Use a <strong>WebSocket</strong> (or SSE) for delivery, falling back to polling. Ordering is per-conversation; a time-sortable message id (e.g. Snowflake) gives order without a separate sort.</p>
-      </div>
-    </div>
+	        <p><strong>Notes:</strong> <code>client_msg_id</code> is an <strong>idempotency key</strong> — on an at-least-once retry the server returns the existing message instead of creating a duplicate. Use a <strong>WebSocket</strong> (or SSE) for delivery, falling back to polling. Ordering is per-conversation; a time-sortable message id (e.g. Snowflake) gives order without a separate sort.</p>
+	      </div>
+	    </div>
 
-    <div class="exercise" id="ex-metrics-api">
-      <span class="ex-tag">API design</span>
-      <div class="ex-prompt"><strong>Metrics ingest &amp; query API.</strong> Define endpoints to batch-ingest metric points (tagged by host/metric), query one series over a time range, and power dashboard panels over long ranges cheaply.</div>
+	    <div class="exercise" id="ex-grpc-proto-api">
+	      <span class="ex-tag">API design</span>
+	      <div class="ex-prompt"><strong>gRPC/proto payment API.</strong> Design an internal <code>PaymentService</code> proto for authorize, capture, refund, and status lookup. Make retries safe and leave room for future fields without breaking old clients.</div>
+	      <div class="ex-tests">Tests: protobuf schema shape, idempotency, gRPC errors/deadlines, and schema evolution.</div>
+	      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+	      <div class="ex-solution">
+	        <div class="code">syntax = "proto3";
+
+package payments.v1;
+
+service PaymentService {
+  rpc Authorize(AuthorizeRequest) returns (Payment);
+  rpc Capture(CaptureRequest) returns (Payment);
+  rpc Refund(RefundRequest) returns (Refund);
+  rpc GetPayment(GetPaymentRequest) returns (Payment);
+}
+
+message AuthorizeRequest {
+  string idempotency_key = 1;
+  string order_id = 2;
+  Money amount = 3;
+  string payment_method_token = 4;
+  string request_id = 5;
+}
+
+message CaptureRequest {
+  string idempotency_key = 1;
+  string payment_id = 2;
+  Money amount = 3; // optional partial capture
+}
+
+message RefundRequest {
+  string idempotency_key = 1;
+  string payment_id = 2;
+  Money amount = 3;
+  string reason = 4;
+}
+
+message GetPaymentRequest {
+  string payment_id = 1;
+}
+
+message Payment {
+  string payment_id = 1;
+  string order_id = 2;
+  PaymentStatus status = 3;
+  Money authorized_amount = 4;
+  Money captured_amount = 5;
+  int64 created_at_ms = 6;
+  reserved 7; // never reuse removed field tags
+}
+
+message Refund {
+  string refund_id = 1;
+  string payment_id = 2;
+  Money amount = 3;
+  RefundStatus status = 4;
+}
+
+message Money {
+  string currency = 1;
+  int64 units = 2;
+  int32 nanos = 3;
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  AUTHORIZED = 1;
+  CAPTURED = 2;
+  FAILED = 3;
+  CANCELED = 4;
+}
+
+enum RefundStatus {
+  REFUND_STATUS_UNSPECIFIED = 0;
+  REFUND_PENDING = 1;
+  REFUND_SUCCEEDED = 2;
+  REFUND_FAILED = 3;
+}</div>
+	        <p><strong>Notes:</strong> gRPC is justified here because this is an internal service-to-service contract with typed messages and low overhead. Each mutating RPC carries an <strong>idempotency_key</strong>; if the client retries after a deadline, the server returns the original result instead of double-authorizing, double-capturing, or double-refunding.</p>
+	        <p><strong>Error behavior:</strong> use client deadlines. Return <code>INVALID_ARGUMENT</code> for malformed requests, <code>NOT_FOUND</code> for unknown payment IDs, <code>FAILED_PRECONDITION</code> for illegal state transitions (capture before authorize), and <code>UNAVAILABLE</code> for retryable dependency failures. Retrying a mutating call is only safe because the idempotency key is stable.</p>
+	        <p><strong>Schema evolution:</strong> never change field meaning or reuse tag numbers; reserve removed tags, add new optional fields with new tags, and keep enum zero values as <code>UNSPECIFIED</code>. Do not mirror database tables directly — the proto is the stable service contract, not your storage schema.</p>
+	      </div>
+	    </div>
+
+	    <div class="exercise" id="ex-metrics-api">
+	      <span class="ex-tag">API design</span>
+	      <div class="ex-prompt"><strong>Metrics ingest &amp; query API.</strong> Define endpoints to batch-ingest metric points (tagged by host/metric), query one series over a time range, and power dashboard panels over long ranges cheaply.</div>
       <div class="ex-tests">Tests: batched async writes, range vs rollup query, high-cardinality tags.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
       <div class="ex-solution">
