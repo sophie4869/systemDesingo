@@ -106,6 +106,7 @@ a{color:var(--accent);text-decoration:none}
 
 /* Cards grid */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-bottom:1.5rem}
+.cards .card.wide{grid-column:1/-1}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:var(--border-hover);box-shadow:var(--shadow)}
 .card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -131,6 +132,35 @@ a{color:var(--accent);text-decoration:none}
 /* Code blocks */
 .code{background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem 1rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;color:var(--text);margin:.75rem 0;overflow-x:auto;white-space:pre}
 .code.wrap{white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:visible}
+/* schema + operation cards (data-modeling drills) */
+.schema{display:grid;gap:11px;margin:.75rem 0}
+.sch-tbl{border:1.5px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);overflow:hidden}
+.sch-hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--code-bg);border-bottom:1px solid var(--color-border-primary)}
+.sch-name{font-family:var(--font-mono);font-weight:700;color:var(--color-text-primary);font-size:14px}
+.sch-note{font-size:11.5px;color:var(--color-text-tertiary);font-weight:600}
+.sch-fields{list-style:none;margin:0;padding:6px 12px}
+.sch-fields li{display:flex;align-items:center;gap:8px;padding:3px 0;font-family:var(--font-mono);font-size:12.5px;color:var(--color-text-secondary)}
+.sch-f{color:var(--color-text-primary)}
+.sch-tag{font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;text-transform:uppercase;white-space:nowrap}
+.sch-pk{background:var(--color-background-info);color:var(--color-text-info)}
+.sch-uniq{background:var(--color-background-warning);color:var(--color-text-warning)}
+.sch-fk{background:var(--color-background-success);color:var(--color-text-success)}
+.sch-idx{background:var(--color-background-secondary);color:var(--color-text-tertiary);border:1px solid var(--color-border-primary)}
+.sch-cmt{margin-left:auto;font-size:11px;color:var(--color-text-tertiary);font-weight:600;text-align:right}
+.sch-meta{padding:6px 12px 9px;border-top:1px dashed var(--color-border-primary);font-size:11px;color:var(--color-text-tertiary);font-weight:600;display:grid;gap:3px}
+.sch-meta code{font-family:var(--font-mono);color:var(--color-text-secondary)}
+.ops{display:grid;gap:10px;margin:.75rem 0}
+.op{border:1.5px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);overflow:hidden}
+.op-hd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:8px 12px;background:var(--code-bg);border-bottom:1px solid var(--color-border-primary)}
+.op-name{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:var(--accent,#2563eb);padding:2px 8px;border-radius:5px}
+.op-desc{font-size:12px;color:var(--color-text-tertiary);font-weight:600}
+.op-sql{padding:10px 12px;margin:0;font-family:var(--font-mono);font-size:12.5px;line-height:1.65;color:var(--color-text-secondary);white-space:pre-wrap;overflow-x:auto}
+.op-sql .kw{color:var(--color-text-info);font-weight:700}
+.op-sql .str{color:var(--color-text-success)}
+.op-sql .fn{color:var(--color-text-tertiary);font-style:italic}
+.op-note{font-size:11.5px;color:var(--color-text-tertiary);font-weight:600;line-height:1.55;padding:0 12px 9px}
+.op-note code{font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary)}
+.op-note b{color:var(--color-text-primary)}
 
 /* Interview note callout */
 .note{background:var(--accent-light);border-left:3px solid var(--accent);border-radius:var(--radius-sm);padding:.6rem .85rem;font-size:12.5px;color:var(--accent-dark);margin:.75rem 0;line-height:1.65}
@@ -141,6 +171,27 @@ a{color:var(--accent);text-decoration:none}
 /* Tags */
 .tag-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:.75rem}
 .tag{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--tag-bg);color:var(--text-muted);border:1px solid var(--border)}
+.dynidx{margin:1rem 0}
+.dynidx-cols{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.dynidx-col{flex:1 1 200px;min-width:0;border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.dynidx-col.c-main{background:var(--teal-bg);border-color:#99F6E4}
+.dynidx-col.c-lsi{background:var(--purple-bg);border-color:#DDD6FE}
+.dynidx-col.c-gsi{background:var(--warn-bg);border-color:#FDE68A}
+.dx-head{text-align:center;font-weight:700;font-size:14px}
+.dx-pk{text-align:center;font-size:10.5px;font-family:ui-monospace,Menlo,monospace;margin:2px 0 9px}
+.c-main .dx-head,.c-main .dx-pk,.c-main .dx-part td{color:var(--teal)}
+.c-lsi .dx-head,.c-lsi .dx-pk,.c-lsi .dx-part td{color:var(--purple)}
+.c-gsi .dx-head,.c-gsi .dx-pk,.c-gsi .dx-part td{color:var(--warn)}
+.dx-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.dx-tbl th{font-weight:600;color:var(--text-muted);padding:3px 6px;text-align:left;border-bottom:1px solid var(--border)}
+.dx-tbl td{padding:3px 7px;background:var(--surface);border:1px solid var(--border)}
+.dx-tbl .dx-part td{background:transparent;border:none;text-align:center;font-weight:600;font-size:11px;padding-top:9px}
+.dx-q{text-align:center;font-size:12px;margin-top:9px;color:var(--text)}
+.dx-cap{text-align:center;font-size:11px;color:var(--text-muted);margin:11px 0}
+.dx-cap code{background:var(--code-bg);padding:1px 4px;border-radius:3px;font-size:10.5px}
+.dx-why{border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;background:var(--surface)}
+.dx-why-h{text-align:center;font-weight:700;font-size:13px;margin-bottom:6px}
+.dx-why p{font-size:12px;color:var(--text-muted);text-align:center;margin:5px 0;line-height:1.55}
 
 /* Tables */
 .tbl{width:100%;border-collapse:collapse;font-size:13px;margin:.75rem 0}
@@ -1236,6 +1287,77 @@ Cancel  &rarr; release seat, unfreeze $50</div>
     </div>
     <div class="cards">
 
+      <div class="card wide" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Secondary indexes in sharded DBs</div><div class="card-sub">Local vs global index tradeoffs</div></div><span class="badge badge-purple">Query patterns</span></div>
+        <div class="card-body">
+          <p><strong>Local (document-based) secondary indexes:</strong> each partition maintains its own secondary index covering only its own data. Writes are local and fast. Reads require scatter-gather — query all partitions and merge results. Used by MongoDB.</p>
+          <p><strong>Global (term-based) secondary indexes:</strong> the index itself is partitioned by the indexed term. Reads go to one partition (fast). Writes must update multiple index partitions (slow, usually async). DynamoDB Global Secondary Indexes are async — reads can be stale immediately after a write.</p>
+          <p><strong>In DynamoDB specifically:</strong> the <strong>main table</strong> is stored and ordered by partition key + sort key. An <strong>LSI</strong> reuses the <em>same partition key</em> with a different sort key — it lives <em>inside the same partition</em>, sharing its storage (and 10&nbsp;GB limit). A <strong>GSI</strong> is a fully separate copy, <em>repartitioned by a different key</em> — essentially a new table behind the scenes, which is why it's updated asynchronously.</p>
+          <div class="dynidx" onclick="event.stopPropagation()">
+            <div class="dynidx-cols">
+              <div class="dynidx-col c-main">
+                <div class="dx-head">Main table</div>
+                <div class="dx-pk">PK: follower_id</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>follower_id</th><th>followee_id</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: alice</td></tr>
+                    <tr><td>alice</td><td>bob</td></tr>
+                    <tr><td>alice</td><td>carol</td></tr>
+                    <tr><td>alice</td><td>dan</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob</td></tr>
+                    <tr><td>bob</td><td>alice</td></tr>
+                    <tr><td>bob</td><td>carol</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who does alice follow?"</div>
+              </div>
+              <div class="dynidx-col c-lsi">
+                <div class="dx-head">LSI</div>
+                <div class="dx-pk">PK: follower_id · sort: created_at</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>follower_id</th><th>created_at</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr>
+                    <tr><td>alice</td><td>2024-01-01</td></tr>
+                    <tr><td>alice</td><td>2024-03-10</td></tr>
+                    <tr><td>alice</td><td>2024-07-22</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr>
+                    <tr><td>bob</td><td>2024-02-14</td></tr>
+                    <tr><td>bob</td><td>2024-05-30</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who did alice follow most recently?"</div>
+              </div>
+              <div class="dynidx-col c-gsi">
+                <div class="dx-head">GSI</div>
+                <div class="dx-pk">PK: followee_id</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>followee_id</th><th>follower_id</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr>
+                    <tr><td>carol</td><td>alice</td></tr>
+                    <tr><td>carol</td><td>bob</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr>
+                    <tr><td>alice</td><td>bob</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr>
+                    <tr><td>bob</td><td>alice</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who follows carol?"</div>
+              </div>
+            </div>
+            <div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by <code>followee_id</code></div>
+            <div class="dx-why">
+              <div class="dx-why-h">Why followee_id works as a GSI partition key</div>
+              <p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>
+              <p>The main table can't answer "who follows carol?" without a scatter-gather — carol's followers are scattered across many follower partitions. The GSI groups them under one partition key.</p>
+            </div>
+          </div>
+          <div class="tag-row"><span class="tag">DynamoDB GSI = global async</span><span class="tag">MongoDB = local scatter-gather</span></div>
+        </div>
+      </div>
+
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Range partitioning</div><div class="card-sub">Contiguous key ranges per partition</div></div><span class="badge badge-blue">Range scans</span></div>
         <div class="card-body">
@@ -1328,15 +1450,6 @@ Cancel  &rarr; release seat, unfreeze $50</div>
           <p><strong>Dynamic partitioning:</strong> partitions split when they exceed a size threshold and merge when they shrink. Partition count grows with data volume. Used by HBase, MongoDB.</p>
           <p><strong>Proportional partitioning (Cassandra):</strong> fixed number of vnodes per physical node. Adding a physical node splits existing vnodes proportionally — keeps partition sizes stable as nodes are added.</p>
           <div class="note warn"><strong>Avoid hash mod N for rebalancing:</strong> never tie partition count to node count. Decouple them (fixed partitions or consistent hashing) so adding a node doesn't reshuffle the whole dataset.</div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Secondary indexes in sharded DBs</div><div class="card-sub">Local vs global index tradeoffs</div></div><span class="badge badge-purple">Query patterns</span></div>
-        <div class="card-body">
-          <p><strong>Local (document-based) secondary indexes:</strong> each partition maintains its own secondary index covering only its own data. Writes are local and fast. Reads require scatter-gather — query all partitions and merge results. Used by MongoDB.</p>
-          <p><strong>Global (term-based) secondary indexes:</strong> the index itself is partitioned by the indexed term. Reads go to one partition (fast). Writes must update multiple index partitions (slow, usually async). DynamoDB Global Secondary Indexes are async — reads can be stale immediately after a write.</p>
-          <div class="tag-row"><span class="tag">DynamoDB GSI = global async</span><span class="tag">MongoDB = local scatter-gather</span></div>
         </div>
       </div>
 
@@ -3588,7 +3701,7 @@ Processing time = when the stream processor sees the event
 
     <div class="exercise">
       <span class="ex-tag">Estimation</span>
-      <div class="ex-prompt"><strong>1. Twitter-style feed.</strong> 200M DAU. Each opens the app ~5×/day and each open loads 100 tweets. Each posts ~2 tweets/day. Estimate feed-request QPS, tweet-write QPS, and 5-year storage. What does the read pattern imply?</div>
+      <div class="ex-prompt"><strong>Twitter-style feed.</strong> 200M DAU. Each opens the app ~5×/day and each open loads 100 tweets. Each posts ~2 tweets/day. Estimate feed-request QPS, tweet-write QPS, and 5-year storage. What does the read pattern imply?</div>
       <div class="ex-tests">Tests: QPS estimation, read/write asymmetry, caching implication.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
@@ -3601,7 +3714,7 @@ Processing time = when the stream processor sees the event
 
     <div class="exercise">
       <span class="ex-tag">Estimation</span>
-      <div class="ex-prompt"><strong>2. URL shortener.</strong> 100M new short links/day, read:write ratio 100:1, retained 5 years, ~500 B per record. Estimate write/read QPS and storage. How many characters does the short code need?</div>
+      <div class="ex-prompt"><strong>URL shortener.</strong> 100M new short links/day, read:write ratio 100:1, retained 5 years, ~500 B per record. Estimate write/read QPS and storage. How many characters does the short code need?</div>
       <div class="ex-tests">Tests: QPS + storage estimation, key-space / encoding sizing.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
@@ -3634,7 +3747,7 @@ Processing time = when the stream processor sees the event
 
     <div class="exercise">
       <span class="ex-tag">Estimation</span>
-      <div class="ex-prompt"><strong>3. Video streaming.</strong> 50M DAU each watch ~30 min/day at an average 5 Mbps. 500K new videos/day, ~100 MB each (single rendition). Estimate average egress bandwidth, concurrent viewers, and daily new storage.</div>
+      <div class="ex-prompt"><strong>Video streaming.</strong> 50M DAU each watch ~30 min/day at an average 5 Mbps. 500K new videos/day, ~100 MB each (single rendition). Estimate average egress bandwidth, concurrent viewers, and daily new storage.</div>
       <div class="ex-tests">Tests: bandwidth-dominated estimation, concurrency, why a CDN is mandatory.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
@@ -3649,7 +3762,7 @@ Processing time = when the stream processor sees the event
 
     <div class="exercise">
       <span class="ex-tag">API design</span>
-      <div class="ex-prompt"><strong>4. URL shortener API.</strong> Define the REST endpoints for creating a short link, redirecting, and reading analytics.</div>
+      <div class="ex-prompt"><strong>URL shortener API.</strong> Define the REST endpoints for creating a short link, redirecting, and reading analytics.</div>
       <div class="ex-tests">Tests: resource naming, the redirect hot path, 301 vs 302.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
       <div class="ex-solution">
@@ -3663,7 +3776,7 @@ DELETE /v1/urls/{code}</div>
 
     <div class="exercise">
       <span class="ex-tag">API design</span>
-      <div class="ex-prompt"><strong>5. News feed API.</strong> Define endpoints to post, fetch a paginated feed, and follow/unfollow.</div>
+      <div class="ex-prompt"><strong>News feed API.</strong> Define endpoints to post, fetch a paginated feed, and follow/unfollow.</div>
       <div class="ex-tests">Tests: pagination choice, plural resources, auth.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
       <div class="ex-solution">
@@ -3677,7 +3790,7 @@ DELETE /v1/follows/{followee_id}       -> 204</div>
 
     <div class="exercise">
       <span class="ex-tag">API design</span>
-      <div class="ex-prompt"><strong>6. Chat API.</strong> Define endpoints to send a message, fetch history, and receive messages in real time. How do you make sends safe to retry?</div>
+      <div class="ex-prompt"><strong>Chat API.</strong> Define endpoints to send a message, fetch history, and receive messages in real time. How do you make sends safe to retry?</div>
       <div class="ex-tests">Tests: idempotency, real-time transport, ordering.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
       <div class="ex-solution">
@@ -3713,14 +3826,37 @@ WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</di
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>7. Follow graph + tweets.</strong> Sketch the tables and key access patterns for users, tweets, and follows. How do you handle a celebrity with 50M followers?</div>
+      <div class="ex-prompt"><strong>Follow graph + tweets.</strong> Sketch the tables and key access patterns for users, tweets, and follows. How do you handle a celebrity with 50M followers?</div>
       <div class="ex-tests">Tests: schema, index direction, the hot-key (celebrity) problem.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
-        <div class="code">users(user_id PK, handle, name, ...)
-tweets(tweet_id PK /* Snowflake = time-sortable */, author_id, text, created_at)
-follows(follower_id, followee_id, PRIMARY KEY(follower_id, followee_id))
-        + secondary index on (followee_id)  -- "who follows X?"</div>
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">users</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">user_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">handle</span></li>
+              <li><span class="sch-f">name</span>, …</li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">tweets</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">tweet_id</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-cmt">Snowflake → time-sortable</span></li>
+              <li><span class="sch-f">author_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">text</span></li>
+              <li><span class="sch-f">created_at</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">follows</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">follower_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">followee_id</span> <span class="sch-tag sch-pk">PK</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (follower_id, followee_id)</code></span><span>secondary <code>INDEX (followee_id)</code> — "who follows X?"</span></div>
+          </div>
+        </div>
         <p><strong>Timeline access:</strong> "tweets from everyone I follow, newest first." Naive = look up follows, then scatter-gather their tweets → slow at read time.</p>
         <div class="ffv" onclick="event.stopPropagation()">
 <style>
@@ -3746,18 +3882,49 @@ follows(follower_id, followee_id, PRIMARY KEY(follower_id, followee_id))
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>8. Seat booking.</strong> Design a schema to sell concert seats with no double-booking under heavy concurrency (think Ticketmaster on-sale).</div>
+      <div class="ex-prompt"><strong>Seat booking.</strong> Design a schema to sell concert seats with no double-booking under heavy concurrency (think Ticketmaster on-sale).</div>
       <div class="ex-tests">Tests: contention, optimistic concurrency, hold expiry/fencing.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
-        <div class="code">seats(seat_id PK, event_id, status[AVAILABLE|HELD|BOOKED],
-      held_by, hold_expires_at, version)
-
--- Hold (atomic compare-and-set / optimistic concurrency):
-UPDATE seats SET status='HELD', held_by=:u,
-       hold_expires_at=now()+'10 min', version=version+1
-WHERE seat_id=:s AND status='AVAILABLE';
--- 0 rows affected => someone beat you to it</div>
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">seats</span><span class="sch-note">static inventory · never mutated during on-sale</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">seat_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">event_id</span></li>
+              <li><span class="sch-f">section</span></li>
+              <li><span class="sch-f">row</span>, …</li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">tickets</span><span class="sch-note">hold / booking lifecycle + transaction</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">ticket_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">seat_id</span> <span class="sch-tag sch-uniq">UNIQUE</span> <span class="sch-cmt">← double-booking guard</span></li>
+              <li><span class="sch-f">user_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">price</span></li>
+              <li><span class="sch-f">status</span> <span class="sch-cmt">HELD | BOOKED</span></li>
+              <li><span class="sch-f">hold_expires_at</span></li>
+              <li><span class="sch-f">version</span></li>
+              <li><span class="sch-f">created_at</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="ops" onclick="event.stopPropagation()">
+          <div class="op">
+            <div class="op-hd"><span class="op-name">Hold</span><span class="op-desc">INSERT a HELD ticket</span></div>
+            <pre class="op-sql"><span class="kw">INSERT INTO</span> tickets (seat_id, user_id, status, hold_expires_at, version)
+<span class="kw">VALUES</span> (:s, :u, <span class="str">'HELD'</span>, <span class="fn">now()</span> + <span class="str">'10 min'</span>, 1);</pre>
+            <div class="op-note"><b>UNIQUE(seat_id)</b> rejects a concurrent 2nd holder → no double-booking. To re-hold an expired seat, add <code>ON CONFLICT (seat_id) DO UPDATE … WHERE hold_expires_at &lt; now()</code> to steal the lapsed hold.</div>
+          </div>
+          <div class="op">
+            <div class="op-hd"><span class="op-name">Confirm</span><span class="op-desc">conditional CAS on the ticket</span></div>
+            <pre class="op-sql"><span class="kw">UPDATE</span> tickets <span class="kw">SET</span> status=<span class="str">'BOOKED'</span>
+<span class="kw">WHERE</span> seat_id=:s <span class="kw">AND</span> user_id=:u <span class="kw">AND</span> status=<span class="str">'HELD'</span>
+  <span class="kw">AND</span> hold_expires_at &gt; <span class="fn">now()</span> <span class="kw">AND</span> version=:v;</pre>
+            <div class="op-note"><b>0 rows affected</b> → your hold expired or was taken by someone else.</div>
+          </div>
+        </div>
         <div class="sbv" onclick="event.stopPropagation()">
 <style>
 .sbv{display:grid;gap:10px;margin:.75rem 0}
@@ -3772,43 +3939,85 @@ WHERE seat_id=:s AND status='AVAILABLE';
 .sbv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:9px}
 .sbv-cap b{color:var(--color-text-primary)}
 </style>
-          <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">status check</div></div><div class="sbv-arr">CAS hold</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">held_by + TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">final owner</div></div></div>
-          <div class="sbv-cap"><b>Hold and confirm are conditional writes.</b> Expired holds release back to AVAILABLE; version/fencing prevents stale clients from confirming an old hold.</div>
+          <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">no ticket row</div></div><div class="sbv-arr">INSERT (UNIQUE seat_id)</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">ticket row · TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">final owner</div></div></div>
+          <div class="sbv-cap"><b>UNIQUE(seat_id) is the guard, confirm is a conditional write.</b> A 2nd hold INSERT for the same seat is rejected; version/expiry stop a stale client confirming a hold that already lapsed.</div>
         </div>
-        <p><strong>Why it works:</strong> the conditional <code>WHERE status='AVAILABLE'</code> makes the hold atomic in a single DB — no distributed lock needed. A background sweep (or lazy check) returns expired holds to <code>AVAILABLE</code> using <code>hold_expires_at</code> (a fencing-style expiry). Confirm flips <code>HELD→BOOKED</code> only if <code>held_by</code> matches and the hold hasn't expired. Lean on the database's atomicity before reaching for anything distributed.</p>
+        <p><strong>Why it works:</strong> <code>seats</code> is static reference data (physical seat layout) and is never written during an on-sale, so it can't be a contention point. All the churn lives on <code>tickets</code>, and the <code>UNIQUE(seat_id)</code> constraint <em>is</em> the double-booking guard — the database rejects a concurrent second hold for the same seat with a unique violation, no application status-check or distributed lock needed. Confirm is a conditional CAS: <code>HELD→BOOKED</code> only if the row is still yours, unexpired, and at the expected <code>version</code>.</p>
+        <p><strong>Why split the tables:</strong> <code>seats</code> answers "what seat is this?" (immutable), while <code>tickets</code> answers "who holds/owns it, for how much, did payment clear?" (the whole mutable lifecycle). Folding price/payment/status into <code>seats</code> conflates static inventory with a transaction — and a failed payment should change the ticket, not rewrite an inventory row. <strong>Operational cost of this shape:</strong> an abandoned hold leaves a <code>HELD</code> row that occupies the unique slot, so you need a background job to delete expired holds (or the <code>ON CONFLICT DO UPDATE … WHERE hold_expires_at &lt; now()</code> upsert above to steal one) — otherwise the seat is permanently unbookable.</p>
+        <p><strong>CAS vs a distributed lock:</strong> optimistic CAS (whether the INSERT-with-UNIQUE here or an <code>UPDATE … WHERE</code>) keeps the DB as the single source of truth with no extra infra, and works well at moderate contention. But at on-sale scale a single hot seat draws thousands of simultaneous attempts — losers fail fast and retry, a <em>retry storm</em> that hammers the DB. A Redis lock on <code>seat:{id}</code> (with a TTL) absorbs the spike by serializing access, but now two systems must stay in sync: if Redis dies or the lock expires mid-transaction you can get inconsistency. Large systems combine both — a waiting-room queue or Redis to absorb and serialize the spike, with DB CAS as the final safety net.</p>
       </div>
     </div>
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>9. NoSQL single-table key design.</strong> In DynamoDB, support these access patterns for an e-commerce app: (a) get a user's profile, (b) list a user's orders newest-first, (c) get an order with its line items, (d) list all orders for a product (admin). Pick partition/sort keys and any GSIs.</div>
+      <div class="ex-prompt"><strong>NoSQL single-table key design.</strong> In DynamoDB, support these access patterns for an e-commerce app: (a) get a user's profile, (b) list a user's orders newest-first, (c) get an order with its line items, (d) list all orders for a product (admin). Pick partition/sort keys and any GSIs.</div>
       <div class="ex-tests">Tests: PK/SK modeling, item collections, GSIs, avoiding scatter-gather Scans.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
         <p><strong>Core idea:</strong> in a KV/wide-column store you model <em>for the queries</em> — one table, composite keys, related items sharing a partition so one query returns them together.</p>
-        <div class="code">PK                 SK                  attributes
-USER#u1            PROFILE             name, email, ...        (a)
-USER#u1            ORDER#&lt;ts_id&gt;       total, status          (b: query PK=USER#u1,
-                                                              SK begins_with ORDER#, desc)
-ORDER#o9           ORDER#o9            total, status, userId   (c: order header +)
-ORDER#o9           ITEM#p3             qty, price                  line items share PK=ORDER#o9
-ORDER#o9           ITEM#p7             qty, price</div>
+        <table class="tbl">
+          <thead><tr><th>PK</th><th>SK</th><th>attributes</th></tr></thead>
+          <tbody>
+            <tr><td><code>USER#u1</code></td><td><code>PROFILE</code></td><td>name, email, …</td></tr>
+            <tr><td><code>USER#u1</code></td><td><code>ORDER#&lt;ts_id&gt;</code></td><td>total, status</td></tr>
+            <tr><td><code>ORDER#o9</code></td><td><code>ORDER#o9</code></td><td>total, status, userId</td></tr>
+            <tr><td><code>ORDER#o9</code></td><td><code>ITEM#p3</code></td><td>qty, price</td></tr>
+            <tr><td><code>ORDER#o9</code></td><td><code>ITEM#p7</code></td><td>qty, price</td></tr>
+          </tbody>
+        </table>
         <p><strong>(a)</strong> get-item PK=USER#u1, SK=PROFILE. <strong>(b)</strong> query PK=USER#u1, SK begins_with "ORDER#", descending — a time-sortable id (ULID/Snowflake) in the SK gives newest-first for free. <strong>(c)</strong> query PK=ORDER#o9 returns the header + all ITEM# rows in one shot (an <em>item collection</em>). <strong>(d)</strong> orders aren't keyed by product, so add a <strong>GSI</strong> with PK=PRODUCT#p3 → query the GSI instead of a full-table Scan.</p>
         <div class="note"><strong>The trap:</strong> the patterns you didn't index force a <code>Scan</code> (read everything) — slow and expensive. List every access pattern <em>before</em> choosing keys; new patterns later usually mean a new GSI, not a new table.</div>
+        <p style="margin-top:1em"><strong>Same problem in Bigtable (Google wide-column).</strong> Bigtable has no secondary indexes and no sort key — there's just <em>one</em> lexicographically-sorted <strong>row key</strong> plus column families. So you design the row key as a path and lean on <em>prefix scans</em>; a single row can hold many columns cheaply, which replaces the "item collection."</p>
+        <table class="tbl">
+          <thead><tr><th>row key</th><th>column family : columns</th></tr></thead>
+          <tbody>
+            <tr><td><code>user#u1#profile</code></td><td><code>meta:</code> name, email, …</td></tr>
+            <tr><td><code>user#u1#order#&lt;revts_id&gt;</code></td><td><code>meta:</code> total, status</td></tr>
+            <tr><td><code>order#o9</code></td><td><code>meta:</code> total, status, userId · <code>items:</code> p3, p7 (one column each → qty/price)</td></tr>
+            <tr><td><code>byproduct#p3#&lt;revts&gt;#o9</code></td><td><code>meta:</code> userId, status &nbsp;<span class="sch-cmt">(2nd "index" table)</span></td></tr>
+          </tbody>
+        </table>
+        <p><strong>(a)</strong> point read row <code>user#u1#profile</code>. <strong>(b)</strong> prefix scan <code>user#u1#order#</code>; encode a <em>reverse</em> timestamp (Bigtable scans ascending) so the newest order sorts first. <strong>(c)</strong> read the single row <code>order#o9</code> — header in <code>meta:</code>, every line item as a column in <code>items:</code>, returned in one read. <strong>(d)</strong> no GSI exists, so on each order write you <em>also</em> write a row to a <code>byproduct#</code> "index" table (or a key prefix in the same table); the admin query is then a prefix scan <code>byproduct#p3#</code>.</p>
+        <div class="note"><strong>DynamoDB vs Bigtable, the one-liner:</strong> DynamoDB gives you a sort key <em>and</em> GSIs, so a new access pattern is usually a new GSI. Bigtable gives you only the row key, so a new access pattern means <em>you</em> maintain a second table and dual-write — there's no async index to lean on. Both punish unplanned patterns; Bigtable just makes the cost explicit.</div>
       </div>
     </div>
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>10. Chat / messaging.</strong> Model conversations, messages, and membership for a WhatsApp-style app. Support: fetch the most recent N messages in a conversation, send a message, and show each user's unread count.</div>
+      <div class="ex-prompt"><strong>Chat / messaging.</strong> Model conversations, messages, and membership for a WhatsApp-style app. Support: fetch the most recent N messages in a conversation, send a message, and show each user's unread count.</div>
       <div class="ex-tests">Tests: partitioning by conversation, time-ordered keys, unread counters.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
-        <div class="code">conversations(conv_id PK, type[dm|group], created_at)
-members(conv_id, user_id, joined_at, last_read_msg_id,
-        PRIMARY KEY(conv_id, user_id))
-messages(conv_id, message_id /* Snowflake = time-sortable */, sender_id, body,
-         PRIMARY KEY(conv_id, message_id))   -- partition by conv_id</div>
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">conversations</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">conv_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">type</span> <span class="sch-cmt">dm | group</span></li>
+              <li><span class="sch-f">created_at</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">members</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">conv_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">user_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">joined_at</span></li>
+              <li><span class="sch-f">last_read_msg_id</span> <span class="sch-cmt">drives unread count</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (conv_id, user_id)</code></span></div>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">messages</span><span class="sch-note">partitioned by conv_id</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">conv_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">message_id</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-cmt">Snowflake → time-sortable</span></li>
+              <li><span class="sch-f">sender_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">body</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (conv_id, message_id)</code> — one conversation's history is co-located &amp; contiguous</span></div>
+          </div>
+        </div>
         <p><strong>Recent N:</strong> partition <code>messages</code> by <code>conv_id</code> so one conversation's history is co-located and contiguous; a time-sortable <code>message_id</code> means "latest N" is a single descending range scan — no sort, no cross-partition fan-out.</p>
         <p><strong>Unread count:</strong> store <code>last_read_msg_id</code> per member; unread = messages with id &gt; that. An exact badge for huge groups is costly, so most systems keep a <em>denormalized</em> unread counter per (conv, user), incremented on send and reset on read (eventually consistent is fine here).</p>
         <p><strong>Scale note:</strong> a very hot group is a hot partition — bound message size, and for fan-out to millions deliver per-recipient via the messaging pattern rather than one giant partition.</p>
@@ -3817,12 +4026,30 @@ messages(conv_id, message_id /* Snowflake = time-sortable */, sender_id, body,
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>11. Counters &amp; denormalization.</strong> Model "users like posts." For each post you must render the total like count <em>and</em> whether the current user liked it — at feed scale (a post can have millions of likes).</div>
+      <div class="ex-prompt"><strong>Counters &amp; denormalization.</strong> Model "users like posts." For each post you must render the total like count <em>and</em> whether the current user liked it — at feed scale (a post can have millions of likes).</div>
       <div class="ex-tests">Tests: many-to-many, denormalized aggregates, write amplification, hot keys.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
-        <div class="code">likes(post_id, user_id, created_at, PRIMARY KEY(post_id, user_id))  -- the edge / source of truth
-posts(post_id PK, author_id, body, like_count)                      -- denormalized counter</div>
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">likes</span><span class="sch-note">the edge · source of truth</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">post_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">user_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">created_at</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (post_id, user_id)</code> — "did I like?" is an O(1) point lookup</span></div>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">posts</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">post_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">author_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">body</span></li>
+              <li><span class="sch-f">like_count</span> <span class="sch-cmt">denormalized counter</span></li>
+            </ul>
+          </div>
+        </div>
         <p><strong>Did-I-like:</strong> a point lookup on <code>likes</code> PK=(post_id, current_user) — O(1), no counting.</p>
         <p><strong>Total count:</strong> never <code>COUNT(*)</code> millions of rows per render. Keep a denormalized <code>like_count</code> updated on like/unlike. Don't read-modify-write a single row at high QPS (hot key) — use an <strong>atomic increment</strong>, and for celebrity-post hotspots a <em>sharded counter</em> (N sub-counters summed on read) or an async aggregation pipeline.</p>
         <div class="note"><strong>Tradeoff:</strong> the counter is denormalized so it can drift; treat <code>likes</code> as the source of truth and reconcile periodically. Like counts tolerate eventual consistency — a perfect place to trade accuracy for throughput.</div>
@@ -3831,13 +4058,21 @@ posts(post_id PK, author_id, body, like_count)                      -- denormali
 
     <div class="exercise">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>12. Time-series / metrics.</strong> Model storage for a metrics system ingesting millions of points/sec (e.g. CPU per host). Support: write points, query one metric's range for a host, and keep cost bounded over years.</div>
+      <div class="ex-prompt"><strong>Time-series / metrics.</strong> Model storage for a metrics system ingesting millions of points/sec (e.g. CPU per host). Support: write points, query one metric's range for a host, and keep cost bounded over years.</div>
       <div class="ex-tests">Tests: time-bucketed partitioning, rollups/downsampling, retention/TTL.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
-        <div class="code">partition key = (metric_name, host, time_bucket)   -- e.g. bucket = hour or day
-clustering/sort key = timestamp
-value(s) = gauge / counter readings</div>
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">metrics point</span><span class="sch-note">wide-column / time-series</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">(metric_name, host, time_bucket)</span> <span class="sch-tag sch-pk">PARTITION KEY</span></li>
+              <li><span class="sch-f">timestamp</span> <span class="sch-tag sch-idx">SORT KEY</span></li>
+              <li><span class="sch-f">value(s)</span> <span class="sch-cmt">gauge / counter readings</span></li>
+            </ul>
+            <div class="sch-meta"><span>bucket = hour or day → bounds partition size and makes a host's range a single contiguous scan</span></div>
+          </div>
+        </div>
         <div class="metv" onclick="event.stopPropagation()">
 <style>
 .metv{display:grid;gap:10px;margin:.75rem 0}
@@ -3869,7 +4104,7 @@ value(s) = gauge / counter readings</div>
 
     <div class="exercise">
       <span class="ex-tag">Tradeoff</span>
-      <div class="ex-prompt"><strong>13. SQL or NoSQL?</strong> You're storing orders and payments for an e-commerce site. Which do you pick, and why?</div>
+      <div class="ex-prompt"><strong>SQL or NoSQL?</strong> You're storing orders and payments for an e-commerce site. Which do you pick, and why?</div>
       <div class="ex-tests">Tests: matching data needs to a store, resisting "NoSQL for scale" reflex.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show reasoning</button>
       <div class="ex-solution">
@@ -3880,7 +4115,7 @@ value(s) = gauge / counter readings</div>
 
     <div class="exercise">
       <span class="ex-tag">Tradeoff</span>
-      <div class="ex-prompt"><strong>14. Fanout-on-write vs fanout-on-read.</strong> For feed delivery, do you precompute timelines on write or assemble them on read?</div>
+      <div class="ex-prompt"><strong>Fanout-on-write vs fanout-on-read.</strong> For feed delivery, do you precompute timelines on write or assemble them on read?</div>
       <div class="ex-tests">Tests: read/write cost tradeoff, the celebrity edge case.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show reasoning</button>
       <div class="ex-solution">
@@ -3892,7 +4127,7 @@ value(s) = gauge / counter readings</div>
 
     <div class="exercise">
       <span class="ex-tag">Tradeoff</span>
-      <div class="ex-prompt"><strong>15. Strong vs eventual consistency.</strong> Across a social-commerce app, where do you require strong consistency and where is eventual fine?</div>
+      <div class="ex-prompt"><strong>Strong vs eventual consistency.</strong> Across a social-commerce app, where do you require strong consistency and where is eventual fine?</div>
       <div class="ex-tests">Tests: naming the consistency boundary per feature.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show reasoning</button>
       <div class="ex-solution">
@@ -4435,6 +4670,11 @@ const SCHEMA_DRILLS=[
     title:'DynamoDB single-table ecommerce',
     prompt:'Design DynamoDB PK/SK and GSIs for ecommerce users, orders, order items, and product-order lookup. Avoid full table scans.',
     access:['Get a user profile.','List a user orders newest-first.','Fetch an order with all line items.','Admin: list all orders containing a product.','Support order status lookup if you choose to add it.']
+  },
+  {
+    title:'Bigtable row-key ecommerce',
+    prompt:'Same ecommerce access patterns, but in Bigtable: no sort key, no secondary indexes — design the row key and column families, and decide how to serve the product-order lookup without a GSI.',
+    access:['Get a user profile (point read).','List a user orders newest-first (prefix scan + reverse-timestamp key).','Fetch an order with all line items in one row (column family per item).','Admin: list orders for a product via a dual-written 2nd table / key prefix.','Discuss tall-narrow vs wide rows and hot-row avoidance.']
   },
   {
     title:'URL shortener API/data',

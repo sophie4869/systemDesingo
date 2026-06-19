@@ -193,6 +193,26 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .vs .col h4{font-size:14px;font-weight:900;margin-bottom:4px}
 .keyt{background:var(--purple-bg);border-left:5px solid var(--purple);border-radius:10px;padding:10px 13px;margin-bottom:9px;font-size:15px;font-weight:700}
 .keyt b{color:var(--purple-d);font-weight:900}
+.dyn2{margin:4px 0 9px}
+.dyn2-cols{display:flex;flex-direction:column;gap:10px}
+.dyn2-col{width:100%;border:2px solid var(--line);border-radius:var(--border-radius-md);padding:11px}
+.dyn2-col.c-main{background:var(--green-bg);border-color:var(--green)}
+.dyn2-col.c-lsi{background:var(--purple-bg);border-color:var(--purple)}
+.dyn2-col.c-gsi{background:#FFEFD6;border-color:var(--orange)}
+.dyn2 .dx-head{text-align:center;font-weight:900;font-size:15px}
+.dyn2 .dx-pk{text-align:center;font-size:11px;font-family:var(--font-mono);font-weight:800;margin:2px 0 9px}
+.dyn2 .c-main .dx-head,.dyn2 .c-main .dx-pk,.dyn2 .c-main .dx-part td{color:var(--green-d)}
+.dyn2 .c-lsi .dx-head,.dyn2 .c-lsi .dx-pk,.dyn2 .c-lsi .dx-part td{color:var(--purple-d)}
+.dyn2 .c-gsi .dx-head,.dyn2 .c-gsi .dx-pk,.dyn2 .c-gsi .dx-part td{color:#C26A00}
+.dyn2 .dx-tbl{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--font-mono)}
+.dyn2 .dx-tbl th{font-weight:800;color:var(--muted);padding:3px 6px;text-align:left;border-bottom:2px solid var(--line)}
+.dyn2 .dx-tbl td{padding:3px 7px;background:#fff;border:1.5px solid var(--line);font-weight:700}
+.dyn2 .dx-tbl .dx-part td{background:transparent;border:none;text-align:center;font-weight:900;padding-top:9px;font-family:'Nunito',system-ui,sans-serif}
+.dyn2 .dx-q{text-align:center;font-size:12.5px;margin-top:9px;font-weight:800;color:var(--ink)}
+.dyn2 .dx-cap{text-align:center;font-size:12px;color:var(--muted);font-weight:700;margin:11px 0}
+.dyn2 .dx-why{border:2px solid var(--line);border-radius:var(--border-radius-md);padding:11px 15px;background:#fff}
+.dyn2 .dx-why-h{text-align:center;font-weight:900;font-size:13.5px;margin-bottom:6px}
+.dyn2 .dx-why p{font-size:12.5px;color:var(--muted);font-weight:700;text-align:center;margin:5px 0;line-height:1.5}
 .callout{border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:14px;font-weight:700;display:flex;gap:8px}
 .callout.warn{background:#FFF3D6;color:#8A6100}
 .callout.note{background:var(--green-bg);color:#3a6b13}
@@ -1615,10 +1635,45 @@ const UNITS=[
      {k:'callout',c:'warn',t:'Never tie partition count to node count (hash mod N) — adding a node would reshuffle the whole dataset. Decouple them via fixed partitions or consistent hashing.'}
    ]},
    {t:'mcq',q:'Why create many more partitions than nodes (e.g. 1000 partitions for 10 nodes)?',o:['faster reads','adding a node just reassigns whole partitions — no data splitting','less storage','stronger consistency'],a:1,why:'Fixed-partition rebalancing moves whole partitions to the new node — simple and predictable, decoupled from node count.'},
+   {t:'teach',h:'Choosing a good partition key',body:[
+     {k:'tldr',t:'Before the <i>scheme</i>, pick the <b>key</b>. A good shard/partition key has three properties.'},
+     {k:'point',i:'🔀',t:'<b>High cardinality</b>: many distinct values → spreads across many shards. Low-cardinality keys (country, status) collapse onto a few.'},
+     {k:'point',i:'🎯',t:'<b>Matches the access pattern</b>: you mostly query by it, so reads hit <b>one</b> shard instead of scatter-gathering across all of them.'},
+     {k:'point',i:'⚖️',t:'<b>Evenly distributed</b>: no value is disproportionately hot. Avoid <b>monotonic</b> keys (timestamp / auto-id) — every new write lands on the newest shard.'}
+   ]},
+   {t:'mcq',nu:true,q:'Which is NOT a property of a good shard key?',o:['high cardinality','matches how you query','monotonically increasing','evenly distributed load'],a:2,why:'Monotonic keys (timestamp, auto-increment id) route every new write to the same latest shard — a hot spot. Good keys are high-cardinality, query-aligned, and evenly spread.'},
+   {t:'sort',nu:true,q:'Good shard key, or hot-spot / few-shards risk?',buckets:['Good key','Risky key'],items:[
+     {text:'user_id for per-user data',b:0},{text:'created_at timestamp',b:1},{text:'country code',b:1},{text:'conversation_id for chat',b:0}
+   ]},
+   {t:'cloze',nu:true,q:'Fill the shard-key blanks.',distract:['random','small'],text:[
+     'A good partition key is ',{blank:'high',alt:['high-cardinality']},'-cardinality (many values → many shards), ',{blank:'matches',alt:['matching']},' the access pattern (a query hits one shard), and ',{blank:'evenly',alt:['even']},' distributed. Avoid ',{blank:'monotonic',alt:['monotonically increasing','sequential']},' keys like a timestamp — they create a write ',{blank:'hot',alt:['hotspot','hot spot']},' spot.'
+   ]},
   ]},
   {id:'part-2',title:'Indexes & routing',steps:[
    {t:'teach',h:'Secondary indexes',body:[
-     {k:'vs',a:{h:'Local (per-shard)',t:'write is local + fast; read = scatter-gather all shards. (MongoDB)'},b:{h:'Global (by term)',t:'read hits one shard; write updates many, often async. (DynamoDB GSI)'}}
+     {k:'vs',a:{h:'Local (per-shard)',t:'write is local + fast; read = scatter-gather all shards. (MongoDB)'},b:{h:'Global (by term)',t:'read hits one shard; write updates many, often async. (DynamoDB GSI)'}},
+     {k:'note',t:'<b>In DynamoDB specifically:</b> <b>Main table</b> — stored & ordered by partition key + sort key. <b>LSI</b> — same partition key, different sort key, stored <i>within the same partition</i> (shares its storage). <b>GSI</b> — a fully separate copy repartitioned by a different key; essentially a new table behind the scenes, which is why it updates async.'},
+     {k:'html',h:'<div class="dyn2"><div class="dyn2-cols">'+
+       '<div class="dyn2-col c-main"><div class="dx-head">Main table</div><div class="dx-pk">PK: follower_id</div>'+
+       '<table class="dx-tbl"><thead><tr><th>follower_id</th><th>followee_id</th></tr></thead><tbody>'+
+       '<tr class="dx-part"><td colspan="2">Partition: alice</td></tr><tr><td>alice</td><td>bob</td></tr><tr><td>alice</td><td>carol</td></tr><tr><td>alice</td><td>dan</td></tr>'+
+       '<tr class="dx-part"><td colspan="2">Partition: bob</td></tr><tr><td>bob</td><td>alice</td></tr><tr><td>bob</td><td>carol</td></tr></tbody></table>'+
+       '<div class="dx-q">✓ who does alice follow?</div></div>'+
+       '<div class="dyn2-col c-lsi"><div class="dx-head">LSI</div><div class="dx-pk">PK: follower_id · sort: created_at</div>'+
+       '<table class="dx-tbl"><thead><tr><th>follower_id</th><th>created_at</th></tr></thead><tbody>'+
+       '<tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr><tr><td>alice</td><td>2024-01-01</td></tr><tr><td>alice</td><td>2024-03-10</td></tr><tr><td>alice</td><td>2024-07-22</td></tr>'+
+       '<tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr><tr><td>bob</td><td>2024-02-14</td></tr><tr><td>bob</td><td>2024-05-30</td></tr></tbody></table>'+
+       '<div class="dx-q">✓ who did alice follow most recently?</div></div>'+
+       '<div class="dyn2-col c-gsi"><div class="dx-head">GSI</div><div class="dx-pk">PK: followee_id</div>'+
+       '<table class="dx-tbl"><thead><tr><th>followee_id</th><th>follower_id</th></tr></thead><tbody>'+
+       '<tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr><tr><td>carol</td><td>alice</td></tr><tr><td>carol</td><td>bob</td></tr>'+
+       '<tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr><tr><td>alice</td><td>bob</td></tr>'+
+       '<tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr><tr><td>bob</td><td>alice</td></tr></tbody></table>'+
+       '<div class="dx-q">✓ who follows carol?</div></div></div>'+
+       '<div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by followee_id</div>'+
+       '<div class="dx-why"><div class="dx-why-h">Why followee_id works as a GSI partition key</div>'+
+       '<p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>'+
+       '<p>The main table cannot answer "who follows carol?" without a scatter-gather — carol followers are spread across many follower partitions. The GSI groups them under one partition key.</p></div></div>'}
    ]},
    {t:'mcq',q:'A DynamoDB Global Secondary Index is…',o:['local, scatter-gather','global, often async (can be stale)','always strongly consistent','impossible'],a:1,why:'Global indexes are partitioned by the indexed term and updated asynchronously.'},
    {t:'teach',h:'Request routing',body:[
@@ -2014,6 +2069,45 @@ const UNITS=[
    {t:'sort',q:'Queue or log?',buckets:['Queue','Log'],items:[
      {text:'replay from any offset',b:1},{text:'one consumer per message',b:0},{text:'multiple independent readers',b:1},{text:'deleted after consume',b:0}
    ]},
+   {t:'htmlviz',h:'Traditional queue (SQS-style) vs Kafka — side by side',
+    html:`<style>
+.qkv{display:grid;gap:11px}
+.qkv-cols{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.qkv-col{border:1.5px solid var(--color-border-primary);border-radius:12px;padding:10px;display:grid;gap:6px;align-content:start}
+.qkv-col h4{margin:0;font-size:12.5px;color:var(--color-text-primary);text-align:center}
+.qkv-col.q{background:var(--color-background-info)}
+.qkv-col.k{background:var(--color-background-secondary)}
+.qkv-col p{margin:0;font-size:11px;font-weight:600;color:var(--color-text-secondary);line-height:1.4;text-align:center}
+.qkv-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.qkv-tbl th{text-align:left;padding:6px 9px;background:var(--color-background-secondary);color:var(--color-text-tertiary);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.5px solid var(--color-border-primary)}
+.qkv-tbl th:not(:first-child),.qkv-tbl td:not(:first-child){text-align:center}
+.qkv-tbl td{padding:7px 9px;border-bottom:1px solid var(--color-border-primary);color:var(--color-text-secondary);line-height:1.4}
+.qkv-tbl .prop{font-weight:700;color:var(--color-text-primary)}
+.qkv-y{color:var(--color-text-success);font-weight:800}
+.qkv-n{color:var(--color-text-danger);font-weight:800}
+.qkv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.5;padding:9px 12px;background:var(--color-background-warning);border-radius:10px}
+.qkv-cap b{color:var(--color-text-primary)}
+@media(max-width:520px){.qkv-cols{grid-template-columns:1fr}}
+</style>
+<div class="qkv">
+  <div class="qkv-cols">
+    <div class="qkv-col q"><h4>Traditional queue (SQS / RabbitMQ)</h4><p>Messages <b>compete</b> — any consumer grabs any message. After ack it’s <b>deleted</b>. No replay, no ordering guarantee.</p></div>
+    <div class="qkv-col k"><h4>Kafka (log)</h4><p>Partitions are <b>assigned</b> — each consumer owns a slice at its own offset. Messages are <b>never deleted on read</b>; the log is retained N days.</p></div>
+  </div>
+  <table class="qkv-tbl">
+    <thead><tr><th>property</th><th>traditional queue</th><th>Kafka</th></tr></thead>
+    <tbody>
+      <tr><td class="prop">deleted after ack</td><td class="qkv-y">yes</td><td class="qkv-n">no</td></tr>
+      <tr><td class="prop">replay old messages</td><td class="qkv-n">no</td><td class="qkv-y">yes</td></tr>
+      <tr><td class="prop">multiple independent consumers</td><td class="qkv-n">no — compete</td><td class="qkv-y">yes (consumer groups)</td></tr>
+      <tr><td class="prop">ordering guarantee</td><td>none</td><td>per partition</td></tr>
+      <tr><td class="prop">best for</td><td>tasks, jobs, work queues</td><td>event streams, audit logs</td></tr>
+      <tr><td class="prop">consumer parallelism</td><td>unlimited (any consumer)</td><td>capped at partition count</td></tr>
+    </tbody>
+  </table>
+  <div class="qkv-cap"><b>Key insight:</b> Kafka consumer groups let you fan-out for free — billing and analytics can both read every event, independently and at their own pace.</div>
+</div>`},
+   {t:'mcq',q:'Billing AND analytics must each process every payment event, independently and at their own pace (with replay). Best fit?',o:['one SQS queue both poll','Kafka with one consumer group per service','a queue per message','a database table they both scan'],a:1,why:'On an SQS-style queue consumers compete — a message goes to one of them, not both. Kafka retains the log and gives each consumer group its own offsets, so both services read every event independently and can replay.'},
    {t:'teach',h:'Delivery semantics',body:[
      {k:'point',i:'1️⃣',t:'<b>At-most-once</b>: may lose, never duplicate.'},
      {k:'point',i:'🔁',t:'<b>At-least-once</b>: never lose, may duplicate → need idempotency.'},
@@ -2093,10 +2187,203 @@ const UNITS=[
      '. ',{blank:'CQRS',alt:['cqrs']},' splits the write model from read-optimised ',{blank:'projections',alt:['read models','views']},'.'
    ]},
    {t:'recall',q:'What are event sourcing and CQRS, and the main trade-off?',model:['Event sourcing: the append-only event log is the source of truth; state = replay of events → audit trail + time travel.','CQRS: separate write model from read models (projections), so reads scale independently — at the cost of eventual consistency.','Trade-off: more moving parts (snapshots, schema evolution, projection lag) — use only when audit/temporal or read/write asymmetry needs justify it.']}
+  ]},
+  {id:'msg-4',title:'Queue scenarios',steps:[
+   {t:'teach',h:'Scenario 1 · Duplicate delivery',body:[
+     {k:'tldr',t:'At-least-once means a message can arrive <b>more than once</b> (crash, retry, network blip). Your consumer must be safe to run twice on the same job.'},
+     {k:'cause',a:'Consumer crashes before it acks',b:'Visibility timeout expires → the queue re-delivers the message'},
+     {k:'point',i:'🔑',t:'<b>Fix — a dedup store keyed by job_id:</b> before running, check a processed-set (Redis/DB). Seen it? skip + ack. New? run, then record the id.'}
+   ]},
+   {t:'mcq',q:'A consumer pulls a job, then crashes before ack-ing. What happens to the message?',o:['it is lost','the visibility timeout expires and the queue re-delivers it','it goes straight to the DLQ','it is acked automatically'],a:1,why:'No ack → once the visibility timeout lapses the broker assumes failure and re-delivers. That redelivery is exactly why consumers must be idempotent.'},
+   {t:'mcq',q:'Cheapest way to make an at-least-once consumer idempotent?',o:['a distributed lock per message','a processed-set keyed by job_id — skip if already seen','exactly-once delivery','disable retries'],a:1,why:'Record each completed job_id (Redis/DB); on redelivery you see it and skip (ack only). Turns inevitable duplicates into a no-op without needing exactly-once delivery.'},
+   {t:'teach',h:'Scenario 2 · Dead-letter queue',body:[
+     {k:'tldr',t:'A <b>poison-pill</b> message fails every time. Don’t let it loop forever or block the queue behind it.'},
+     {k:'point',i:'🔁',t:'<code>maxReceiveCount</code> (e.g. 3): after N failed deliveries the broker moves it to the <b>DLQ</b> — parked, not lost.'},
+     {k:'point',i:'🚨',t:'<b>Alert on DLQ depth &gt; 0</b> (it should normally be empty), then <b>replay</b> after fixing the bug or data.'}
+   ]},
+   {t:'mcq',q:'A message fails on every attempt. With maxReceiveCount=3, after the 3rd failure it…',o:['is dropped silently','moves to the dead-letter queue','retries forever','blocks the whole queue'],a:1,why:'The DLQ parks the poison message so it stops blocking healthy ones, and keeps it for inspection/replay instead of losing it.'},
+   {t:'mcq',q:'Best signal that processing is silently broken?',o:['CPU usage','an alert on DLQ depth > 0','consumer count','average message size'],a:1,why:'A healthy DLQ is empty, so any depth > 0 means messages are failing repeatedly — a crisp, low-noise alarm. Then fix and replay.'},
+   {t:'teach',h:'Scenario 3 · Priorities',body:[
+     {k:'tldr',t:'You do <b>not</b> group jobs by consumer. Use <b>separate queues per priority</b>; every consumer polls both.'},
+     {k:'point',i:'⬆️',t:'Each consumer <b>polls the high-priority queue first</b>; only when it’s empty does it fall back to the low-priority queue. No consumer "owns" a queue.'},
+     {k:'callout',c:'warn',t:'One mixed queue lets a backlog of low-priority jobs <b>block</b> urgent ones — the very thing priority is meant to prevent. (Guard against starving the low queue: add aging if needed.)'}
+   ]},
+   {t:'mcq',q:'You need high- and low-priority jobs. Best design?',o:['one queue, sort by a priority field','separate queue per priority; all consumers poll high-first','one consumer owns high, another owns low','put low-priority jobs in a database'],a:1,why:'Queue-per-priority with every consumer polling high first keeps urgent work ahead without dedicating (and stranding) consumers. A single mixed queue lets low-priority backlog block urgent jobs.'},
+   {t:'teach',h:'Scenario 4 · Fan-out (pub/sub)',body:[
+     {k:'tldr',t:'One event, many <b>independent</b> consumers — "order placed → email + charge + update inventory."'},
+     {k:'point',i:'📣',t:'A topic (SNS) fans one message out into <b>N queues</b>, one per subscriber (email, billing, inventory).'},
+     {k:'point',i:'🧱',t:'Each queue is <b>isolated</b> — its own backlog, retries, DLQ. Email being down never blocks billing or inventory.'}
+   ]},
+   {t:'mcq',q:'Why give each fan-out subscriber its own queue instead of sharing one?',o:['to save money','isolation — each has its own backlog/retries/DLQ, so one slow consumer can’t block the others','to guarantee global ordering','to avoid duplicates'],a:1,why:'Per-subscriber queues decouple failure: a stuck email consumer drains its own queue without holding up billing or inventory. A shared queue couples their fates.'},
+   {t:'teach',h:'Scenario 5 · Backpressure',body:[
+     {k:'tldr',t:'Producer outruns consumers (1000/s in, 100/s out → +900/s). The queue can’t grow forever — something must give.'},
+     {k:'point',i:'📈',t:'<b>Autoscale consumers</b> on <b>queue depth</b> — best for spiky, bursty load.'},
+     {k:'point',i:'🚰',t:'<b>Rate-limit the producer</b> — shed load at the source; best when protecting a fragile DB.'},
+     {k:'point',i:'🛑',t:'<b>Cap queue depth</b> and reject (429) when full — best for real-time systems where stale work is useless.'}
+   ]},
+   {t:'htmlviz',h:'Backpressure — three responses + the autoscale signal',
+    html:`<style>
+.bpv{display:grid;gap:11px}
+.bpv-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.bpv-card{border:1.5px solid var(--color-border-primary);border-radius:12px;background:var(--color-background-secondary);padding:10px;display:grid;gap:5px;min-width:0;align-content:start}
+.bpv-card h4{margin:0;font-size:13px;color:var(--color-text-primary)}
+.bpv-card p{margin:0;font-size:11.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.45}
+.bpv-tag{justify-self:start;font-size:10px;font-weight:800;border-radius:999px;padding:2px 8px}
+.bpv-a{background:var(--color-background-success);color:var(--color-text-success)}
+.bpv-b{background:var(--color-background-info);color:var(--color-text-info)}
+.bpv-c{background:var(--color-background-warning);color:var(--color-text-warning)}
+.bpv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.bpv-node{border:1.5px solid var(--color-border-primary);border-radius:10px;background:var(--color-background-secondary);padding:8px 11px;text-align:center;font-size:11.5px;font-weight:800;color:var(--color-text-primary);min-width:96px}
+.bpv-arr{color:var(--color-text-tertiary);font-size:18px;font-weight:900}
+.bpv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.5;padding:9px 12px;background:var(--color-background-secondary);border-radius:10px}
+.bpv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.bpv-grid{grid-template-columns:1fr}}
+</style>
+<div class="bpv">
+  <div class="bpv-grid">
+    <div class="bpv-card"><span class="bpv-tag bpv-a">spiky load</span><h4>Autoscale consumers</h4><p>Watch queue depth; spin up workers to drain the backlog.</p></div>
+    <div class="bpv-card"><span class="bpv-tag bpv-b">protect the DB</span><h4>Rate-limit producer</h4><p>Slow ingestion — shed load at the source before it piles up.</p></div>
+    <div class="bpv-card"><span class="bpv-tag bpv-c">real-time</span><h4>Cap queue depth</h4><p>Reject when full (429 to caller) — stale work is useless.</p></div>
+  </div>
+  <div class="bpv-flow"><div class="bpv-node">Queue depth<br>&gt; N</div><div class="bpv-arr">→</div><div class="bpv-node">Scaler<br>(k8s / ASG)</div><div class="bpv-arr">→</div><div class="bpv-node">Consumer fleet<br>drains, scales back</div></div>
+  <div class="bpv-cap"><b>Queue depth is the autoscaling signal:</b> it directly measures whether consumers are keeping up. Scale out past a threshold, scale back as the backlog drains.</div>
+</div>`},
+   {t:'match',q:'Backpressure response → when it fits best.',pairs:[['Spiky, bursty load','Autoscale consumers'],['Protect a fragile database','Rate-limit the producer'],['Real-time; stale work is useless','Cap depth + reject (429)']]},
+   {t:'mcq',q:'What metric should drive consumer autoscaling for a queue?',o:['CPU only','queue depth (backlog size)','message size','producer count'],a:1,why:'Queue depth directly reflects whether consumers keep up — scale out when depth > N, scale back as it drains. CPU alone misses an I/O-bound backlog.'},
+   {t:'teach',h:'Scenario 6 · Delayed / scheduled jobs',body:[
+     {k:'tldr',t:'Enqueue now, execute later — "remind me in 3 days", "retry payment in 1 hour". Two patterns, chosen by how far out.'},
+     {k:'vs',a:{h:'Queue-native delay',t:'set a per-message delay (SQS ≤ 15 min): the message stays invisible for N seconds, then a consumer picks it up. Simple, but a short horizon.'},b:{h:'Scheduled-jobs table',t:'rows with a run_at timestamp; a poller runs SELECT WHERE run_at ≤ now() and enqueues ready jobs. Any future time.'}},
+     {k:'callout',c:'warn',t:'<b>Multiple pollers race.</b> Two pollers can grab the same row and enqueue it twice — use row-level locking (<code>SELECT … FOR UPDATE SKIP LOCKED</code>) so each ready job is claimed by exactly one poller.'}
+   ]},
+   {t:'mcq',q:'"Retry this payment in exactly 36 hours." Which delay pattern?',o:['queue-native delay (e.g. SQS delay seconds)','a scheduled-jobs table with run_at + a poller','a sleep() inside the consumer','a cron that rescans all payments every minute'],a:1,why:'Queue-native delays cap out short (SQS ≤ 15 min). For an arbitrary future time, store run_at in a jobs table and let a poller enqueue rows once run_at ≤ now().'},
+   {t:'mcq',q:'Several poller instances scan the jobs table. How do you avoid enqueuing a job twice?',o:['add more indexes','SELECT … FOR UPDATE SKIP LOCKED so each row is claimed once','run a single poller faster','raise the isolation level only'],a:1,why:'Row-level locking with SKIP LOCKED lets each poller claim a disjoint set of ready rows — no two pollers grab the same job, and they don’t block each other.'},
+   {t:'cloze',q:'Fill the queue-scenario blanks.',distract:['sharding','leader'],text:[
+     'At-least-once delivery can ',{blank:'duplicate',alt:['repeat']},' a message, so a consumer keyed by ',{blank:'job_id',alt:['id','message id']},' stays idempotent. A poison message that fails ',{blank:'maxReceiveCount',alt:['N','3']},' times is moved to the ',{blank:'DLQ',alt:['dead-letter queue','dead letter queue']},'. To autoscale consumers, scale on ',{blank:'queue depth',alt:['depth','backlog']},'.'
+   ]},
+   {t:'recall',q:'Name the queue gotchas an interviewer probes, with a one-line answer each.',model:['Duplicate delivery (at-least-once): make the consumer idempotent with a dedup store keyed by job_id; visibility-timeout redelivery is normal.','Poison messages: maxReceiveCount → DLQ (parked, not lost), alert on DLQ depth, replay after fixing.','Priorities: separate queue per priority; all consumers poll high-first, fall back to low.','Fan-out: a topic → one isolated queue per subscriber, so one failure can’t block the others.','Backpressure: autoscale on queue depth, rate-limit the producer, or cap depth + 429 — pick by spiky vs DB-bound vs real-time.','Delayed jobs: queue-native delay for short waits (SQS ≤ 15 min), else a run_at jobs table polled with SELECT … FOR UPDATE SKIP LOCKED.']}
+  ]},
+  {id:'msg-5',title:'Ordering & durability',steps:[
+   {t:'teach',h:'Head-of-line blocking',body:[
+     {k:'tldr',t:'You need ordering <i>within</i> a key, but one slow/stuck message shouldn’t stall everything behind it in the same ordered partition.'},
+     {k:'cause',a:'msg #1 is stuck (slow / retrying)',b:'#2, #3, #4 behind it all wait — the partition is blocked'},
+     {k:'point',i:'🧠',t:'This is the price of per-partition ordering: progress is serial, so the slowest message sets the pace.'}
+   ]},
+   {t:'teach',h:'Three ways out',body:[
+     {k:'keyt',term:'DLQ + skip',def:'after N retries, park msg #1 in the DLQ and advance. Best when you can tolerate gaps.'},
+     {k:'keyt',term:'Sequence gating',def:'process later messages out of order but hold their results in a buffer; flush in order once the gap fills. Preserves order, costs memory.'},
+     {k:'keyt',term:'Sub-partition',def:'split the hot key finer (e.g. acct_id + day) so a stall has a smaller blast radius.'}
+   ]},
+   {t:'htmlviz',h:'Sequence gating — buffer until the gap fills',
+    html:`<style>
+.sgv{display:grid;gap:11px}
+.sgv-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sgv-box{border:1.5px solid var(--color-border-primary);border-radius:11px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:104px}
+.sgv-box.bad{background:var(--color-background-danger);border-color:var(--color-text-danger)}
+.sgv-box.info{background:var(--color-background-info);border-color:var(--color-border-info)}
+.sgv-box.good{background:var(--color-background-success);border-color:var(--color-border-success)}
+.sgv-t{font-size:13px;font-weight:900;color:var(--color-text-primary)}
+.sgv-s{font-size:11px;font-weight:700;color:var(--color-text-secondary);margin-top:2px;line-height:1.35}
+.sgv-arr{color:var(--color-text-tertiary);font-size:18px;font-weight:900}
+.sgv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.5;padding:9px 12px;background:var(--color-background-secondary);border-radius:10px}
+.sgv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.sgv-flow{flex-direction:column;align-items:stretch}.sgv-arr{transform:rotate(90deg)}}
+</style>
+<div class="sgv">
+  <div class="sgv-flow">
+    <div class="sgv-box bad"><div class="sgv-t">msg #1</div><div class="sgv-s">slow / retry</div></div>
+    <div class="sgv-arr">→</div>
+    <div class="sgv-box"><div class="sgv-t">Consumer</div><div class="sgv-s">processing #1</div></div>
+    <div class="sgv-arr">→</div>
+    <div class="sgv-box info"><div class="sgv-t">Sequence buffer</div><div class="sgv-s">#2, #3, #4 held here</div></div>
+    <div class="sgv-arr">→</div>
+    <div class="sgv-box good"><div class="sgv-t">Flush in order</div><div class="sgv-s">once #1 acks → #2, #3, #4 released</div></div>
+  </div>
+  <div class="sgv-cap"><b>Process ahead, release in order.</b> Later messages are worked on but their results wait in the buffer until the gap (#1) fills, so downstream still sees correct order.</div>
+  <div class="sgv-cap"><b>Tradeoff:</b> the buffer costs memory + latency — bound its size. If it fills before #1 acks, treat that as a backpressure signal (stop pulling).</div>
+</div>`},
+   {t:'mcq',q:'msg #1 is stuck in an ordered partition and #2–#4 are waiting. You must keep order but not lose work. Which strategy?',o:['DLQ + skip','sequence gating — buffer later messages, flush in order once #1 completes','drop the partition','add more consumers'],a:1,why:'Sequence gating processes ahead but holds results until the gap fills, so order is preserved. DLQ+skip is for when gaps are acceptable; sub-partitioning just shrinks the blast radius.'},
+   {t:'mcq',q:'Why does sub-partitioning (e.g. acct_id + day) ease head-of-line blocking?',o:['it removes ordering','a stuck message blocks a smaller slice of traffic — smaller blast radius','it deletes slow messages','it adds exactly-once'],a:1,why:'Finer keys spread work over more ordered partitions, so one stuck message stalls only its narrow sub-partition instead of a whole hot key.'},
+   {t:'match',q:'Head-of-line strategy → when it fits.',pairs:[['Gaps are acceptable','DLQ + skip'],['Must keep order, no lost work','Sequence gating'],['Shrink the blast radius of a hot key','Sub-partition']]},
+   {t:'teach',h:'Producer acks — the durability dial',body:[
+     {k:'point',i:'0️⃣',t:'<b>acks=0</b>: fire-and-forget. Fastest; loses data on a leader crash.'},
+     {k:'point',i:'1️⃣',t:'<b>acks=1</b>: leader confirms only. Loses data if the leader dies before followers replicate.'},
+     {k:'point',i:'🛡️',t:'<b>acks=all (−1)</b>: every in-sync replica (ISR) confirms. No loss, higher latency.'},
+     {k:'callout',c:'warn',t:'<b>The gotcha:</b> acks=all means "all <i>ISR</i>" — if the ISR has shrunk to just the leader (ISR=1), acks=all <b>still loses data</b> on crash. Pair it with <code>min.insync.replicas≥2</code> or it’s false security.'}
+   ]},
+   {t:'htmlviz',h:'The danger matrix — acks × replicas × ISR',
+    html:`<style>
+.dmx{width:100%;border-collapse:collapse;font-size:12.5px}
+.dmx th{text-align:left;padding:7px 10px;background:var(--color-background-secondary);color:var(--color-text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.5px solid var(--color-border-primary)}
+.dmx td{padding:8px 10px;border-bottom:1px solid var(--color-border-primary);color:var(--color-text-secondary);vertical-align:top;line-height:1.45}
+.dmx .cfg{font-weight:800;color:var(--color-text-primary);font-family:var(--font-mono);font-size:11.5px}
+.dmx .y{color:var(--color-text-danger);font-weight:800}
+.dmx .n{color:var(--color-text-success);font-weight:800}
+</style>
+<table class="dmx">
+<thead><tr><th>config</th><th>data loss?</th><th>why</th></tr></thead>
+<tbody>
+<tr><td class="cfg">acks=0, replicas=1</td><td class="y">yes, always</td><td>broker never confirms receipt</td></tr>
+<tr><td class="cfg">acks=1, replicas=3</td><td class="y">rarely</td><td>leader acks, then dies before followers copy it</td></tr>
+<tr><td class="cfg">acks=all, replicas=3, min.insync=2</td><td class="n">no</td><td>survives any single broker failure</td></tr>
+<tr><td class="cfg">acks=all, ISR=1 (misconfigured)</td><td class="y">yes, on crash</td><td>"all ISR" = just the leader → false security</td></tr>
+</tbody>
+</table>`},
+   {t:'mcq',q:'A team sets acks=all but data still vanishes on a broker crash. Most likely cause?',o:['acks=all is broken','the ISR shrank to 1 (only the leader) — set min.insync.replicas≥2','too many partitions','consumer lag'],a:1,why:'acks=all only waits for the current ISR. If replicas fell out of sync and ISR=1, "all ISR" = just the leader, so a crash loses the un-replicated write. min.insync.replicas≥2 forbids committing in that state.'},
+   {t:'mcq',q:'A Kafka leader broker crashes (producer acks=all, min.insync=2). What happens?',o:['data loss','the controller promotes an in-sync follower; consumers reconnect, no loss','the partition is gone','all consumers stop forever'],a:1,why:'Because the write was on ≥2 ISR members, an in-sync follower has it and is elected leader — consumers reconnect to it with no data loss.'},
+   {t:'teach',h:'Offset commit — when to move the pointer',body:[
+     {k:'vs',a:{h:'Auto-commit / before',t:'commits on a timer or before processing → a crash can SKIP messages (at-most-once, silent loss).'},b:{h:'Commit after process',t:'commit once the work is done → a crash REPROCESSES (at-least-once + idempotency).'}},
+     {k:'note',t:'Exactly-once = commit the offset and the business write in ONE transaction, so a crash is always safe to retry from the same offset.'}
+   ]},
+   {t:'mcq',q:'Auto-commit (commits on poll) risks…',o:['reprocessing','skipping messages if the consumer crashes after the commit but before processing','higher latency','duplicate offsets'],a:1,why:'Auto-commit can advance the offset before the work finishes, so a crash skips those messages (at-most-once). Commit AFTER processing for at-least-once, or use a transaction for exactly-once.'},
+   {t:'htmlviz',h:'The full picture — partitions + replicas + consumer groups',
+    html:`<style>
+.fpv{display:grid;gap:11px}
+.fpv-title{text-align:center;font-size:12px;font-weight:800;color:var(--color-text-tertiary)}
+.fpv-brokers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.fpv-broker{border:1.5px dashed var(--color-border-primary);border-radius:12px;padding:9px;display:grid;gap:6px}
+.fpv-bh{text-align:center;font-size:11px;font-weight:700;color:var(--color-text-tertiary)}
+.fpv-part{border-radius:8px;padding:6px 8px;font-size:11px;font-weight:800;text-align:center;background:var(--color-background-secondary);border:1.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.fpv-part.leader{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.fpv-grp{border-radius:11px;padding:9px;display:grid;gap:7px}
+.fpv-grp.a{background:var(--color-background-success)}
+.fpv-grp.b{background:var(--color-background-danger)}
+.fpv-gh{font-size:12px;font-weight:800;color:var(--color-text-primary)}
+.fpv-gh small{font-weight:600;color:var(--color-text-secondary)}
+.fpv-cons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.fpv-c{background:var(--color-background-primary);border:1.5px solid var(--color-border-primary);border-radius:8px;padding:6px;text-align:center;font-size:10.5px;font-weight:700;color:var(--color-text-secondary)}
+.fpv-c b{display:block;color:var(--color-text-primary);font-size:11.5px;margin-bottom:1px}
+.fpv-cap{font-size:12px;color:var(--color-text-secondary);line-height:1.5;padding:9px 12px;background:var(--color-background-secondary);border-radius:10px}
+.fpv-cap b{color:var(--color-text-primary)}
+@media(max-width:560px){.fpv-brokers{grid-template-columns:1fr}}
+</style>
+<div class="fpv">
+  <div class="fpv-title">Topic "payments" — 3 partitions, replication factor 3</div>
+  <div class="fpv-brokers">
+    <div class="fpv-broker"><div class="fpv-bh">Broker 1</div><div class="fpv-part leader">P0 — LEADER</div><div class="fpv-part">P1 — follower</div><div class="fpv-part">P2 — follower</div></div>
+    <div class="fpv-broker"><div class="fpv-bh">Broker 2</div><div class="fpv-part">P0 — follower</div><div class="fpv-part leader">P1 — LEADER</div><div class="fpv-part">P2 — follower</div></div>
+    <div class="fpv-broker"><div class="fpv-bh">Broker 3</div><div class="fpv-part">P0 — follower</div><div class="fpv-part">P1 — follower</div><div class="fpv-part leader">P2 — LEADER</div></div>
+  </div>
+  <div class="fpv-cap">↕ Each partition is replicated on all 3 brokers; <b>followers pull from the leader</b>, and all reads/writes for a partition go to its leader.</div>
+  <div class="fpv-grp a"><div class="fpv-gh">Consumer group A — "billing-service" <small>· caught up</small></div>
+    <div class="fpv-cons"><div class="fpv-c"><b>A1</b>P0 @ offset 42</div><div class="fpv-c"><b>A2</b>P1 @ offset 17</div><div class="fpv-c"><b>A3</b>P2 @ offset 91</div></div></div>
+  <div class="fpv-grp b"><div class="fpv-gh">Consumer group B — "analytics-service" <small>· independent offsets, far behind</small></div>
+    <div class="fpv-cons"><div class="fpv-c"><b>B1</b>P0 @ offset 3</div><div class="fpv-c"><b>B2</b>P1 @ offset 3</div><div class="fpv-c"><b>B3</b>P2 @ offset 3</div></div></div>
+  <div class="fpv-cap"><b>Both groups read the same partitions independently.</b> Within a group each partition → exactly one consumer; across groups offsets are separate. Messages are never "consumed" — they live on disk until retention, so group B can replay from offset 0 anytime.</div>
+</div>`},
+   {t:'mcq',q:'Group A is at offset 91 on P2 while group B is at offset 3 on the same partition. How?',o:['data corruption','each consumer group tracks offsets independently — B is just far behind','P2 has two leaders','B lost its messages'],a:1,why:'Every consumer group keeps its own offset per partition, and Kafka never deletes on consume. So a slow group (analytics) lags a fast one (billing) on the same partitions — and can replay from 0.'},
+   {t:'mcq',q:'All reads and writes for partition P1 go to…',o:['any of the 3 brokers','the broker holding P1’s leader (followers just replicate)','the consumer','the controller'],a:1,why:'Each partition has one leader; clients read/write the leader, and followers pull from it to stay in the ISR. A follower only serves traffic after it’s promoted on failover.'},
+   {t:'cloze',q:'Fill the durability blanks.',distract:['quorum','leader'],text:[
+     'The producer ',{blank:'acks',alt:['acks setting']},' dial goes 0 → 1 → all. acks=',{blank:'all',alt:['-1','−1']},' waits for every in-sync replica, but only protects you with ',{blank:'min.insync.replicas',alt:['min.insync','min insync replicas']},'≥2 — otherwise a shrunken ISR of 1 still loses data. Exactly-once = commit the offset and the write in one ',{blank:'transaction',alt:['txn','atomic txn']},'.'
+   ]},
+   {t:'recall',q:'Explain Kafka durability: acks, ISR, and the exactly-once trick.',model:['acks dials durability: 0 (fire-and-forget) → 1 (leader only) → all (every ISR). acks=all + min.insync.replicas≥2 survives any single broker failure.','Gotcha: acks=all means "all ISR"; if the ISR shrinks to the leader you can still lose data — min.insync.replicas guards against committing in that state.','Exactly-once in practice = commit the consumer offset and the business write in one atomic transaction, so a crash is always safe to retry from the same offset.']}
   ]}
  ],
  boss:{title:'Messaging Boss',time:80,q:[
    {q:'A log (Kafka) differs from a queue by…',o:['being slower','retention + replay + many readers','no ordering','no consumers'],a:1},
+   {q:'Head-of-line blocking, must keep order without losing work:',o:['DLQ + skip','sequence gating (buffer, flush in order)','drop the partition','add consumers'],a:1},
+   {q:'acks=all still loses data when…',o:['never','the ISR has shrunk to 1 (no min.insync.replicas)','there are 3 replicas','the consumer is slow'],a:1},
+   {q:'Priority jobs are best handled by…',o:['one mixed queue','a queue per priority, polled high-first','one consumer per priority','a database'],a:1},
+   {q:'Autoscale queue consumers on…',o:['CPU only','queue depth','message size','producer count'],a:1},
    {q:'At-least-once delivery requires…',o:['exactly-once HW','idempotent consumers','no retries','a lock'],a:1},
    {q:'Kafka ordering holds…',o:['globally','per partition','per consumer','never'],a:1},
    {q:'Kafka consumer parallelism is capped by…',o:['brokers','partition count','replicas','topics'],a:1},
@@ -2531,7 +2818,7 @@ const UNITS=[
      {k:'point',i:'🏢',t:'Round trip within a datacenter ≈ <b>0.5 ms</b>.'},
      {k:'point',i:'🌍',t:'Cross-continent round trip ≈ <b>150 ms</b> — dwarfs the rest, so cache/CDN near users.'}
    ]},
-   {t:'order',q:'Order these latencies FASTEST → SLOWEST.',items:['Memory read (~100ns)','SSD read (~16µs)','Datacenter round trip (~0.5ms)','Cross-continent round trip (~150ms)']},
+   {t:'order',q:'Order these latencies FASTEST → SLOWEST.',items:['Memory read','SSD read','Datacenter round trip','Cross-continent round trip'],reveal:'Memory ~100 ns → SSD ~16 µs → datacenter RT ~0.5 ms → cross-continent RT ~150 ms.'},
    {t:'mcq',q:'Roughly, 1 day in seconds is…',o:['~3,600','~86,400','~1,000,000','~604,800'],a:1,why:'86,400 ≈ 10^5 — the handiest estimation constant.'},
    {t:'teach',h:'Round numbers that make the math easy',body:[
      {k:'tldr',t:'You want the right power of 10, not a precise figure. Round hard and lean on a couple of constants.'},
@@ -2679,9 +2966,47 @@ const UNITS=[
 	     {blank:'Snowflake',alt:['snowflake']},' uses timestamp + worker ID + sequence, so worker ID assignment is the coordination point.'
 	   ]},
 	   {t:'recall',q:'When an interviewer asks “how do you generate IDs?”, what should you say?',model:['Name the scheme and the reason: UUID v7 for client-generated, time-ordered IDs with good DB index locality; Snowflake when you control worker IDs and need compact sortable 64-bit IDs.','Avoid defaulting to UUID v4 for write-heavy indexed tables unless random insert overhead is acceptable.','Use content hashes only when identity is derived from bytes, such as dedup or content-addressable storage.']}
+	  ]},
+	  {id:'scale-4',title:'Numbers to memorize',steps:[
+	   {t:'teach',h:'The latency ladder',body:[
+	     {k:'tldr',t:'Each rung is roughly a power of 10 slower than the one above. Memorize the <b>shape</b>, not the decimals.'},
+	     {k:'point',i:'⚡',t:'<b>L1 cache</b> ≈ 1 ns · <b>RAM</b> ≈ 100 ns — main memory is ~100× slower than cache.'},
+	     {k:'point',i:'💽',t:'<b>SSD random read</b> ≈ 16 µs · <b>1 MB sequentially from SSD</b> ≈ 50 µs — storage is ~100× slower again.'},
+	     {k:'point',i:'🏢',t:'<b>Datacenter round trip</b> ≈ 0.5 ms · <b>1 MB from spinning disk (HDD)</b> ≈ 1–2 ms.'},
+	     {k:'point',i:'🌍',t:'<b>CA ↔ Europe round trip</b> ≈ 150 ms — the WAN hop dwarfs everything, so cache/CDN near users.'}
+	   ]},
+	   {t:'order',q:'Order these FASTEST → SLOWEST.',items:['L1 cache','RAM','SSD random read','Datacenter round trip','CA ↔ Europe round trip'],reveal:'L1 ~1 ns → RAM ~100 ns → SSD ~16 µs → datacenter RT ~0.5 ms → CA↔EU RT ~150 ms.'},
+	   {t:'mcq',q:'Reading 1 MB sequentially from an SSD takes roughly…',o:['~50 ns','~50 µs','~5 ms','~50 ms'],a:1,why:'~50 µs. An SSD streams a megabyte in tens of microseconds; the same MB off a spinning disk (HDD) is ~1–2 ms — roughly 20–40× slower.'},
+	   {t:'mcq',q:'Memory reference vs SSD random read — the gap is about…',o:['2×','10×','100×','10,000×'],a:2,why:'RAM ≈ 100 ns, SSD random read ≈ 16 µs ≈ 16,000 ns → roughly 100×. Each step down the ladder is ~2 orders of magnitude.'},
+	   {t:'cloze',q:'Fill the latency ladder.',distract:['1 s','1 ms'],text:[
+	     'L1 cache ≈ 1 ',{blank:'ns',alt:['nanosecond']},'; main memory ≈ 100 ns; an SSD random read ≈ 16 ',{blank:'µs',alt:['us','microseconds']},'; a round trip inside one datacenter ≈ 0.5 ',{blank:'ms',alt:['millisecond']},'; and a cross-continent round trip ≈ ',{blank:'150',alt:['~150']},' ms.'
+	   ]},
+	   {t:'teach',h:'Availability: the nines',body:[
+	     {k:'tldr',t:'Each extra nine cuts allowed downtime by ~10×. Anchor on the per-year figures.'},
+	     {k:'keyt',term:'99.9% — three nines',def:'~8.8 hours of downtime per year (~43 min/month).'},
+	     {k:'keyt',term:'99.99% — four nines',def:'~53 minutes per year.'},
+	     {k:'keyt',term:'99.999% — five nines',def:'~5.3 minutes per year — the telecom gold standard.'}
+	   ]},
+	   {t:'match',q:'Match the SLA to its yearly downtime.',pairs:[['99.9% (three nines)','~8.8 hours'],['99.99% (four nines)','~53 minutes'],['99.999% (five nines)','~5.3 minutes']]},
+	   {t:'mcq',q:'A service promises 99.99% availability. Worst-case downtime per year is about…',o:['~9 hours','~53 minutes','~5 minutes','~9 minutes'],a:1,why:'Four nines ≈ 53 min/year. Three nines is ~8.8 h, five nines is ~5.3 min — each added nine is ~10× less downtime.'},
+	   {t:'teach',h:'Powers of two & handy constants',body:[
+	     {k:'tldr',t:'Powers of two line up almost exactly with the KB/MB/GB ladder — that’s why they’re worth knowing cold.'},
+	     {k:'point',i:'🔟',t:'<b>2¹⁰</b> = 1,024 ≈ 1 thousand (≈ 1 KB).'},
+	     {k:'point',i:'📈',t:'<b>2²⁰</b> ≈ 1 million (MB) · <b>2³⁰</b> ≈ 1 billion (GB).'},
+	     {k:'point',i:'🔢',t:'<b>2³²</b> ≈ 4.3 billion — the max unsigned 32-bit int (why IDs and IPv4 addresses overflow it).'},
+	     {k:'point',i:'🕒',t:'<b>Seconds/day</b> = 86,400 ≈ 10⁵ · <b>Seconds/month</b> ≈ 2.5 million.'}
+	   ]},
+	   {t:'match',q:'Match the power of two to its value.',pairs:[['2¹⁰','≈ 1 thousand'],['2²⁰','≈ 1 million'],['2³⁰','≈ 1 billion'],['2³²','≈ 4.3 billion']]},
+	   {t:'mcq',q:'Why is 2³² ≈ 4.3 billion worth memorizing?',o:['it’s the seconds in a year','it’s the max unsigned 32-bit integer','it’s 1 GB in bytes','it’s the page size'],a:1,why:'2³² ≈ 4.3 billion is the largest unsigned 32-bit int — the reason 32-bit ID counters and the IPv4 address space run out.'},
+	   {t:'cloze',q:'Fill the memorized constants.',distract:['3,600','1.0'],text:[
+	     'A day has ',{blank:'86,400',alt:['86400','~10^5']},' seconds. 2³⁰ ≈ 1 ',{blank:'billion',alt:['GB']},', and 2³² ≈ ',{blank:'4.3',alt:['~4.3']},' billion — the largest unsigned 32-bit integer.'
+	   ]},
+	   {t:'recall',q:'Rattle off the latency ladder from L1 cache to a cross-continent round trip.',model:['L1 ≈ 1 ns → RAM ≈ 100 ns → SSD random read ≈ 16 µs → 1 MB from SSD ≈ 50 µs.','Datacenter round trip ≈ 0.5 ms → 1 MB from HDD ≈ 1–2 ms → cross-continent round trip ≈ 150 ms.','Rule of thumb: each rung is ~2 orders of magnitude, and the WAN hop dwarfs the rest.']}
 	  ]}
 	 ],
 	 boss:{title:'Scalability Boss',time:85,q:[
+	   {q:'99.99% availability ≈ … downtime/year',o:['~9 hours','~53 minutes','~5 minutes','~1 hour'],a:1},
+	   {q:'2³² is about…',o:['4 million','43 million','4.3 billion','4.3 trillion'],a:2},
 	   {q:'Peak QPS is usually…',o:['= average','2–10× average','100× average','< average'],a:1},
 	   {q:'1 day ≈ … seconds',o:['3.6k','86.4k','1M','600k'],a:1},
 	   {q:'Horizontal scaling adds…',o:['a ceiling','coordination complexity','nothing','a SPOF'],a:1},
@@ -3983,9 +4308,10 @@ const UNITS=[
      {k:'tldr',t:'Browse events/seats, hold a seat, book it, pay — with NO double-booking.'},
      {k:'point',i:'📐',t:'NFRs: strong consistency on seats, extreme contention at on-sale, payment integrity.'}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: events, seats(status[AVAILABLE|HELD|BOOKED], held_by, hold_expires_at, version), bookings.','API: hold(seat), confirm(seat), release(seat).']},
-   {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with the DB: UPDATE … WHERE status=AVAILABLE (compare-and-set). Reach for distributed locks only if data spans systems.'},
-   {t:'htmlviz',h:'Seat booking — CAS hold lifecycle',
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['seats = static inventory: seats(seat_id, event_id, section, row) — never mutated during on-sale, so it is not a contention point.','tickets = the hold/booking lifecycle + transaction: tickets(ticket_id, seat_id UNIQUE, user_id, price, status[HELD|BOOKED], hold_expires_at, version, created_at). UNIQUE(seat_id) is the double-booking guard.','API: hold(seat), confirm(seat), release(seat).']},
+   {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with what the DB enforces: hold = INSERT a ticket where UNIQUE(seat_id) rejects a concurrent 2nd holder (or an UPDATE … WHERE compare-and-set). Reach for distributed locks only if data spans systems.'},
+   {t:'mcq',nu:true,q:'Where do price & payment_status belong?',o:['extra columns on the seats row','a separate tickets/orders table','in Redis','on the events row'],a:1,why:'Split static inventory (what seat is this?) from the transaction (who holds/owns it, price, payment). A failed payment changes the ticket, not the seat. The whole HELD→BOOKED lifecycle lives on tickets, with UNIQUE(seat_id) as the double-booking guard.'},
+   {t:'htmlviz',h:'Seat booking — hold lifecycle',
     html:`<style>
 .sbv{display:grid;gap:10px}
 .sbv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
@@ -4000,13 +4326,14 @@ const UNITS=[
 .sbv-cap b{color:var(--color-text-primary)}
 </style>
 <div class="sbv">
-  <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">status check</div></div><div class="sbv-arr">CAS hold</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">held_by + TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">final owner</div></div></div>
-  <div class="sbv-cap"><b>The hold is one conditional DB update:</b> AVAILABLE → HELD only if the row is still available. Confirm is also conditional: still held by you, not expired, expected version.</div>
-  <div class="sbv-cap">If payment stalls or the client disappears, the TTL releases HELD back to AVAILABLE. Use a version/fencing token so stale retries cannot confirm an expired hold.</div>
+  <div class="sbv-flow"><div class="sbv-state good"><div class="sbv-t">AVAILABLE</div><div class="sbv-s">no ticket row</div></div><div class="sbv-arr">INSERT (UNIQUE seat_id)</div><div class="sbv-state warn"><div class="sbv-t">HELD</div><div class="sbv-s">ticket row · TTL + version</div></div><div class="sbv-arr">confirm</div><div class="sbv-state info"><div class="sbv-t">BOOKED</div><div class="sbv-s">status=BOOKED</div></div></div>
+  <div class="sbv-cap"><b>The hold is one INSERT, guarded by UNIQUE(seat_id):</b> a concurrent 2nd hold for the same seat is rejected by the DB. Confirm is a conditional CAS: still held by you, not expired, expected version.</div>
+  <div class="sbv-cap">If payment stalls or the client vanishes, the hold needs cleanup — a background job deletes expired HELD rows (or an ON CONFLICT upsert steals one), else the unique slot blocks re-booking.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Relational DB (ACID)','Seat hold with TTL','Payment via saga','Virtual waiting room / queue for spikes','A cache as the source of truth'],correct:[0,1,2,3]},
    {t:'mcq',q:'5 · Bottleneck?',o:['browsing seats','contention on popular seats / hot DB rows at on-sale','payment','email confirmation'],a:1,why:'Everyone grabs the same seats at 10:00 — hot rows. Shed load with a waiting-room queue.'},
-   {t:'recall',q:'6 · Deep dive + failure.',model:['Optimistic CAS on seat status + a hold TTL that auto-releases abandoned holds; the confirm is conditional (only if still HELD by you). Add a hold_version/fencing token if a stale client can resume and retry.','Waiting-room queue to serialize/shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → TTL releases it back to AVAILABLE.']}
+   {t:'mcq',nu:true,q:'At on-sale, one hot seat draws 10k simultaneous hold attempts. The risk?',o:['the DB deadlocks','retry storms — losers fail fast and re-hammer the row','seats double-book','holds never expire'],a:1,why:'The hold stays correct (UNIQUE rejects the duplicate, or CAS affects 0 rows), but the thousands of losers retry, pounding the hot row. Absorb the spike with a waiting-room queue or a Redis lock that serializes access, and keep the DB constraint as the final safety net — two systems to sync, but the raw spike never reaches the DB.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['seats is static inventory; the HELD→BOOKED lifecycle + UNIQUE(seat_id) guard live on tickets. Hold = INSERT (UNIQUE rejects a 2nd holder); confirm = conditional CAS (still HELD by you, unexpired, expected version).','Expired holds need cleanup — a background job deletes lapsed HELD rows (or an ON CONFLICT upsert steals one), else the unique slot stays blocked. Waiting-room queue to shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → cleanup frees the seat for re-booking.']}
   ]},
   {id:'mock-5',title:'Distributed rate limiter',steps:[
    {t:'teach',h:'1 · Requirements',body:[
@@ -4695,6 +5022,7 @@ function blockHTML(b){
   if(b.k==='callout')return '<div class="callout '+b.c+'"><span>'+(b.c==='warn'?'⚠️':b.c==='mem'?'🧠':'💡')+'</span><span>'+b.t+'</span></div>';
   if(b.k==='note')return '<div class="callout note"><span>💡</span><span>'+b.t+'</span></div>';
   if(b.k==='mnemonic')return '<div class="callout mem"><span>🧠</span><span>'+b.t+'</span></div>';
+  if(b.k==='html')return b.h;
   return '';
 }
 function stTeach(stage,step){
@@ -4919,7 +5247,7 @@ function stOrder(stage,step){
     h+='</div>';stage.innerHTML=h;
     clearFoot();
     if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
-    feedback(ok,ok?'Perfect order!':'Correct order: '+correct.join(' → '),nextStep);
+    feedback(ok,ok?(step.reveal?'Perfect! '+step.reveal:'Perfect order!'):'Correct order: '+(step.reveal||correct.join(' → ')),nextStep);
   }
   draw();
 }
