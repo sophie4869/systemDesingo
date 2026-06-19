@@ -3455,7 +3455,7 @@ Keyset (fast):
     <div class="cards">
 
       <div class="card wide" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Choosing a database</div><div class="card-sub">Pick by access pattern, not hype</div></div><span class="badge badge-blue">Decision</span></div>
+        <div class="card-header"><div class="card-meta"><div class="card-title">Choosing a database &amp; indexes</div><div class="card-sub">Pick by access pattern, then design keys and secondary indexes</div></div><span class="badge badge-blue">Decision</span></div>
         <div class="card-body">
           <style>
           .db-wrap { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
@@ -3503,8 +3503,6 @@ Keyset (fast):
                 <div class="db-examples"><span class="db-ex">ClickHouse</span><span class="db-ex">BigQuery</span><span class="db-ex">Redshift</span></div>
                 <div class="db-use">analytics, dashboards, data warehouse</div>
               </div>
-            </div>
-            <div class="db-opts">
               <div class="db-opt">
                 <div class="db-opt-head"><span style="font-size:16px">⏱️</span><span class="db-opt-title">Time-series</span></div>
                 <div class="db-opt-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply and recent data stays hot in cache.</div>
