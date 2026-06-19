@@ -314,6 +314,10 @@ a{color:var(--accent);text-decoration:none}
 .ex-tag{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-dark);background:var(--accent-light);padding:2px 8px;border-radius:4px;margin-bottom:.6rem}
 .ex-prompt{font-size:14px;color:var(--text);line-height:1.65;margin-bottom:.45rem}
 .ex-prompt strong{font-weight:600}
+.ex-link{color:var(--accent-dark);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.ex-link:hover{text-decoration-style:solid}
+.ex-flash{animation:exFlash 1.8s ease-out}
+@keyframes exFlash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
 .ex-tests{font-size:12px;color:var(--text-faint);margin-bottom:.85rem;font-style:italic}
 .ex-btn{font-size:12px;font-weight:500;padding:7px 14px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;transition:background .15s}
 .ex-btn:hover{background:var(--accent-dark)}
@@ -384,6 +388,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="nav-item" onclick="showSection('concurrency',this)"><span class="nav-dot"></span>Concurrency control</div>
     <div class="nav-item" onclick="showSection('partitioning',this)"><span class="nav-dot"></span>Partitioning</div>
     <div class="nav-item" onclick="showSection('apidesign',this)"><span class="nav-dot"></span>Data models &amp; encoding</div>
+    <div class="nav-item" onclick="showSection('databases',this)"><span class="nav-dot"></span>Databases</div>
     <div class="nav-item" onclick="showSection('time',this)"><span class="nav-dot"></span>Time &amp; ordering</div>
     <div class="nav-item" onclick="showSection('trouble',this)"><span class="nav-dot"></span>Distributed trouble</div>
   </div>
@@ -405,6 +410,7 @@ a{color:var(--accent);text-decoration:none}
   <div class="nav-section">
     <div class="nav-label">Practice</div>
     <div class="nav-item" onclick="showSection('patterns',this)"><span class="nav-dot"></span>Common patterns</div>
+    <div class="nav-item" onclick="showSection('archetypes',this)"><span class="nav-dot"></span>Design archetypes</div>
     <div class="nav-item" onclick="showSection('framework',this)"><span class="nav-dot"></span>Interview framework</div>
     <div class="nav-item" onclick="showSection('decisions',this)"><span class="nav-dot"></span>Design decisions</div>
     <div class="nav-item" onclick="showSection('exercises',this)"><span class="nav-dot"></span>Mock designs</div>
@@ -1287,77 +1293,6 @@ Cancel  &rarr; release seat, unfreeze $50</div>
     </div>
     <div class="cards">
 
-      <div class="card wide" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Secondary indexes in sharded DBs</div><div class="card-sub">Local vs global index tradeoffs</div></div><span class="badge badge-purple">Query patterns</span></div>
-        <div class="card-body">
-          <p><strong>Local (document-based) secondary indexes:</strong> each partition maintains its own secondary index covering only its own data. Writes are local and fast. Reads require scatter-gather — query all partitions and merge results. Used by MongoDB.</p>
-          <p><strong>Global (term-based) secondary indexes:</strong> the index itself is partitioned by the indexed term. Reads go to one partition (fast). Writes must update multiple index partitions (slow, usually async). DynamoDB Global Secondary Indexes are async — reads can be stale immediately after a write.</p>
-          <p><strong>In DynamoDB specifically:</strong> the <strong>main table</strong> is stored and ordered by partition key + sort key. An <strong>LSI</strong> reuses the <em>same partition key</em> with a different sort key — it lives <em>inside the same partition</em>, sharing its storage (and 10&nbsp;GB limit). A <strong>GSI</strong> is a fully separate copy, <em>repartitioned by a different key</em> — essentially a new table behind the scenes, which is why it's updated asynchronously.</p>
-          <div class="dynidx" onclick="event.stopPropagation()">
-            <div class="dynidx-cols">
-              <div class="dynidx-col c-main">
-                <div class="dx-head">Main table</div>
-                <div class="dx-pk">PK: follower_id</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>follower_id</th><th>followee_id</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: alice</td></tr>
-                    <tr><td>alice</td><td>bob</td></tr>
-                    <tr><td>alice</td><td>carol</td></tr>
-                    <tr><td>alice</td><td>dan</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob</td></tr>
-                    <tr><td>bob</td><td>alice</td></tr>
-                    <tr><td>bob</td><td>carol</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who does alice follow?"</div>
-              </div>
-              <div class="dynidx-col c-lsi">
-                <div class="dx-head">LSI</div>
-                <div class="dx-pk">PK: follower_id · sort: created_at</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>follower_id</th><th>created_at</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr>
-                    <tr><td>alice</td><td>2024-01-01</td></tr>
-                    <tr><td>alice</td><td>2024-03-10</td></tr>
-                    <tr><td>alice</td><td>2024-07-22</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr>
-                    <tr><td>bob</td><td>2024-02-14</td></tr>
-                    <tr><td>bob</td><td>2024-05-30</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who did alice follow most recently?"</div>
-              </div>
-              <div class="dynidx-col c-gsi">
-                <div class="dx-head">GSI</div>
-                <div class="dx-pk">PK: followee_id</div>
-                <table class="dx-tbl">
-                  <thead><tr><th>followee_id</th><th>follower_id</th></tr></thead>
-                  <tbody>
-                    <tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr>
-                    <tr><td>carol</td><td>alice</td></tr>
-                    <tr><td>carol</td><td>bob</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr>
-                    <tr><td>alice</td><td>bob</td></tr>
-                    <tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr>
-                    <tr><td>bob</td><td>alice</td></tr>
-                  </tbody>
-                </table>
-                <div class="dx-q">✓ "who follows carol?"</div>
-              </div>
-            </div>
-            <div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by <code>followee_id</code></div>
-            <div class="dx-why">
-              <div class="dx-why-h">Why followee_id works as a GSI partition key</div>
-              <p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>
-              <p>The main table can't answer "who follows carol?" without a scatter-gather — carol's followers are scattered across many follower partitions. The GSI groups them under one partition key.</p>
-            </div>
-          </div>
-          <div class="tag-row"><span class="tag">DynamoDB GSI = global async</span><span class="tag">MongoDB = local scatter-gather</span></div>
-        </div>
-      </div>
-
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Range partitioning</div><div class="card-sub">Contiguous key ranges per partition</div></div><span class="badge badge-blue">Range scans</span></div>
         <div class="card-body">
@@ -1868,10 +1803,105 @@ COMMIT
       </div>
 
       <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Write-through &amp; write-behind</div><div class="card-sub">Two write strategies with opposite tradeoffs</div></div><span class="badge badge-teal">Write patterns</span></div>
+        <div class="card-header"><div class="card-meta"><div class="card-title">Write strategies compared</div><div class="card-sub">Three ways a write reaches the cache &amp; DB</div></div><span class="badge badge-teal">Write patterns</span></div>
         <div class="card-body">
-          <p><strong>Write-through:</strong> on every write, update both the cache and the DB synchronously before confirming. Cache is always fresh. The cost: write latency roughly doubles, and the cache fills with data that may never be read — write pollution.</p>
-          <p><strong>Write-behind (write-back):</strong> write to cache immediately and flush to DB asynchronously. Write latency is very low — the client gets an ack as soon as the cache is updated. The risk: if the cache crashes before flushing, you lose that data. Needs durable cache persistence (Redis AOF/RDB). Only appropriate when you need very high write throughput and can tolerate some durability risk.</p>
+          <p>The strategies differ entirely on the <strong>write path</strong> — specifically <em>what the client waits for before it gets an ack</em>. That single choice sets the latency, freshness, and durability tradeoff.</p>
+          <div class="cws" onclick="event.stopPropagation()">
+<style>
+.cws{margin:.85rem 0}
+.cws-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;font-weight:600;color:var(--color-text-tertiary);margin-bottom:11px}
+.cws-legend span{display:inline-flex;align-items:center;gap:6px}
+.cws-sw{width:24px;height:0;border-top:2px solid var(--color-text-info)}
+.cws-sw.async{border-top-style:dashed;border-color:var(--color-text-tertiary)}
+.cws-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(208px,1fr));gap:11px}
+.cws-lane{border:1.5px solid var(--color-border-primary);border-radius:11px;background:var(--color-background-secondary);padding:12px 12px 11px;display:flex;flex-direction:column}
+.cws-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.cws-name{font-size:13.5px;font-weight:700;color:var(--color-text-primary)}
+.cws-chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.cws-chip.fast{background:var(--color-background-success);color:var(--color-text-success)}
+.cws-chip.mid{background:var(--color-background-warning);color:var(--color-text-warning)}
+.cws-chip.slow{background:var(--color-background-danger);color:var(--color-text-danger)}
+.cws-dia{display:block;width:100%;height:auto}
+.cws-dia .nd{fill:var(--color-background-primary);stroke:var(--color-border-primary);stroke-width:1.4}
+.cws-dia .nd.cache{fill:var(--color-background-info);stroke:var(--color-border-info)}
+.cws-dia .ndt{font-weight:700;font-size:12px;fill:var(--color-text-primary);text-anchor:middle;dominant-baseline:central}
+.cws-dia .ndt.cache{fill:var(--color-text-info)}
+.cws-dia .fl{fill:none;stroke:var(--color-text-info);stroke-width:2}
+.cws-dia .fl.async{stroke:var(--color-text-tertiary);stroke-dasharray:4 3}
+.cws-dia .ack{fill:none;stroke:var(--color-text-success);stroke-width:1.5;stroke-dasharray:3 3}
+.cws-dia .bdg{fill:var(--color-background-info);stroke:var(--color-background-secondary);stroke-width:2}
+.cws-dia .bdg.async{fill:var(--color-background-primary);stroke:var(--color-text-tertiary);stroke-width:1.3}
+.cws-dia .bn{font-family:var(--font-mono);font-weight:700;font-size:10px;fill:var(--color-text-info);text-anchor:middle;dominant-baseline:central}
+.cws-dia .bn.async{fill:var(--color-text-tertiary)}
+.cws-dia .al{font-family:var(--font-mono);font-weight:600;font-size:9px;fill:var(--color-text-tertiary)}
+.cws-dia .akl{font-weight:700;font-size:9.5px;fill:var(--color-text-success)}
+.cws-foot{margin-top:auto;padding-top:9px;border-top:1px dashed var(--color-border-primary);font-size:11.5px;line-height:1.5;color:var(--color-text-secondary)}
+.cws-foot b{color:var(--color-text-primary)}
+</style>
+            <div class="cws-legend">
+              <span><i class="cws-sw"></i>solid = client blocks (sync)</span>
+              <span><i class="cws-sw async"></i>dashed = background (async)</span>
+              <span style="color:var(--color-text-success)">&#8617; = ack to client</span>
+            </div>
+            <div class="cws-grid">
+              <div class="cws-lane">
+                <div class="cws-hd"><span class="cws-name">Cache-aside</span><span class="cws-chip fast">1&times; DB write</span></div>
+                <svg class="cws-dia" viewBox="0 0 232 172" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cache-aside: client writes the DB and deletes the cache key; cache sits aside">
+                  <defs>
+                    <marker id="ca-b" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-info)"/></marker>
+                    <marker id="ca-s" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-success)"/></marker>
+                  </defs>
+                  <rect class="nd" x="77" y="8" width="78" height="30" rx="7"/><text class="ndt" x="116" y="23">Client</text>
+                  <rect class="nd cache" x="160" y="69" width="64" height="30" rx="7"/><text class="ndt cache" x="192" y="84">Cache</text>
+                  <rect class="nd" x="77" y="134" width="78" height="30" rx="7"/><text class="ndt" x="116" y="149">DB</text>
+                  <path class="fl" d="M116,38 L116,131" marker-end="url(#ca-b)"/>
+                  <path class="fl" d="M155,25 C198,28 202,58 161,82" marker-end="url(#ca-b)"/>
+                  <path class="ack" d="M77,150 C40,132 40,42 77,25" marker-end="url(#ca-s)"/><text class="akl" x="6" y="92">ack</text>
+                  <circle class="bdg" cx="116" cy="86" r="8.5"/><text class="bn" x="116" y="86">1</text><text class="al" x="128" y="89">write</text>
+                  <circle class="bdg" cx="193" cy="52" r="8.5"/><text class="bn" x="193" y="52">2</text><text class="al" x="150" y="38">delete</text>
+                </svg>
+                <div class="cws-foot"><b>App owns the cache.</b> Write DB, then delete the key &mdash; cache sits <em>aside</em>. Next read repopulates lazily.</div>
+              </div>
+              <div class="cws-lane">
+                <div class="cws-hd"><span class="cws-name">Write-through</span><span class="cws-chip slow">~2&times; latency</span></div>
+                <svg class="cws-dia" viewBox="0 0 232 172" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Write-through: client writes the cache which synchronously writes through to the DB">
+                  <defs>
+                    <marker id="wt-b" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-info)"/></marker>
+                    <marker id="wt-s" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-success)"/></marker>
+                  </defs>
+                  <rect class="nd" x="77" y="8" width="78" height="30" rx="7"/><text class="ndt" x="116" y="23">Client</text>
+                  <rect class="nd cache" x="77" y="71" width="78" height="30" rx="7"/><text class="ndt cache" x="116" y="86">Cache</text>
+                  <rect class="nd" x="77" y="134" width="78" height="30" rx="7"/><text class="ndt" x="116" y="149">DB</text>
+                  <path class="fl" d="M116,38 L116,69" marker-end="url(#wt-b)"/>
+                  <path class="fl" d="M116,101 L116,131" marker-end="url(#wt-b)"/>
+                  <path class="ack" d="M77,150 C38,131 38,43 77,25" marker-end="url(#wt-s)"/><text class="akl" x="4" y="92">ack</text>
+                  <circle class="bdg" cx="116" cy="54" r="8.5"/><text class="bn" x="116" y="54">1</text><text class="al" x="128" y="57">write</text>
+                  <circle class="bdg" cx="116" cy="117" r="8.5"/><text class="bn" x="116" y="117">2</text><text class="al" x="128" y="120">write</text>
+                </svg>
+                <div class="cws-foot"><b>Always fresh.</b> Cache writes <em>through</em> to the DB, both synchronous &mdash; writes pay double, plus write pollution.</div>
+              </div>
+              <div class="cws-lane">
+                <div class="cws-hd"><span class="cws-name">Write-behind</span><span class="cws-chip fast">cache-only</span></div>
+                <svg class="cws-dia" viewBox="0 0 232 172" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Write-behind: client writes the cache and is acked immediately; the cache flushes to the DB asynchronously">
+                  <defs>
+                    <marker id="wb-b" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-info)"/></marker>
+                    <marker id="wb-g" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-tertiary)"/></marker>
+                    <marker id="wb-s" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-success)"/></marker>
+                  </defs>
+                  <rect class="nd" x="77" y="8" width="78" height="30" rx="7"/><text class="ndt" x="116" y="23">Client</text>
+                  <rect class="nd cache" x="77" y="71" width="78" height="30" rx="7"/><text class="ndt cache" x="116" y="86">Cache</text>
+                  <rect class="nd" x="77" y="134" width="78" height="30" rx="7"/><text class="ndt" x="116" y="149">DB</text>
+                  <path class="fl" d="M116,38 L116,69" marker-end="url(#wb-b)"/>
+                  <path class="fl async" d="M116,101 L116,131" marker-end="url(#wb-g)"/>
+                  <path class="ack" d="M77,87 C40,77 40,43 77,25" marker-end="url(#wb-s)"/><text class="akl" x="2" y="62">ack</text>
+                  <circle class="bdg" cx="116" cy="54" r="8.5"/><text class="bn" x="116" y="54">1</text><text class="al" x="128" y="57">write</text>
+                  <circle class="bdg async" cx="116" cy="117" r="8.5"/><text class="bn async" x="116" y="117">2</text><text class="al" x="128" y="120">flush</text>
+                </svg>
+                <div class="cws-foot"><b>Lowest write latency.</b> Acked after the cache write; the DB flush is batched in the background. Crash before flush = lost writes (needs Redis AOF/RDB).</div>
+              </div>
+            </div>
+          </div>
+          <p><strong>Write-behind</strong> is only worth its durability risk when you need very high write throughput; otherwise reach for cache-aside (reads) or write-through (when staleness is unacceptable).</p>
           <div class="tag-row"><span class="tag">write-through = consistent</span><span class="tag">write-behind = fast but risky</span></div>
         </div>
       </div>
@@ -2291,111 +2321,6 @@ char ≈ 1 byte, typical row 100s of bytes–1KB</div>
           <p><strong>The key enabler is statelessness:</strong> push all state out of app servers and into databases, caches, and object stores. Then any instance can handle any request, and horizontal scaling becomes as simple as "add more instances behind a load balancer." The database becomes the new bottleneck — which is why read replicas, sharding, and caching exist.</p>
           <div class="note"><strong>Amdahl &amp; Universal Scalability Law:</strong> Amdahl tells you speedup is always capped by the serial fraction of your workload. The USL goes further — it adds a coordination/contention penalty that can actually make throughput <em>decrease</em> past a point if nodes spend too much time cross-talking. More machines doesn't always mean more throughput.</div>
           <div class="tag-row"><span class="tag">stateless app tier</span><span class="tag">DB is the bottleneck</span><span class="tag">USL contention</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Storage engines: LSM vs B-tree</div><div class="card-sub">Why your DB choice has a write/read bias</div></div><span class="badge badge-purple">Internals</span></div>
-        <div class="card-body">
-          <p><strong>B-tree (PostgreSQL, MySQL/InnoDB):</strong> updates happen in-place on a balanced tree on disk. Great for reads and range scans. Writes do random I/O — you have to find the right page and modify it in place — plus WAL overhead. Fundamentally read-optimized.</p>
-          <p><strong>LSM-tree (Cassandra, RocksDB, HBase, LevelDB):</strong> writes go into an in-memory buffer (memtable), get flushed sequentially to immutable SSTables on disk, and periodically merged via background compaction. Sequential writes means much better write throughput. Reads are slower because you may have to check multiple SSTables — mitigated by Bloom filters that skip SSTables which definitely don't contain the key.</p>
-          <style>
-          .cmp-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;margin:4px 0 8px}
-          .cmp-tbl th{text-align:left;padding:8px 8px;font-size:13px;border-bottom:2px solid var(--color-border-primary);color:var(--color-text-primary);font-weight:600;vertical-align:bottom}
-          .cmp-tbl td{padding:8px 8px;border-bottom:1px solid var(--color-border-tertiary);vertical-align:top;line-height:1.4}
-          .cmp-tbl tr:last-child td{border-bottom:none}
-          .cmp-tbl .at{color:var(--color-text-secondary)}
-          .cmp-tbl .g{color:var(--color-text-success);font-weight:600}
-          .cmp-tbl .w{color:var(--color-text-warning);font-weight:600}
-          .cmp-tbl .p{color:var(--color-text-primary);font-weight:600}
-          .cmp-tag{font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;margin-left:5px;white-space:nowrap}
-          .cmp-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
-          .cmp-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
-          </style>
-          <table class="cmp-tbl"><colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup>
-          <thead><tr><th></th><th>B-Tree <span class="cmp-tag cmp-tag-b">classic</span></th><th>LSM-Tree <span class="cmp-tag cmp-tag-l">write-opt</span></th></tr></thead>
-          <tbody>
-          <tr><td class="at">writes</td><td class="w">random I/O</td><td class="g">sequential, fast</td></tr>
-          <tr><td class="at">reads</td><td class="g">O(log n), fast</td><td class="w">check multiple levels</td></tr>
-          <tr><td class="at">range scans</td><td class="g">excellent</td><td class="g">good (sorted files)</td></tr>
-          <tr><td class="at">write amp</td><td class="w">moderate</td><td class="w">high (compaction)</td></tr>
-          <tr><td class="at">space overhead</td><td class="g">low</td><td class="w">higher (pre-compact)</td></tr>
-          <tr><td class="at">update model</td><td class="p">in-place</td><td class="p">append-only</td></tr>
-          <tr><td class="at">used by</td><td class="p">Postgres, MySQL</td><td class="p">Cassandra, RocksDB</td></tr>
-          </tbody></table>
-          <p><strong>Amplification</strong> = extra work vs. the logical op. <strong>Write amp</strong> = bytes written ÷ bytes you wrote (burns SSD). <strong>Read amp</strong> = disk reads per lookup. <strong>Space amp</strong> = disk used ÷ logical size (stale data).</p>
-          <div class="note"><strong>Why they differ:</strong> an LSM flushes writes sequentially (cheap ingest), but background <strong>compaction</strong> rewrites data to merge levels (write amp) and a key sits across several levels until then (read + space amp; Bloom filters soften reads). A B-tree updates a page in place — steady write amp, and a read walks to a single leaf (low read amp).</div>
-          <p>The practical rule: write-heavy workloads (time-series, logs, high-throughput ingest) → LSM. Read-heavy with complex queries and range scans → B-tree. This is the actual reason to pick Cassandra over Postgres — not "NoSQL is more scalable."</p>
-          <div class="tag-row"><span class="tag">LSM = write-optimized</span><span class="tag">B-tree = read-optimized</span><span class="tag">compaction</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Choosing a database</div><div class="card-sub">Pick by access pattern, not hype</div></div><span class="badge badge-blue">Decision</span></div>
-        <div class="card-body">
-          <style>
-          .db-wrap { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
-          .db-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-          .db-opt { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 14px 16px; }
-          .db-opt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-          .db-opt-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
-          .db-opt-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 8px; }
-          .db-examples { display: flex; gap: 5px; flex-wrap: wrap; }
-          .db-ex { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); }
-          .db-use { font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px; font-style: italic; }
-          .db-section-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--color-text-tertiary); text-transform: uppercase; margin: 8px 0 4px; }
-          @media (max-width: 460px) { .db-opts { grid-template-columns: 1fr; } }
-          </style>
-          <div class="db-wrap">
-            <div class="db-section-label">What's your access pattern?</div>
-            <div class="db-opts">
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">🗃️</span><span class="db-opt-title">Relational (SQL)</span></div>
-                <div class="db-opt-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default when you don't have a reason not to use it — and it scales globally now (Spanner, CockroachDB) when one box isn't enough.</div>
-                <div class="db-examples"><span class="db-ex">PostgreSQL</span><span class="db-ex">MySQL</span><span class="db-ex">Spanner</span></div>
-                <div class="db-use">users, orders, payments, anything with foreign keys</div>
-              </div>
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">📄</span><span class="db-opt-title">Document</span></div>
-                <div class="db-opt-desc">Self-contained objects, flexible schema. Great when you fetch the whole thing by ID and relationships don't matter.</div>
-                <div class="db-examples"><span class="db-ex">MongoDB</span><span class="db-ex">DynamoDB</span></div>
-                <div class="db-use">user profiles, product catalogs, CMS content</div>
-              </div>
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">🔑</span><span class="db-opt-title">Key-value</span></div>
-                <div class="db-opt-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — just get/set.</div>
-                <div class="db-examples"><span class="db-ex">Redis</span><span class="db-ex">Memcached</span><span class="db-ex">DynamoDB</span></div>
-                <div class="db-use">sessions, cache, rate limiting, leaderboards</div>
-              </div>
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">🧱</span><span class="db-opt-title">Wide-column</span></div>
-                <div class="db-opt-desc">Row-oriented per partition, massive write throughput, append-heavy. Model for your queries with composite keys; no joins. LSM-based, scales horizontally.</div>
-                <div class="db-examples"><span class="db-ex">Cassandra</span><span class="db-ex">HBase</span><span class="db-ex">Bigtable</span></div>
-                <div class="db-use">feeds, messaging, event logs, time-series at scale</div>
-              </div>
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">📊</span><span class="db-opt-title">Column (OLAP)</span></div>
-                <div class="db-opt-desc">Scan billions of rows, few columns. Compresses hard — a column is one repetitive type, so run-length &amp; dictionary encoding shrink it. Built for aggregates, not point lookups.</div>
-                <div class="db-examples"><span class="db-ex">ClickHouse</span><span class="db-ex">BigQuery</span><span class="db-ex">Redshift</span></div>
-                <div class="db-use">analytics, dashboards, data warehouse</div>
-              </div>
-            </div>
-            <div class="db-opts">
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">⏱️</span><span class="db-opt-title">Time-series</span></div>
-                <div class="db-opt-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply and recent data stays hot in cache.</div>
-                <div class="db-examples"><span class="db-ex">InfluxDB</span><span class="db-ex">TimescaleDB</span><span class="db-ex">Prometheus</span></div>
-                <div class="db-use">metrics, IoT sensors, monitoring, logs</div>
-              </div>
-              <div class="db-opt">
-                <div class="db-opt-head"><span style="font-size:16px">🕸️</span><span class="db-opt-title">Graph</span></div>
-                <div class="db-opt-desc">Many-to-many relationships. Index-free adjacency = O(1) hop vs O(log N) join. Great when traversals are the query.</div>
-                <div class="db-examples"><span class="db-ex">Neo4j</span><span class="db-ex">Amazon Neptune</span></div>
-                <div class="db-use">social graphs, recommendations, fraud detection</div>
-              </div>
-            </div>
-          </div>
-          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">SQL is the default</span><span class="tag">polyglot persistence</span></div>
         </div>
       </div>
 
@@ -3011,6 +2936,313 @@ each step independently deployable &amp; rollback-safe</div>
     </div>
   </div>
 
+  <!-- Design archetypes -->
+  <div id="section-archetypes" class="section">
+    <div class="section-intro">
+      <h2>Design archetypes</h2>
+      <p>Most interview prompts are one of a handful of recurring problem families. Recognise the <strong>archetype</strong> and its playbook — the core decisions, the canonical design, the classic trap — and you've already framed the problem before drawing a box. The <em>Common patterns</em> section is the mechanism layer (fan-out, geo, blobs); this is the layer above it: whole-problem families that those mechanisms compose into. And they <strong>stack</strong> — a video platform is blob delivery + async pipelines + real-time. Below: the eight families, then drills to train the prompt&nbsp;→&nbsp;archetype reflex.</p>
+    </div>
+
+    <div class="cards">
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">1 · Time-series &amp; analytics</div><div class="card-sub">metrics, monitoring, logs, analytics, event tracking</div></div><span class="badge badge-blue">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> A massive append-only write stream that you mostly query as <em>aggregates over time ranges</em>. Raw detail matters briefly; trends matter for years.</p>
+          <p><strong>You're here when</strong> you hear "millions of points/sec", "per-host CPU", "dashboards", "logs/events", "last 30 days vs 2 years", or "keep cost bounded over years".</p>
+          <p class="ap"><strong>Partition by (series, time-bucket)</strong> — bucket by hour/day so a range query is one contiguous scan and no partition grows forever.</p>
+          <p class="ap"><strong>Rollups / downsampling</strong> — keep raw briefly; pre-aggregate 1-min → 1-hour → 1-day. Long-range queries read the coarse tier, not billions of raw points.</p>
+          <p class="ap"><strong>Retention / TTL by tier</strong> — auto-expire each resolution (7d raw, 30d 1-min, 2y 1-hour) so cost is a policy, not a growing bill.</p>
+          <p class="ap"><strong>Ingest + storage</strong> — buffer in Kafka to decouple spiky writes; append-optimised engine (LSM / columnar / TSDB), never a B-tree.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Agents</div><div class="ctv-s">batched points</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Kafka + stream agg</div><div class="ctv-s">buffer + rollups</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">TSDB</div><div class="ctv-s">tiered + TTL</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Rollup tiers</div><div class="ctv-s">raw 7d · 1-min 30d · 1-hr 2y</div></div><div class="ctv-box"><div class="ctv-t">Query layer</div><div class="ctv-s">routes to the coarsest tier that answers</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> Agents → Kafka → stream aggregation (rollups) → TSDB; the query layer routes each request to the right resolution tier.</div>
+          <div class="note warn"><strong>Classic trap:</strong> a raw monotonically-increasing timestamp as the sole partition key → one ever-growing hot partition. Bucket and spread.</div>
+          <div class="tag-row"><span class="tag">composes: Scaling writes</span><span class="tag">Async pipelines</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-timeseries')">Time-series / metrics drill</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-metrics-api')">Metrics/time-series API</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Metrics/time-series API')">(LLM drill)</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">2 · Feed &amp; fan-out</div><div class="card-sub">timelines, news feed, activity streams, followers</div></div><span class="badge badge-teal">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> One write (a post) must reach many readers' timelines. The whole design question is <em>where you pay the amplification</em> — on write or on read.</p>
+          <p><strong>You're here when</strong> you hear "home timeline", "followers", "activity feed", "who-follows-whom", or "a celebrity with millions of followers".</p>
+          <p class="ap"><strong>Fan-out on write vs read</strong> — precompute each follower's timeline (fast reads, write amplification) vs assemble at read (cheap writes, slow reads). The hybrid is the standard answer.</p>
+          <p class="ap"><strong>Celebrity / hot-key handling</strong> — don't fan out 50M writes; flag high-follower accounts and merge their posts at read time.</p>
+          <p class="ap"><strong>Feed storage &amp; ranking</strong> — per-user timeline in cache; recency vs scored ranking; cursor (keyset) pagination, never offset.</p>
+          <p class="ap"><strong>Follow graph</strong> — adjacency with the index direction matching the read.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Write post</div><div class="ctv-s">one event</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Fan-out worker</div><div class="ctv-s">push to followers</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">Timeline cache</div><div class="ctv-s">per-user, pre-built</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Celebrity</div><div class="ctv-s">skip fan-out → merge at read</div></div><div class="ctv-box"><div class="ctv-t">Feed read</div><div class="ctv-s">cursor paginate</div></div></div>
+          </div>
+          <div class="note warn"><strong>Classic trap:</strong> one fan-out strategy for everyone — pure write explodes on celebrities, pure read explodes for users following thousands. Pick by follower count.</div>
+          <div class="tag-row"><span class="tag">composes: Fan-out</span><span class="tag">Notifications</span><span class="tag">Caching</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-follow-graph')">Follow graph + tweets</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-newsfeed-api')">News feed API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-counters')">Counters &amp; denormalization</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">3 · Transactional &amp; booking</div><div class="card-sub">seats, orders, payments, inventory, matching</div></div><span class="badge badge-purple">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> Concurrent actors compete for limited resources and money must be exactly right. <em>Correctness under contention</em> beats raw scale.</p>
+          <p><strong>You're here when</strong> you hear "no double-booking", "no oversell", "payment", "reserve / hold", "exactly once", or "inventory".</p>
+          <p class="ap"><strong>Concurrency control</strong> — single-DB transaction with row lock (pessimistic) or compare-and-set / version check (optimistic) <em>before</em> reaching for distributed locks or 2PC.</p>
+          <p class="ap"><strong>Idempotency</strong> — client-supplied idempotency key on writes so a retry doesn't double-charge or double-book.</p>
+          <p class="ap"><strong>Reservation model</strong> — reserve → confirm → expire (TTL) so abandoned carts release inventory.</p>
+          <p class="ap"><strong>Cross-service consistency</strong> — when work spans services, a saga with compensations (no atomic rollback), not 2PC.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Order API</div><div class="ctv-s">idempotency key</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">DB transaction</div><div class="ctv-s">reserve row · CAS</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">Saga</div><div class="ctv-s">payment + inventory</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Idempotency table</div><div class="ctv-s">retry → same result</div></div><div class="ctv-box"><div class="ctv-t">Reservation TTL</div><div class="ctv-s">release abandoned holds</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> conditional update / <code>SELECT … FOR UPDATE</code> on the seat or inventory row inside a transaction; idempotency-key table; saga across order + payment + inventory.</div>
+          <div class="note warn"><strong>Classic trap:</strong> reaching for a distributed lock or 2PC when one database transaction already solves it. Resist the "NoSQL for scale" reflex — this is relational/ACID data.</div>
+          <div class="tag-row"><span class="tag">composes: Contention</span><span class="tag">Multi-step processes</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-seat-booking')">Seat booking</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-checkout-api')">Orders, payments, refunds</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-sql-nosql')">SQL-or-NoSQL tradeoff</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">4 · Realtime messaging &amp; collaboration</div><div class="card-sub">chat, presence, live dashboards, collab editing</div></div><span class="badge badge-amber">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> The server must <em>push</em> state to clients as it changes, with ordering and delivery guarantees, over long-lived connections.</p>
+          <p><strong>You're here when</strong> you hear "real time", "live", "chat", "presence / online", "typing indicator", "collaborative", or "push to the client".</p>
+          <p class="ap"><strong>Transport ladder</strong> — polling → long-poll → SSE (one-way) → WebSockets (bidirectional). Default to the simplest that meets latency; don't reach for WebSockets reflexively.</p>
+          <p class="ap"><strong>Delivery &amp; ordering</strong> — per-conversation ordering via a sequence; at-least-once + client dedupe via <code>client_msg_id</code>; reconnect catch-up via "messages after cursor".</p>
+          <p class="ap"><strong>Connection fan-out</strong> — Pub/Sub for light fan-out (chat); a consistent-hash ring of stateful servers when per-connection work is heavy (collab editing).</p>
+          <p class="ap"><strong>Shard key</strong> — <code>conversation_id</code> keeps a conversation together; watch the huge-group hot shard.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Sender</div><div class="ctv-s">POST + client_msg_id</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Message service</div><div class="ctv-s">dedupe + persist</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">Pub/Sub</div><div class="ctv-s">route by conversation</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">WS gateway</div><div class="ctv-s">connection on one node, pushes</div></div><div class="ctv-box"><div class="ctv-t">Offline path</div><div class="ctv-s">history + push notification</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> idempotent <code>POST</code> message + WebSocket subscribe; server pushes new messages and receipts; history via cursor; presence via heartbeat + TTL.</div>
+          <div class="note warn"><strong>Classic trap:</strong> WebSockets-first when polling suffices; assuming global ordering when you only have per-conversation order.</div>
+          <div class="tag-row"><span class="tag">composes: Real-time updates</span><span class="tag">Fan-out</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-api')">Chat API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-data')">Chat / messaging data drill</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">5 · Search &amp; geo</div><div class="card-sub">full-text search, "near me", autocomplete</div></div><span class="badge badge-teal">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> Find matching items fast over a large corpus — by content or by location — ranked, <em>without scanning everything</em>.</p>
+          <p><strong>You're here when</strong> you hear "search", "near me / nearby", "within radius / map viewport", "autocomplete", or "ranking / relevance".</p>
+          <p class="ap"><strong>Index structure</strong> — inverted index for text (Elasticsearch); for location, geohash / quadtree / S2 / H3 for points, R-tree for shapes.</p>
+          <p class="ap"><strong>Geohash trick</strong> — encode (lat, lng) into a prefix string so a shared prefix means physical closeness → 2-D proximity becomes a 1-D range scan on a plain B-tree or sorted set.</p>
+          <p class="ap"><strong>Ranking &amp; freshness</strong> — score by relevance / distance / popularity; decide how fresh the index must be (sync vs async indexing pipeline).</p>
+          <p class="ap"><strong>Right-size it</strong> — a geo/search index only pays off at hundreds of thousands+ items; for ~1k, just scan.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Writes</div><div class="ctv-s">places / docs</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Index pipeline</div><div class="ctv-s">async</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">Geo / search index</div><div class="ctv-s">geohash · inverted</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Query</div><div class="ctv-s">viewport / terms + filters</div></div><div class="ctv-box"><div class="ctv-t">Rank + paginate</div><div class="ctv-s">distance / relevance</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> write → async index pipeline → ES / geo index; query bounds + filters → ranked, cursor-paginated results.</div>
+          <div class="note warn"><strong>Classic trap:</strong> building a heavy search/geo engine for a tiny dataset; offset pagination over a moving result set.</div>
+          <div class="tag-row"><span class="tag">composes: Proximity services</span><span class="tag">Scaling reads</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-proximity')">Restaurant search API/data</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Restaurant search API/data')">(LLM drill)</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">6 · Blob / media &amp; delivery</div><div class="card-sub">video, images, file storage, streaming</div></div><span class="badge badge-blue">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> Move and serve large opaque files cheaply — <em>without routing the bytes through your app tier</em>.</p>
+          <p><strong>You're here when</strong> you hear "upload / download large files", "video / image", "streaming", "file storage", or "GB-scale objects".</p>
+          <p class="ap"><strong>Direct-to-storage transfer</strong> — a presigned URL lets the client upload straight to object storage (S3); never stream gigabytes through app servers.</p>
+          <p class="ap"><strong>Chunked / resumable</strong> — multipart upload for large or flaky transfers, with progress and resume.</p>
+          <p class="ap"><strong>Processing pipeline</strong> — async transcoding / thumbnailing via a job queue; surface status with real-time updates.</p>
+          <p class="ap"><strong>Delivery &amp; cost</strong> — CDN with signed URLs for access control; egress / CDN bandwidth is usually the dominant cost.</p>
+          <p class="ap"><strong>Metadata sync</strong> — reconcile DB metadata with storage via storage event notifications.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Client</div><div class="ctv-s">direct PUT</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Object storage</div><div class="ctv-s">presigned URL (S3)</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">CDN</div><div class="ctv-s">signed download</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Transcode queue</div><div class="ctv-s">triggered by storage event</div></div><div class="ctv-box"><div class="ctv-t">Metadata DB</div><div class="ctv-s">reconcile via events</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> client gets a presigned URL → uploads to S3 → storage event → enqueue transcode → downloads served via CDN with signed URLs.</div>
+          <div class="note warn"><strong>Classic trap:</strong> proxying file bytes through the application, or Base64-ing files into the database.</div>
+          <div class="tag-row"><span class="tag">composes: Large blobs</span><span class="tag">Long-running tasks</span><span class="tag">Multi-step</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-google-drive')">File sharing permissions</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('File sharing permissions')">(LLM drill)</a>; the Large-blobs pattern.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">7 · KV lookup at scale</div><div class="card-sub">URL shortener, ad serving, feature flags, ID gen</div></div><span class="badge badge-purple">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> A simple key → value lookup at enormous read volume. The whole game is <em>sharding, caching, and unique keys</em>.</p>
+          <p><strong>You're here when</strong> you hear "shorten / expand", "lookup by id", "extremely high read QPS", "redirect", "generate a unique id", or "feature flag".</p>
+          <p class="ap"><strong>Key generation</strong> — collision-free codes (base62 of a counter / Snowflake) or a hash; globally-unique, time-sortable IDs (Snowflake / UUIDv7) for index locality.</p>
+          <p class="ap"><strong>Sharding</strong> — consistent hashing on the key; never <code>hash % N</code> (catastrophic resharding churn).</p>
+          <p class="ap"><strong>Cache the hot path</strong> — CDN / Redis in front; this is read-dominated (often 100:1+).</p>
+          <p class="ap"><strong>Keep analytics off the hot path</strong> — record clicks asynchronously; don't write on the redirect.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">Client</div><div class="ctv-s">GET /{code}</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Cache / CDN</div><div class="ctv-s">hot path</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">KV store</div><div class="ctv-s">sharded (consistent hash)</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Unique IDs</div><div class="ctv-s">Snowflake / base62</div></div><div class="ctv-box"><div class="ctv-t">Analytics</div><div class="ctv-s">logged async, off hot path</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> <code>POST</code> create → store code → url; <code>GET /{code}</code> → cache → 301/302 redirect; clicks logged async.</div>
+          <div class="note warn"><strong>Classic trap:</strong> 301 (browser-cached, loses analytics) vs 302 (every click hits you); putting analytics writes on the redirect path; <code>hash % N</code> resharding.</div>
+          <div class="tag-row"><span class="tag">composes: Scaling reads</span><span class="tag">Caching</span><span class="tag">Unique IDs</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-url-api')">URL shortener API</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('URL shortener API/data')">URL shortener API/data (LLM drill)</a>.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">8 · Async pipelines &amp; workflows</div><div class="card-sub">job queues, ETL, payments, notification delivery</div></div><span class="badge badge-amber">Archetype</span></div>
+        <div class="card-body">
+          <p><strong>Essence.</strong> Work too slow or too spiky for a synchronous response, or multi-step processes that must <em>survive failures and retries</em>.</p>
+          <p><strong>You're here when</strong> you hear "process in the background", "ETL / pipeline", "workflow", "retry / idempotent", "exactly once", "send notifications", or "encode / generate a report".</p>
+          <p class="ap"><strong>Sync vs async</strong> — return synchronously for short work (simpler, clearer back-pressure); enqueue + return a job id only when the work is genuinely slow or spiky.</p>
+          <p class="ap"><strong>Queue + idempotent workers</strong> — at-least-once delivery means dedupe keys so reprocessing is safe.</p>
+          <p class="ap"><strong>Orchestration</strong> — event-chaining / event sourcing for simple flows; a durable engine (Temporal / Step Functions) or saga for multi-step work with compensation.</p>
+          <p class="ap"><strong>Effectively-once</strong> — at-least-once + idempotency, with an <em>outbox</em> to avoid the dual-write problem; brokers don't give true exactly-once.</p>
+          <div class="ob-flow" onclick="event.stopPropagation()">
+            <div class="ob-txn">
+              <div class="ob-txn-lbl">one transaction</div>
+              <div class="ob-rows">
+                <div class="ob-chip">orders</div>
+                <div class="ob-chip out">outbox<small>published_at = NULL</small></div>
+              </div>
+            </div>
+            <div class="ob-arr"><span class="a">→</span><small>relay: poll<br>→ publish<br>→ mark sent</small></div>
+            <div class="ob-box">Broker<small>Kafka / SQS</small></div>
+            <div class="ob-arr"><span class="a">→</span><small>at-least-once</small></div>
+            <div class="ob-box">Consumer<small>dedupe on event_id</small></div>
+          </div>
+          <div class="note"><strong>Transactional outbox:</strong> write the business row and an <code>outbox</code> row in <em>one transaction</em> — no dual-write gap. A relay (or CDC) publishes unsent rows and marks them; a crash <em>after</em> publish but <em>before</em> marking re-sends the event, so the consumer dedupes on <code>event_id</code>.</div>
+          <p class="ap"><strong>Back-pressure</strong> — bounded queues, exponential backoff + jitter, a dead-letter queue.</p>
+          <div class="ctv" onclick="event.stopPropagation()">
+            <div class="ctv-flow">
+              <div class="ctv-box good"><div class="ctv-t">API</div><div class="ctv-s">enqueue job</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box info"><div class="ctv-t">Queue</div><div class="ctv-s">buffer + retries</div></div>
+              <div class="ctv-arr">→</div>
+              <div class="ctv-box warn"><div class="ctv-t">Worker pool</div><div class="ctv-s">idempotent handler</div></div>
+            </div>
+            <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Outbox / events</div><div class="ctv-s">atomic publish downstream</div></div><div class="ctv-box"><div class="ctv-t">DLQ + backoff</div><div class="ctv-s">poison messages, jitter</div></div></div>
+          </div>
+          <div class="note"><strong>Canonical:</strong> API enqueues a job → worker pool → idempotent handler → outbox/events downstream; saga compensations on failure.</div>
+          <div class="note warn"><strong>Classic trap:</strong> queueing reflexively for short jobs; trusting the broker for exactly-once; dual-writing DB + broker without an outbox.</div>
+          <div class="tag-row"><span class="tag">composes: Long-running tasks</span><span class="tag">Multi-step</span><span class="tag">Notifications</span></div>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Outbox + event publishing')">Outbox + event publishing (LLM drill)</a>.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="arch-hint">Read the prompt, decide which archetype(s) it maps to and recall the playbook, <em>then</em> reveal. Most real systems stack two.</p>
+    <div class="ex-group-label">Recognition drills — name the archetype</div>
+
+    <div class="exercise">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design Uber's "find drivers near me".</strong> Riders see nearby drivers on a map that updates live; drivers stream their location continuously.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Search &amp; geo</strong> (composes with <strong>Realtime messaging</strong> for the live location stream).</p>
+        <p class="ap"><strong>Playbook:</strong> geospatial index (geohash / S2 / H3) over driver locations; query by map viewport; drivers write location updates frequently (write-heavy on the index).</p>
+        <p class="ap"><strong>Real-time half:</strong> push driver positions to the rider via WebSocket/SSE; presence + TTL to expire stale drivers.</p>
+        <div class="note warn"><strong>Trap:</strong> a global geo query — keep it local to the viewport; and don't persist every GPS ping forever (that's a time-series retention decision).</div>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design a notification system</strong> that delivers one event (a payment confirmation) across push, email, and SMS, respecting user preferences and without spamming.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Async pipelines &amp; workflows</strong> (composes with <strong>Feed &amp; fan-out</strong> to decide <em>who</em> to notify).</p>
+        <p class="ap"><strong>Playbook:</strong> enqueue the event; worker fans out to channel adapters (APNs/FCM, SES/SendGrid, Twilio); idempotent delivery with a sent-id to dedupe at-least-once retries.</p>
+        <p class="ap"><strong>Quality of life:</strong> check preferences before fan-out; coalesce bursts ("5 people liked your post").</p>
+        <div class="note warn"><strong>Trap:</strong> duplicate pushes from at-least-once delivery — store a sent-notification id and dedupe before sending.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-google-drive">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design Google Drive</strong> — upload, store, download, and share files and folders with viewers/editors.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Blob / media &amp; delivery</strong> (composes with <strong>Transactional</strong> for the permission model).</p>
+        <p class="ap"><strong>Playbook:</strong> presigned direct-to-S3 upload, multipart/resumable; CDN + signed URLs for download; DB holds file/folder metadata, reconciled via storage events.</p>
+        <p class="ap"><strong>Permissions half:</strong> owner/editor/viewer with inherited folder ACLs; check "can U read F" efficiently; audit log of permission changes.</p>
+        <div class="note warn"><strong>Trap:</strong> streaming bytes through app servers; recomputing inherited permissions on every read instead of resolving/caching them.</div>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design a live "likes" counter</strong> — render the total like count and whether the current user liked it, on a post that may have millions of likes, at feed scale.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Time-series &amp; analytics</strong> (counters / aggregation) — composes with <strong>Feed &amp; fan-out</strong> at render time.</p>
+        <p class="ap"><strong>Playbook:</strong> a denormalised count column updated by idempotent async increments (don't <code>COUNT(*)</code> millions of rows); cache the hot counts.</p>
+        <p class="ap"><strong>"Did I like it?":</strong> a separate membership lookup keyed by (post, user) — don't scan the likes.</p>
+        <div class="note warn"><strong>Trap:</strong> computing the count from the likes table on every read; double-counting under retries (make increments idempotent).</div>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design e-commerce checkout</strong> — cart → place order → charge payment → reserve inventory, with no oversell and no double-charge.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Transactional &amp; booking</strong> (composes with <strong>Async pipelines</strong> for the cross-service saga).</p>
+        <p class="ap"><strong>Playbook:</strong> idempotency key on order creation; reserve inventory (conditional update / row lock) before charging; saga across order → payment → inventory with compensations.</p>
+        <p class="ap"><strong>Store choice:</strong> relational/ACID — this is money and inventory, not a NoSQL-for-scale problem.</p>
+        <div class="note warn"><strong>Trap:</strong> 2PC across services (blocking) where a saga fits; no idempotency key, so a retried charge bills twice.</div>
+      </div>
+    </div>
+
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Give me a random system design prompt, then ask me to name which of these 8 archetypes it maps to and recall the core decisions: time-series/analytics, feed/fan-out, transactional/booking, realtime messaging, search/geo, blob/media, KV lookup at scale, async pipelines/workflows. Tell me if I am right.')">Drill archetype recognition <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
   <!-- Interview framework -->
   <div id="section-framework" class="section">
     <div class="section-intro">
@@ -3107,24 +3339,6 @@ each step independently deployable &amp; rollback-safe</div>
         </div>
       </div>
 
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Database selection framework</div><div class="card-sub">Choosing the right store for the job</div></div><span class="badge badge-red">Critical</span></div>
-        <div class="card-body">
-          <p>The question "which database?" is asked in almost every interview. Pick based on <em>access patterns and consistency needs</em>, not familiarity.</p>
-          <table class="tbl"><tr><th>DB type</th><th>Best for</th><th>Examples</th></tr>
-          <tr><td>Relational (SQL)</td><td>ACID transactions, complex joins, strong consistency, financial/user data</td><td>PostgreSQL, MySQL, CockroachDB</td></tr>
-          <tr><td>Key-value</td><td>Simple get/put by key, sessions, caches, low-latency lookups</td><td>Redis, DynamoDB, etcd</td></tr>
-          <tr><td>Wide-column</td><td>Huge write throughput, time-series, append-heavy, high cardinality</td><td>Cassandra, HBase, BigTable</td></tr>
-          <tr><td>Document</td><td>Flexible/nested schema, content management, heterogeneous records</td><td>MongoDB, Firestore</td></tr>
-          <tr><td>Search</td><td>Full-text, faceted, fuzzy search, log analytics</td><td>Elasticsearch, OpenSearch</td></tr>
-          <tr><td>Graph</td><td>Multi-hop traversals over highly connected data</td><td>Neo4j, Amazon Neptune</td></tr>
-          <tr><td>Time-series</td><td>High-frequency timestamped writes, range queries by time</td><td>InfluxDB, TimescaleDB, Prometheus</td></tr></table>
-          <p><strong>Decision shortcuts:</strong> Need transactions or complex joins? &rarr; SQL. Write-heavy append workload? &rarr; LSM-based (Cassandra, RocksDB). Simple key lookups at enormous scale? &rarr; KV or wide-column. Full-text search? &rarr; Elasticsearch alongside a primary store. Multi-hop graph traversal? &rarr; graph DB, but only if you actually traverse many hops — most "graph" data fits fine in SQL.</p>
-          <div class="note warn"><strong>Common mistake:</strong> choosing a DB by brand recognition ("we'll use MongoDB") rather than access patterns. Always state: "I'm choosing X because the access pattern is Y and we need Z." The <em>justification</em> is what interviewers grade, not the choice itself.</div>
-          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">justify every choice</span><span class="tag">polyglot persistence</span></div>
-        </div>
-      </div>
-
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Failover &amp; fail modes</div><div class="card-sub">Two forks that surface the moment you discuss failure</div></div><span class="badge badge-red">Critical</span></div>
@@ -3143,30 +3357,6 @@ each step independently deployable &amp; rollback-safe</div>
           <tr><td>Recommendations</td><td>Degrade to a generic list — non-critical</td><td>—</td></tr></table>
           <div class="note warn"><strong>Deciding question:</strong> "If this check is unavailable, is it safer to let the request through or block it?" Stakes decide — the <em>same</em> rate limiter fails open on a free read path and closed on a billing API.</div>
           <div class="tag-row"><span class="tag">name the deciding question</span><span class="tag">conflict resolution</span><span class="tag">stakes decide</span></div>
-        </div>
-      </div>
-
-      <div class="card" onclick="toggle(this)">
-        <div class="card-header"><div class="card-meta"><div class="card-title">Shard keys, cost &amp; schema traps</div><div class="card-sub">Pick the key, name the cost, check the reads</div></div><span class="badge badge-blue">Foundational</span></div>
-        <div class="card-body">
-          <p>Three fast reflexes graders reward: choose the shard key by access pattern, name the cost-dominant component, and verify the schema actually serves the reads.</p>
-          <p><strong>Pick the shard key</strong> — the field you query by most. Avoid <em>low-cardinality</em> keys (few values → few shards) and <em>monotonic</em> keys (timestamp / auto-id → one hot shard). Good keys are high-cardinality and evenly accessed.</p>
-          <table class="tbl"><tr><th>System</th><th>Shard key</th><th>Watch out</th></tr>
-          <tr><td>Chat messages</td><td>conversation_id</td><td>A 500k-member group is a hot shard — sub-shard or cache it</td></tr>
-          <tr><td>Feed timelines</td><td>user_id</td><td>Celebrities → fanout-on-read for those keys</td></tr>
-          <tr><td>URL shortener</td><td>the short code / hash</td><td>High cardinality, evenly spread — ideal</td></tr>
-          <tr><td>Metrics points</td><td>(series, time_bucket)</td><td>Don't shard on raw time alone — newest bucket goes hot</td></tr>
-          <tr><td>Orders</td><td>merchant_id or user_id</td><td>Pick by the dominant access pattern (seller dashboard vs buyer history)</td></tr></table>
-          <p style="margin-top:1rem"><strong>Cost-dominant component</strong> — where the bill actually concentrates, so you optimize the right thing.</p>
-          <table class="tbl"><tr><th>System</th><th>Cost is dominated by…</th></tr>
-          <tr><td>Video streaming</td><td>Egress / CDN bandwidth</td></tr>
-          <tr><td>Metrics &amp; logs</td><td>Ingest + retention / cardinality</td></tr>
-          <tr><td>Search</td><td>Indexing + memory / cache</td></tr>
-          <tr><td>ML serving</td><td>GPU utilization</td></tr>
-          <tr><td>Social feed</td><td>Fanout / write amplification + cache memory</td></tr>
-          <tr><td>Multi-region</td><td>Duplicated infra + cross-region transfer</td></tr></table>
-          <div class="note warn"><strong>Schema / access traps:</strong> deep <code>OFFSET</code> pagination scans &amp; discards every preceding row (use <strong>cursor / keyset</strong> pagination); querying by a column with no index is a scan trap; an idempotency key belongs on the <em>write request</em>; model a clear status lifecycle (AVAILABLE&rarr;HELD&rarr;BOOKED); publish events via an <strong>outbox</strong> row. Sanity check: "does a PK or secondary index serve every read, or am I forcing a scan?"</div>
-          <div class="tag-row"><span class="tag">high-cardinality key</span><span class="tag">avoid hot shards</span><span class="tag">cursor not offset</span></div>
         </div>
       </div>
 
@@ -3256,6 +3446,350 @@ Keyset (fast):
   </div>
 
   <!-- Data Pipelines -->
+  <div id="section-databases" class="section">
+    <div class="section-intro">
+      <h2>Databases</h2>
+      <p>Picking a store and shaping data for it &mdash; the decisions that anchor most designs. Choose by access pattern first, then design keys and indexes to match the queries.</p>
+    </div>
+    <div class="cards">
+
+      <div class="card wide" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Choosing a database</div><div class="card-sub">Pick by access pattern, not hype</div></div><span class="badge badge-blue">Decision</span></div>
+        <div class="card-body">
+          <style>
+          .db-wrap { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+          .db-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+          .db-opt { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 14px 16px; }
+          .db-opt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+          .db-opt-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+          .db-opt-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 8px; }
+          .db-examples { display: flex; gap: 5px; flex-wrap: wrap; }
+          .db-ex { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); }
+          .db-use { font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px; font-style: italic; }
+          .db-section-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--color-text-tertiary); text-transform: uppercase; margin: 8px 0 4px; }
+          @media (max-width: 460px) { .db-opts { grid-template-columns: 1fr; } }
+          </style>
+          <div class="db-wrap">
+            <div class="db-section-label">What's your access pattern?</div>
+            <div class="db-opts">
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🗃️</span><span class="db-opt-title">Relational (SQL)</span></div>
+                <div class="db-opt-desc">Structured data with relationships. Joins, transactions, strong consistency. The safe default when you don't have a reason not to use it — and it scales globally now (Spanner, CockroachDB) when one box isn't enough.</div>
+                <div class="db-examples"><span class="db-ex">PostgreSQL</span><span class="db-ex">MySQL</span><span class="db-ex">Spanner</span></div>
+                <div class="db-use">users, orders, payments, anything with foreign keys</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">📄</span><span class="db-opt-title">Document</span></div>
+                <div class="db-opt-desc">Self-contained objects, flexible schema. Great when you fetch the whole thing by ID and relationships don't matter.</div>
+                <div class="db-examples"><span class="db-ex">MongoDB</span><span class="db-ex">DynamoDB</span></div>
+                <div class="db-use">user profiles, product catalogs, CMS content</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🔑</span><span class="db-opt-title">Key-value</span></div>
+                <div class="db-opt-desc">Simple lookups by key. Blazing fast, often in-memory. No complex queries — just get/set.</div>
+                <div class="db-examples"><span class="db-ex">Redis</span><span class="db-ex">Memcached</span><span class="db-ex">DynamoDB</span></div>
+                <div class="db-use">sessions, cache, rate limiting, leaderboards</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🧱</span><span class="db-opt-title">Wide-column</span></div>
+                <div class="db-opt-desc">Row-oriented per partition, massive write throughput, append-heavy. Model for your queries with composite keys; no joins. LSM-based, scales horizontally.</div>
+                <div class="db-examples"><span class="db-ex">Cassandra</span><span class="db-ex">HBase</span><span class="db-ex">Bigtable</span></div>
+                <div class="db-use">feeds, messaging, event logs, time-series at scale</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">📊</span><span class="db-opt-title">Column (OLAP)</span></div>
+                <div class="db-opt-desc">Scan billions of rows, few columns. Compresses hard — a column is one repetitive type, so run-length &amp; dictionary encoding shrink it. Built for aggregates, not point lookups.</div>
+                <div class="db-examples"><span class="db-ex">ClickHouse</span><span class="db-ex">BigQuery</span><span class="db-ex">Redshift</span></div>
+                <div class="db-use">analytics, dashboards, data warehouse</div>
+              </div>
+            </div>
+            <div class="db-opts">
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">⏱️</span><span class="db-opt-title">Time-series</span></div>
+                <div class="db-opt-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply and recent data stays hot in cache.</div>
+                <div class="db-examples"><span class="db-ex">InfluxDB</span><span class="db-ex">TimescaleDB</span><span class="db-ex">Prometheus</span></div>
+                <div class="db-use">metrics, IoT sensors, monitoring, logs</div>
+              </div>
+              <div class="db-opt">
+                <div class="db-opt-head"><span style="font-size:16px">🕸️</span><span class="db-opt-title">Graph</span></div>
+                <div class="db-opt-desc">Many-to-many relationships. Index-free adjacency = O(1) hop vs O(log N) join. Great when traversals are the query.</div>
+                <div class="db-examples"><span class="db-ex">Neo4j</span><span class="db-ex">Amazon Neptune</span></div>
+                <div class="db-use">social graphs, recommendations, fraud detection</div>
+              </div>
+            </div>
+          </div>
+          <div class="db-section-label" style="margin-top:18px">…and what the data physically looks like</div>
+          <style>
+          .dbsh,.dbsh *{box-sizing:border-box}
+          .dbsh{font-family:'JetBrains Mono','Monaco',monospace;background:#0f1117;color:#e2e8f0;padding:20px;border-radius:12px;font-size:13px;margin:8px 0;max-width:100%;overflow-x:auto;container-type:inline-size}
+          .dbsh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+          .dbsh-card{background:#1e2130;border-radius:10px;padding:16px;border:1px solid #2d3148;min-width:0}
+          .dbsh-title{font-weight:bold;margin-bottom:4px}
+          .dbsh-title .sub{color:#475569;font-weight:normal}
+          .dbsh-desc{font-size:11px;color:#64748b;margin-bottom:12px;line-height:1.5}
+          .dbsh-inner{background:#131520;border-radius:6px;padding:12px}
+          .dbsh-note{margin-top:10px;color:#475569;font-size:10px;line-height:1.8}
+          .dbsh-kv{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+          .dbsh-k{background:#1d4ed8;color:#bfdbfe;padding:2px 8px;border-radius:4px;min-width:110px;text-align:center;font-size:11px}
+          .dbsh-arrow{color:#475569}
+          .dbsh-v{background:#1e3a5f;color:#93c5fd;padding:2px 8px;border-radius:4px;flex:1;min-width:0;font-size:11px;overflow-wrap:anywhere}
+          .dbsh-tbl{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+          .dbsh-tbl th{padding:4px 8px;text-align:left;font-size:10px;overflow-wrap:anywhere}
+          .dbsh-tbl td{padding:4px 8px;overflow-wrap:anywhere}
+          .dbsh-tcap{color:#475569;font-size:10px;margin-bottom:4px}
+          .dbsh-spec{margin-top:16px;background:#1e2130;border-radius:10px;padding:16px;border:1px solid #2d3148}
+          .dbsh-spec-label{font-size:11px;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+          .dbsh-bar{display:flex;border-radius:6px;overflow:hidden;height:44px}
+          .dbsh-seg{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:bold;text-align:center}
+          .dbsh-seg small{font-size:9px;opacity:.7;font-weight:normal}
+          .dbsh-axis{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#475569}
+          @media (max-width:560px){.dbsh-grid{grid-template-columns:1fr}}
+          @container (max-width:520px){.dbsh-grid{grid-template-columns:1fr}}
+          </style>
+          <div class="dbsh">
+            <div class="dbsh-grid">
+
+              <div class="dbsh-card">
+                <div class="dbsh-title" style="color:#60a5fa">① KV Store <span class="sub">(Redis)</span></div>
+                <div class="dbsh-desc">key → opaque value. Lookup by exact key only.</div>
+                <div class="dbsh-inner">
+                  <div class="dbsh-kv"><div class="dbsh-k">user:123</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"{name:alice,age:30}"</div></div>
+                  <div class="dbsh-kv"><div class="dbsh-k">session:abc</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"eyJhbGci..."</div></div>
+                  <div class="dbsh-kv"><div class="dbsh-k">counter:likes</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"18492"</div></div>
+                  <div class="dbsh-note">• DB is blind to value contents<br>• No range scans, no structure<br>• O(1) get/set by key</div>
+                </div>
+              </div>
+
+              <div class="dbsh-card">
+                <div class="dbsh-title" style="color:#fb923c">② DynamoDB <span class="sub">(Wide-KV hybrid)</span></div>
+                <div class="dbsh-desc">PK + SK composite key. Structured attrs, no joins.</div>
+                <div class="dbsh-inner">
+                  <table class="dbsh-tbl">
+                    <thead><tr><th style="background:#7c2d12;color:#fdba74">PK</th><th style="background:#7c2d12;color:#fdba74">SK</th><th style="background:#7c2d12;color:#fdba74">attributes</th></tr></thead>
+                    <tbody>
+                      <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">USER#u1</td><td style="color:#fbbf24;font-weight:bold">PROFILE</td><td style="color:#94a3b8">name, email</td></tr>
+                      <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">USER#u1</td><td style="color:#fbbf24;font-weight:bold">ORDER#2024…</td><td style="color:#94a3b8">total, status</td></tr>
+                      <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">ORDER#o9</td><td style="color:#fbbf24;font-weight:bold">ORDER#o9</td><td style="color:#94a3b8">total, userId</td></tr>
+                      <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">ORDER#o9</td><td style="color:#fbbf24;font-weight:bold">ITEM#p3</td><td style="color:#94a3b8">qty, price</td></tr>
+                    </tbody>
+                  </table>
+                  <div class="dbsh-note">• Items in same PK = item collection<br>• Query within partition is fast<br>• Cross-partition needs GSI</div>
+                </div>
+              </div>
+
+              <div class="dbsh-card">
+                <div class="dbsh-title" style="color:#a78bfa">③ Bigtable <span class="sub">(Wide-column)</span></div>
+                <div class="dbsh-desc">row key → column families → columns → versioned values.</div>
+                <div class="dbsh-inner">
+                  <table class="dbsh-tbl">
+                    <thead><tr><th style="background:#312e81;color:#c7d2fe">ROW KEY</th><th style="background:#312e81;color:#c7d2fe">COL FAMILY</th><th style="background:#312e81;color:#c7d2fe">COLUMN : VALUE</th></tr></thead>
+                    <tbody>
+                      <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa;font-weight:bold">user#123</td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">name : alice</td></tr>
+                      <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa"></td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">age : 30</td></tr>
+                      <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa"></td><td style="color:#64748b">activity</td><td style="color:#7dd3fc">last_login : 2026-06 @t3</td></tr>
+                      <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa;font-weight:bold">user#124</td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">name : bob</td></tr>
+                    </tbody>
+                  </table>
+                  <div class="dbsh-note">• Rows sorted by row key → range scans<br>• Sparse columns per row OK<br>• Versioned: multiple timestamps per cell</div>
+                </div>
+              </div>
+
+              <div class="dbsh-card">
+                <div class="dbsh-title" style="color:#34d399">④ Relational <span class="sub">(Postgres / Spanner)</span></div>
+                <div class="dbsh-desc">Fixed schema, typed columns, joins across tables.</div>
+                <div class="dbsh-inner">
+                  <div class="dbsh-tcap">TABLE: users</div>
+                  <table class="dbsh-tbl" style="margin-bottom:10px">
+                    <thead><tr><th style="background:#064e3b;color:#6ee7b7">id</th><th style="background:#064e3b;color:#6ee7b7">name</th><th style="background:#064e3b;color:#6ee7b7">email</th></tr></thead>
+                    <tbody>
+                      <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">1</td><td style="color:#94a3b8">alice</td><td style="color:#94a3b8">a@x.com</td></tr>
+                      <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">2</td><td style="color:#94a3b8">bob</td><td style="color:#94a3b8">b@x.com</td></tr>
+                    </tbody>
+                  </table>
+                  <div class="dbsh-tcap">TABLE: orders</div>
+                  <table class="dbsh-tbl">
+                    <thead><tr><th style="background:#064e3b;color:#6ee7b7">id</th><th style="background:#064e3b;color:#6ee7b7">user_id</th><th style="background:#064e3b;color:#6ee7b7">total</th></tr></thead>
+                    <tbody>
+                      <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">o9</td><td style="color:#fbbf24">1 →FK</td><td style="color:#94a3b8">$42</td></tr>
+                      <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">o10</td><td style="color:#fbbf24">1 →FK</td><td style="color:#94a3b8">$18</td></tr>
+                    </tbody>
+                  </table>
+                  <div class="dbsh-note">• Joins link tables at query time<br>• Every row has same columns<br>• ACID transactions across tables</div>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="dbsh-spec">
+              <div class="dbsh-spec-label">Structure Spectrum</div>
+              <div class="dbsh-bar">
+                <div class="dbsh-seg" style="background:#1d4ed8;color:#bfdbfe">Redis<small>key→blob</small></div>
+                <div class="dbsh-seg" style="background:#92400e;color:#fde68a">DynamoDB<small>PK+SK+attrs</small></div>
+                <div class="dbsh-seg" style="background:#312e81;color:#c7d2fe">Bigtable<small>row→cf→col</small></div>
+                <div class="dbsh-seg" style="background:#064e3b;color:#6ee7b7">Postgres<small>tables+joins</small></div>
+              </div>
+              <div class="dbsh-axis"><span>← less structure, more flexible</span><span>more structure, more queryable →</span></div>
+            </div>
+          </div>
+          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">SQL is the default</span><span class="tag">polyglot persistence</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Database selection framework</div><div class="card-sub">Choosing the right store for the job</div></div><span class="badge badge-red">Critical</span></div>
+        <div class="card-body">
+          <p>The question "which database?" is asked in almost every interview. Pick based on <em>access patterns and consistency needs</em>, not familiarity.</p>
+          <table class="tbl"><tr><th>DB type</th><th>Best for</th><th>Examples</th></tr>
+          <tr><td>Relational (SQL)</td><td>ACID transactions, complex joins, strong consistency, financial/user data</td><td>PostgreSQL, MySQL, CockroachDB</td></tr>
+          <tr><td>Key-value</td><td>Simple get/put by key, sessions, caches, low-latency lookups</td><td>Redis, DynamoDB, etcd</td></tr>
+          <tr><td>Wide-column</td><td>Huge write throughput, time-series, append-heavy, high cardinality</td><td>Cassandra, HBase, BigTable</td></tr>
+          <tr><td>Document</td><td>Flexible/nested schema, content management, heterogeneous records</td><td>MongoDB, Firestore</td></tr>
+          <tr><td>Search</td><td>Full-text, faceted, fuzzy search, log analytics</td><td>Elasticsearch, OpenSearch</td></tr>
+          <tr><td>Graph</td><td>Multi-hop traversals over highly connected data</td><td>Neo4j, Amazon Neptune</td></tr>
+          <tr><td>Time-series</td><td>High-frequency timestamped writes, range queries by time</td><td>InfluxDB, TimescaleDB, Prometheus</td></tr></table>
+          <p><strong>Decision shortcuts:</strong> Need transactions or complex joins? &rarr; SQL. Write-heavy append workload? &rarr; LSM-based (Cassandra, RocksDB). Simple key lookups at enormous scale? &rarr; KV or wide-column. Full-text search? &rarr; Elasticsearch alongside a primary store. Multi-hop graph traversal? &rarr; graph DB, but only if you actually traverse many hops — most "graph" data fits fine in SQL.</p>
+          <div class="note warn"><strong>Common mistake:</strong> choosing a DB by brand recognition ("we'll use MongoDB") rather than access patterns. Always state: "I'm choosing X because the access pattern is Y and we need Z." The <em>justification</em> is what interviewers grade, not the choice itself.</div>
+          <div class="tag-row"><span class="tag">access pattern first</span><span class="tag">justify every choice</span><span class="tag">polyglot persistence</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Storage engines: LSM vs B-tree</div><div class="card-sub">Why your DB choice has a write/read bias</div></div><span class="badge badge-purple">Internals</span></div>
+        <div class="card-body">
+          <p><strong>B-tree (PostgreSQL, MySQL/InnoDB):</strong> updates happen in-place on a balanced tree on disk. Great for reads and range scans. Writes do random I/O — you have to find the right page and modify it in place — plus WAL overhead. Fundamentally read-optimized.</p>
+          <p><strong>LSM-tree (Cassandra, RocksDB, HBase, LevelDB):</strong> writes go into an in-memory buffer (memtable), get flushed sequentially to immutable SSTables on disk, and periodically merged via background compaction. Sequential writes means much better write throughput. Reads are slower because you may have to check multiple SSTables — mitigated by Bloom filters that skip SSTables which definitely don't contain the key.</p>
+          <style>
+          .cmp-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;margin:4px 0 8px}
+          .cmp-tbl th{text-align:left;padding:8px 8px;font-size:13px;border-bottom:2px solid var(--color-border-primary);color:var(--color-text-primary);font-weight:600;vertical-align:bottom}
+          .cmp-tbl td{padding:8px 8px;border-bottom:1px solid var(--color-border-tertiary);vertical-align:top;line-height:1.4}
+          .cmp-tbl tr:last-child td{border-bottom:none}
+          .cmp-tbl .at{color:var(--color-text-secondary)}
+          .cmp-tbl .g{color:var(--color-text-success);font-weight:600}
+          .cmp-tbl .w{color:var(--color-text-warning);font-weight:600}
+          .cmp-tbl .p{color:var(--color-text-primary);font-weight:600}
+          .cmp-tag{font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;margin-left:5px;white-space:nowrap}
+          .cmp-tag-b{background:var(--color-background-info);color:var(--color-text-info)}
+          .cmp-tag-l{background:var(--color-background-success);color:var(--color-text-success)}
+          </style>
+          <table class="cmp-tbl"><colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup>
+          <thead><tr><th></th><th>B-Tree <span class="cmp-tag cmp-tag-b">classic</span></th><th>LSM-Tree <span class="cmp-tag cmp-tag-l">write-opt</span></th></tr></thead>
+          <tbody>
+          <tr><td class="at">writes</td><td class="w">random I/O</td><td class="g">sequential, fast</td></tr>
+          <tr><td class="at">reads</td><td class="g">O(log n), fast</td><td class="w">check multiple levels</td></tr>
+          <tr><td class="at">range scans</td><td class="g">excellent</td><td class="g">good (sorted files)</td></tr>
+          <tr><td class="at">write amp</td><td class="w">moderate</td><td class="w">high (compaction)</td></tr>
+          <tr><td class="at">space overhead</td><td class="g">low</td><td class="w">higher (pre-compact)</td></tr>
+          <tr><td class="at">update model</td><td class="p">in-place</td><td class="p">append-only</td></tr>
+          <tr><td class="at">used by</td><td class="p">Postgres, MySQL</td><td class="p">Cassandra, RocksDB</td></tr>
+          </tbody></table>
+          <p><strong>Amplification</strong> = extra work vs. the logical op. <strong>Write amp</strong> = bytes written ÷ bytes you wrote (burns SSD). <strong>Read amp</strong> = disk reads per lookup. <strong>Space amp</strong> = disk used ÷ logical size (stale data).</p>
+          <div class="note"><strong>Why they differ:</strong> an LSM flushes writes sequentially (cheap ingest), but background <strong>compaction</strong> rewrites data to merge levels (write amp) and a key sits across several levels until then (read + space amp; Bloom filters soften reads). A B-tree updates a page in place — steady write amp, and a read walks to a single leaf (low read amp).</div>
+          <p>The practical rule: write-heavy workloads (time-series, logs, high-throughput ingest) → LSM. Read-heavy with complex queries and range scans → B-tree. This is the actual reason to pick Cassandra over Postgres — not "NoSQL is more scalable."</p>
+          <div class="tag-row"><span class="tag">LSM = write-optimized</span><span class="tag">B-tree = read-optimized</span><span class="tag">compaction</span></div>
+        </div>
+      </div>
+
+      <div class="card wide" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Secondary indexes in sharded DBs</div><div class="card-sub">Local vs global index tradeoffs</div></div><span class="badge badge-purple">Query patterns</span></div>
+        <div class="card-body">
+          <p><strong>Local (document-based) secondary indexes:</strong> each partition maintains its own secondary index covering only its own data. Writes are local and fast. Reads require scatter-gather — query all partitions and merge results. Used by MongoDB.</p>
+          <p><strong>Global (term-based) secondary indexes:</strong> the index itself is partitioned by the indexed term. Reads go to one partition (fast). Writes must update multiple index partitions (slow, usually async). DynamoDB Global Secondary Indexes are async — reads can be stale immediately after a write.</p>
+          <p><strong>In DynamoDB specifically:</strong> the <strong>main table</strong> is stored and ordered by partition key + sort key. An <strong>LSI</strong> reuses the <em>same partition key</em> with a different sort key — it lives <em>inside the same partition</em>, sharing its storage (and 10&nbsp;GB limit). A <strong>GSI</strong> is a fully separate copy, <em>repartitioned by a different key</em> — essentially a new table behind the scenes, which is why it's updated asynchronously.</p>
+          <div class="dynidx" onclick="event.stopPropagation()">
+            <div class="dynidx-cols">
+              <div class="dynidx-col c-main">
+                <div class="dx-head">Main table</div>
+                <div class="dx-pk">PK: follower_id</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>follower_id</th><th>followee_id</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: alice</td></tr>
+                    <tr><td>alice</td><td>bob</td></tr>
+                    <tr><td>alice</td><td>carol</td></tr>
+                    <tr><td>alice</td><td>dan</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob</td></tr>
+                    <tr><td>bob</td><td>alice</td></tr>
+                    <tr><td>bob</td><td>carol</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who does alice follow?"</div>
+              </div>
+              <div class="dynidx-col c-lsi">
+                <div class="dx-head">LSI</div>
+                <div class="dx-pk">PK: follower_id · sort: created_at</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>follower_id</th><th>created_at</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: alice — same</td></tr>
+                    <tr><td>alice</td><td>2024-01-01</td></tr>
+                    <tr><td>alice</td><td>2024-03-10</td></tr>
+                    <tr><td>alice</td><td>2024-07-22</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob — same</td></tr>
+                    <tr><td>bob</td><td>2024-02-14</td></tr>
+                    <tr><td>bob</td><td>2024-05-30</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who did alice follow most recently?"</div>
+              </div>
+              <div class="dynidx-col c-gsi">
+                <div class="dx-head">GSI</div>
+                <div class="dx-pk">PK: followee_id</div>
+                <table class="dx-tbl">
+                  <thead><tr><th>followee_id</th><th>follower_id</th></tr></thead>
+                  <tbody>
+                    <tr class="dx-part"><td colspan="2">Partition: carol — new</td></tr>
+                    <tr><td>carol</td><td>alice</td></tr>
+                    <tr><td>carol</td><td>bob</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: alice — new</td></tr>
+                    <tr><td>alice</td><td>bob</td></tr>
+                    <tr class="dx-part"><td colspan="2">Partition: bob — new</td></tr>
+                    <tr><td>bob</td><td>alice</td></tr>
+                  </tbody>
+                </table>
+                <div class="dx-q">✓ "who follows carol?"</div>
+              </div>
+            </div>
+            <div class="dx-cap">LSI = same partitions, re-sorted · GSI = full copy, repartitioned by <code>followee_id</code></div>
+            <div class="dx-why">
+              <div class="dx-why-h">Why followee_id works as a GSI partition key</div>
+              <p>High cardinality — every user can be a followee, so rows spread evenly across many partitions.</p>
+              <p>The main table can't answer "who follows carol?" without a scatter-gather — carol's followers are scattered across many follower partitions. The GSI groups them under one partition key.</p>
+            </div>
+          </div>
+          <div class="tag-row"><span class="tag">DynamoDB GSI = global async</span><span class="tag">MongoDB = local scatter-gather</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Shard keys, cost &amp; schema traps</div><div class="card-sub">Pick the key, name the cost, check the reads</div></div><span class="badge badge-blue">Foundational</span></div>
+        <div class="card-body">
+          <p>Three fast reflexes graders reward: choose the shard key by access pattern, name the cost-dominant component, and verify the schema actually serves the reads.</p>
+          <p><strong>Pick the shard key</strong> — the field you query by most. Avoid <em>low-cardinality</em> keys (few values → few shards) and <em>monotonic</em> keys (timestamp / auto-id → one hot shard). Good keys are high-cardinality and evenly accessed.</p>
+          <table class="tbl"><tr><th>System</th><th>Shard key</th><th>Watch out</th></tr>
+          <tr><td>Chat messages</td><td>conversation_id</td><td>A 500k-member group is a hot shard — sub-shard or cache it</td></tr>
+          <tr><td>Feed timelines</td><td>user_id</td><td>Celebrities → fanout-on-read for those keys</td></tr>
+          <tr><td>URL shortener</td><td>the short code / hash</td><td>High cardinality, evenly spread — ideal</td></tr>
+          <tr><td>Metrics points</td><td>(series, time_bucket)</td><td>Don't shard on raw time alone — newest bucket goes hot</td></tr>
+          <tr><td>Orders</td><td>merchant_id or user_id</td><td>Pick by the dominant access pattern (seller dashboard vs buyer history)</td></tr></table>
+          <p style="margin-top:1rem"><strong>Cost-dominant component</strong> — where the bill actually concentrates, so you optimize the right thing.</p>
+          <table class="tbl"><tr><th>System</th><th>Cost is dominated by…</th></tr>
+          <tr><td>Video streaming</td><td>Egress / CDN bandwidth</td></tr>
+          <tr><td>Metrics &amp; logs</td><td>Ingest + retention / cardinality</td></tr>
+          <tr><td>Search</td><td>Indexing + memory / cache</td></tr>
+          <tr><td>ML serving</td><td>GPU utilization</td></tr>
+          <tr><td>Social feed</td><td>Fanout / write amplification + cache memory</td></tr>
+          <tr><td>Multi-region</td><td>Duplicated infra + cross-region transfer</td></tr></table>
+          <div class="note warn"><strong>Schema / access traps:</strong> deep <code>OFFSET</code> pagination scans &amp; discards every preceding row (use <strong>cursor / keyset</strong> pagination); querying by a column with no index is a scan trap; an idempotency key belongs on the <em>write request</em>; model a clear status lifecycle (AVAILABLE&rarr;HELD&rarr;BOOKED); publish events via an <strong>outbox</strong> row. Sanity check: "does a PK or secondary index serve every read, or am I forcing a scan?"</div>
+          <div class="tag-row"><span class="tag">high-cardinality key</span><span class="tag">avoid hot shards</span><span class="tag">cursor not offset</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="section-footer">
+      <button class="ask-btn" onclick="sendQ('Walk me through choosing a database for a read-heavy social feed, then designing its schema, shard key, and secondary indexes')">Practice DB selection <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
   <div id="section-pipelines" class="section">
     <div class="section-intro">
       <h2>Batch &amp; stream</h2>
@@ -3661,11 +4195,12 @@ Processing time = when the stream processor sees the event
         <button class="btn-mini" onclick="llmRandomPrompt()">Random prompt</button>
         <button class="btn-mini" onclick="llmCopyPrompt()">Copy prompt only</button>
         <button class="btn-mini" onclick="llmCopyPacket()">Copy judge packet + my answer</button>
+        <button class="btn-mini" onclick="sendQ(llmPacket(true))">Grade in Claude ↗</button>
         <span class="llm-status" id="llmStatus"></span>
       </div>
     </div>
 
-    <div class="tool">
+    <div class="tool" id="tool-llm-apidata">
       <div class="tool-title">🧱 LLM-judged API/data drill</div>
       <p>Use this for the artifact-heavy part of an interview. The prompt gives access patterns and constraints; write the API and data model, then copy the judge packet for grading.</p>
       <div class="llm-grid">
@@ -3692,6 +4227,7 @@ Processing time = when the stream processor sees the event
         <button class="btn-mini" onclick="schemaRandomPrompt()">Random drill</button>
         <button class="btn-mini" onclick="schemaCopyPrompt()">Copy drill only</button>
         <button class="btn-mini" onclick="schemaCopyPacket()">Copy schema judge packet + my answer</button>
+        <button class="btn-mini" onclick="sendQ(schemaPacket(true))">Grade in Claude ↗</button>
         <span class="llm-status" id="schemaStatus"></span>
       </div>
     </div>
@@ -3760,7 +4296,7 @@ Processing time = when the stream processor sees the event
     <!-- API design drills -->
     <div class="ex-group-label">API design drills</div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-url-api">
       <span class="ex-tag">API design</span>
       <div class="ex-prompt"><strong>URL shortener API.</strong> Define the REST endpoints for creating a short link, redirecting, and reading analytics.</div>
       <div class="ex-tests">Tests: resource naming, the redirect hot path, 301 vs 302.</div>
@@ -3774,7 +4310,7 @@ DELETE /v1/urls/{code}</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-newsfeed-api">
       <span class="ex-tag">API design</span>
       <div class="ex-prompt"><strong>News feed API.</strong> Define endpoints to post, fetch a paginated feed, and follow/unfollow.</div>
       <div class="ex-tests">Tests: pagination choice, plural resources, auth.</div>
@@ -3788,7 +4324,7 @@ DELETE /v1/follows/{followee_id}       -> 204</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-chat-api">
       <span class="ex-tag">API design</span>
       <div class="ex-prompt"><strong>Chat API.</strong> Define endpoints to send a message, fetch history, and receive messages in real time. How do you make sends safe to retry?</div>
       <div class="ex-tests">Tests: idempotency, real-time transport, ordering.</div>
@@ -3796,7 +4332,11 @@ DELETE /v1/follows/{followee_id}       -> 204</div>
       <div class="ex-solution">
         <div class="code">POST /v1/conversations/{id}/messages  {client_msg_id, text} -> Message
 GET  /v1/conversations/{id}/messages?before=&limit=50      -> {items, next_cursor}
-WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</div>
+WS   /v1/realtime    (one connection per client; JSON frames below)
+
+  client → server   { type: "subscribe",     conversation_id: "c123" }
+  server → client   { type: "new_message",    message: { id, text, sender_id, created_at } }
+  server → client   { type: "read_receipt",   user_id, conversation_id, read_at }</div>
         <div class="ctv" onclick="event.stopPropagation()">
 <style>
 .ctv{display:grid;gap:10px;margin:.75rem 0}
@@ -3821,10 +4361,50 @@ WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</di
       </div>
     </div>
 
+    <div class="exercise" id="ex-metrics-api">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>Metrics ingest &amp; query API.</strong> Define endpoints to batch-ingest metric points (tagged by host/metric), query one series over a time range, and power dashboard panels over long ranges cheaply.</div>
+      <div class="ex-tests">Tests: batched async writes, range vs rollup query, high-cardinality tags.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/metrics:batch   {points:[{metric,host,ts,value}]}   -> 202 Accepted
+GET  /v1/series          ?metric=&host=&from=&to=&step=         -> {points:[{ts,value}]}
+GET  /v1/query           ?expr=avg(cpu){host=…}&from=&to=&step= -> aggregated series</div>
+        <p><strong>Notes:</strong> writes are <strong>batched and async</strong> (<code>202</code>, buffered via Kafka) — never one HTTP call per point. The <code>step</code> param lets the server answer from the right <strong>rollup tier</strong> (raw / 1-min / 1-hour), so a 2-year query never scans raw points. Tags are query dimensions, not separate endpoints; bound their cardinality to avoid hot partitions.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>File upload &amp; delivery API.</strong> Define endpoints to upload large files (video/images), track completion, and serve downloads — without routing the bytes through your servers.</div>
+      <div class="ex-tests">Tests: presigned upload, multipart/resumable, CDN delivery, metadata sync.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/files               {filename, size, content_type} -> {file_id, upload_url, parts?}
+PUT  &lt;upload_url&gt;             (client uploads bytes DIRECTLY to object storage)
+POST /v1/files/{id}:complete {etags?}                       -> {status:"processing"}
+GET  /v1/files/{id}                                          -> {status, download_url (CDN, signed)}</div>
+        <p><strong>Notes:</strong> the server hands back a <strong>presigned URL</strong> and the client <code>PUT</code>s straight to S3 — gigabytes never touch your app tier. Large/flaky uploads use <strong>multipart</strong> (per-part URLs + etags). A storage <strong>event</strong> — not the client's word — flips status to ready and triggers transcoding. Downloads go through a <strong>CDN with signed URLs</strong>; never put the bytes in your DB.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-checkout-api">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>Checkout &amp; payment API.</strong> Define endpoints to place an order and charge payment so a client that retries after a timeout never double-charges or oversells inventory.</div>
+      <div class="ex-tests">Tests: idempotency keys, reserve-before-charge, status retrieval.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/orders               Idempotency-Key: &lt;uuid&gt;  {cart_id}  -> {order_id, status:"reserved"}
+POST /v1/orders/{id}/payment  Idempotency-Key: &lt;uuid&gt;  {method}   -> {status:"paid"|"failed"}
+GET  /v1/orders/{id}                                              -> {status, items, payment_state}</div>
+        <p><strong>Notes:</strong> the <strong>Idempotency-Key</strong> header is the whole game — the server stores it with the result, so a retried <code>POST</code> returns the original outcome instead of charging twice. Inventory is <strong>reserved</strong> (conditional update / row lock) at order creation and decremented on payment; a reservation TTL releases abandoned carts. Cross-service (order → payment → inventory) runs as a <strong>saga</strong> with compensations, not 2PC.</p>
+      </div>
+    </div>
+
     <!-- Data modeling drills -->
     <div class="ex-group-label">Data modeling drills</div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-follow-graph">
       <span class="ex-tag">Data modeling</span>
       <div class="ex-prompt"><strong>Follow graph + tweets.</strong> Sketch the tables and key access patterns for users, tweets, and follows. How do you handle a celebrity with 50M followers?</div>
       <div class="ex-tests">Tests: schema, index direction, the hot-key (celebrity) problem.</div>
@@ -3880,7 +4460,7 @@ WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</di
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-seat-booking">
       <span class="ex-tag">Data modeling</span>
       <div class="ex-prompt"><strong>Seat booking.</strong> Design a schema to sell concert seats with no double-booking under heavy concurrency (think Ticketmaster on-sale).</div>
       <div class="ex-tests">Tests: contention, optimistic concurrency, hold expiry/fencing.</div>
@@ -4023,7 +4603,7 @@ CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-chat-data">
       <span class="ex-tag">Data modeling</span>
       <div class="ex-prompt"><strong>Chat / messaging.</strong> Model conversations, messages, and membership for a WhatsApp-style app. Support: fetch the most recent N messages in a conversation, send a message, and show each user's unread count.</div>
       <div class="ex-tests">Tests: partitioning by conversation, time-ordered keys, unread counters.</div>
@@ -4065,7 +4645,7 @@ CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-counters">
       <span class="ex-tag">Data modeling</span>
       <div class="ex-prompt"><strong>Counters &amp; denormalization.</strong> Model "users like posts." For each post you must render the total like count <em>and</em> whether the current user liked it — at feed scale (a post can have millions of likes).</div>
       <div class="ex-tests">Tests: many-to-many, denormalized aggregates, write amplification, hot keys.</div>
@@ -4097,7 +4677,7 @@ CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-timeseries">
       <span class="ex-tag">Data modeling</span>
       <div class="ex-prompt"><strong>Time-series / metrics.</strong> Model storage for a metrics system ingesting millions of points/sec (e.g. CPU per host). Support: write points, query one metric's range for a host, and keep cost bounded over years.</div>
       <div class="ex-tests">Tests: time-bucketed partitioning, rollups/downsampling, retention/TTL.</div>
@@ -4140,10 +4720,66 @@ CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
       </div>
     </div>
 
+    <div class="exercise" id="ex-proximity">
+      <span class="ex-tag">Data modeling</span>
+      <div class="ex-prompt"><strong>Nearby / proximity search.</strong> Model storage and indexes for "find places within the current map viewport" (Yelp/Uber-style) over millions of points, with category filters and high read traffic.</div>
+      <div class="ex-tests">Tests: geo index choice, geohash prefix scan, right-sizing.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
+      <div class="ex-solution">
+        <div class="code">places(id, name, category, lat, lng, geohash CHAR(9))   -- geohash precomputed on write
+  INDEX (geohash)               -- a plain 1-D B-tree / sorted set, no special engine
+  INDEX (category, geohash)     -- filtered nearby queries</div>
+        <div class="geo-viz" onclick="event.stopPropagation()">
+          <div class="geo-row">
+            <div class="geo-grid">
+              <div class="geo-cell n">9q8yp</div><div class="geo-cell n">9q8yr</div><div class="geo-cell n">9q8yx</div>
+              <div class="geo-cell n">9q8yn</div><div class="geo-cell q">9q8yy<span class="qs">your point</span></div><div class="geo-cell n">9q8yz</div>
+              <div class="geo-cell n">9q8yj</div><div class="geo-cell n">9q8yq</div><div class="geo-cell n">9q8yw</div>
+            </div>
+            <div class="geo-cap"><b>Neighbour search.</b> Encode (lat, lng) into a geohash; a shared <b>prefix</b> (<code>9q8y</code>) means physical closeness. Query the point's cell <b>+ its 8 neighbours</b> — so a point near an edge still finds what's just across the border — then filter by true distance and rank.</div>
+          </div>
+          <div class="geo-bar">
+            <span class="s">…</span><span class="s">9q8yh</span><span class="s hot">9q8yj</span><span class="s hot">9q8yn</span><span class="s hot">9q8yp–z</span><span class="s">9q8z…</span><span class="s">…</span>
+          </div>
+          <div class="geo-barlbl"><b>Why one index works:</b> sorting by geohash lays neighbouring cells next to each other, so "nearby" collapses into a <b>contiguous range</b> — answered by one ordinary B-tree range scan or a Redis <code>ZRANGE</code>, no special geo engine.</div>
+        </div>
+        <p><strong>The trick (geohash):</strong> encode (lat, lng) into a short string where a shared prefix means physical closeness — <code>9q8yy</code> and <code>9q8yz</code> are adjacent, <code>9q8</code> is the bigger block containing both. That collapses 2-D proximity into a <strong>1-D prefix range</strong>, so an ordinary B-tree or Redis sorted set answers "near me" with a range scan. Longer prefix = smaller, more precise cell.</p>
+        <div class="note"><strong>Edge case:</strong> a point near a cell boundary has close neighbours in adjacent cells — query the cell <em>and its 8 neighbours</em>, then rank by true distance. For shapes/regions (delivery zones, not points) use an <strong>R-tree</strong> (PostGIS) instead.</div>
+        <div class="note warn"><strong>Right-size it:</strong> a geo index only pays off at hundreds of thousands–millions of points. For ~1,000 items, just scan them — the index overhead isn't worth it.</div>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <span class="ex-tag">Data modeling</span>
+      <div class="ex-prompt"><strong>Durable job queue.</strong> Model a table that lets a pool of workers pull and run background jobs — with retries, delays, and no two workers ever grabbing the same job — surviving worker crashes.</div>
+      <div class="ex-tests">Tests: lease / visibility timeout, SKIP LOCKED claim, retry + dead-letter.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
+      <div class="ex-solution">
+        <div class="code">jobs(
+  id            PK,
+  type,                          -- which handler runs it
+  payload       JSON,
+  status        ready | running | done | dead,
+  run_after     TIMESTAMP,       -- delayed / scheduled jobs
+  attempts      INT,
+  max_attempts  INT,
+  locked_until  TIMESTAMP NULL,  -- lease / visibility timeout
+  dedupe_key    NULL
+)
+  INDEX  (status, run_after)     -- fetch the next due job
+  UNIQUE (dedupe_key)            -- idempotent enqueue</div>
+        <p class="ap"><strong>Claim a job</strong> — <code>SELECT … WHERE status='ready' AND run_after &lt;= now() FOR UPDATE SKIP LOCKED LIMIT 1</code>, then set <code>status=running, locked_until=now()+timeout</code>. <code>SKIP LOCKED</code> is what stops two workers grabbing the same row without them blocking each other.</p>
+        <p class="ap"><strong>Lease / visibility timeout</strong> — a crashed worker's <code>locked_until</code> expires, so the job becomes claimable again (at-least-once → handlers stay idempotent). You model a <em>lease column</em>; you don't hold a transaction open for the whole job.</p>
+        <p class="ap"><strong>Retry + dead-letter</strong> — on failure, if <code>attempts &lt; max_attempts</code> → back to <code>ready</code> with <code>run_after = now()+backoff</code>; else <code>status='dead'</code> (the DLQ).</p>
+        <p class="ap"><strong>Idempotent enqueue</strong> — <code>UNIQUE(dedupe_key)</code> so the same event enqueued twice becomes one job.</p>
+        <div class="note warn"><strong>The trap:</strong> holding a row lock for the whole job (locks it for minutes), or a plain <code>SELECT</code> without <code>SKIP LOCKED</code> — workers stampede the same head-of-queue row instead of spreading across ready jobs.</div>
+      </div>
+    </div>
+
     <!-- Make-the-call drills -->
     <div class="ex-group-label">Make-the-call (tradeoff) drills</div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-sql-nosql">
       <span class="ex-tag">Tradeoff</span>
       <div class="ex-prompt"><strong>SQL or NoSQL?</strong> You're storing orders and payments for an e-commerce site. Which do you pick, and why?</div>
       <div class="ex-tests">Tests: matching data needs to a store, resisting "NoSQL for scale" reflex.</div>
@@ -4223,6 +4859,10 @@ function showSection(id,el){
   window.scrollTo(0,0);
   try{localStorage.setItem('ds_v1_section',id);}catch(e){}
 }
+// jump from a card's Practice link to its exercise in the Exercises tab, then scroll + flash it
+function goEx(id){showSection('exercises');setTimeout(function(){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'center'});el.classList.add('ex-flash');setTimeout(function(){el.classList.remove('ex-flash');},1800);},50);}
+// jump to the LLM API/data drill tool AND load the specific drill prompt by title
+function goSchemaDrill(title){try{var i=SCHEMA_DRILLS.findIndex(function(d){return d.title===title;});if(i>=0){schemaPromptIdx=i;schemaSetPrompt();}}catch(e){}goEx('tool-llm-apidata');}
 // restore the last open tab across refresh
 (function(){function restore(){try{var s=localStorage.getItem('ds_v1_section');if(s&&document.getElementById('section-'+s))showSection(s);}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore);else restore();})();
@@ -4288,10 +4928,19 @@ const Qs=[
   {q:"Why is a monotonically increasing value (timestamp, auto-increment id) a poor shard key?",o:["It can't be indexed","All new writes land on the newest shard — a hot spot","It uses too much disk","It breaks foreign keys"],a:1,e:"A monotonic key sends every fresh write to the same 'latest' shard, creating a write hot spot while older shards sit idle. Good shard keys are high-cardinality and evenly accessed (a hash, user_id, or conversation_id) so load spreads across all shards."},
   {q:"For a large video-streaming service, which cost usually dominates?",o:["Database storage","Egress / CDN bandwidth","Application CPU","DNS queries"],a:1,e:"Serving video pushes enormous volumes of bytes to viewers, so egress and CDN bandwidth dominate the bill. Knowing the cost-dominant component focuses the design — metrics/logs are dominated by ingest+retention, ML serving by GPU utilization, feeds by fanout/write amplification."},
   {q:"A page loads via OFFSET 1000000 LIMIT 20 and is very slow. The fix?",o:["Increase LIMIT","Cursor / keyset pagination (WHERE id < last_seen)","Add more replicas","Remove the index"],a:1,e:"OFFSET must scan and discard every preceding row, so deep pages get linearly slower — a scan trap. Cursor (keyset) pagination uses the index to jump straight to the next page with a WHERE clause on the last-seen key, staying fast no matter how deep you go."},
+  {q:"Archetype check: design a system ingesting CPU/memory metrics from millions of hosts, powering dashboards over months. Which archetype?",o:["Time-series & analytics","Feed & fan-out","KV lookup at scale","Realtime messaging & collaboration"],a:0,e:"High-volume append-only writes queried as aggregates over time ranges = time-series & analytics. The playbook follows: partition by (series, time-bucket), roll up into coarser resolutions, and TTL by tier to bound cost."},
+  {q:"Archetype check: design Ticketmaster seat selection so two buyers can never get the same seat. Which archetype?",o:["Transactional & booking","Search & geo","Async pipelines & workflows","Time-series & analytics"],a:0,e:"Concurrent actors competing for a limited resource, where correctness beats raw scale = transactional & booking. Reach for a single-DB transaction (row lock or compare-and-set) before distributed locks or 2PC."},
+  {q:"Archetype check: design Twitter's home timeline, including accounts with tens of millions of followers. Which archetype?",o:["Feed & fan-out","Realtime messaging & collaboration","Blob / media & delivery","KV lookup at scale"],a:0,e:"One write reaching many timelines = the fan-out family. The celebrity case forces the hybrid: fan-out on write for normal users, fan-out on read (merge at read time) for celebrities."},
+  {q:"Archetype check: design 'restaurants near me' filtered by the current map viewport. Which archetype?",o:["Search & geo","Feed & fan-out","Transactional & booking","Async pipelines & workflows"],a:0,e:"Location lookup over a large corpus without scanning everything = search & geo. Geohash / quadtree / S2 / H3 turn 2-D proximity into an indexable 1-D range."},
+  {q:"Archetype check: design a URL shortener serving an enormous volume of redirects. Which archetype?",o:["KV lookup at scale","Time-series & analytics","Realtime messaging & collaboration","Search & geo"],a:0,e:"A read-dominated key→value lookup: the game is unique code generation, sharding (consistent hashing, not hash%N), and caching the redirect. Keep click analytics off the hot path."},
+  {q:"Archetype check: design WhatsApp messaging with delivery guarantees and correct ordering, including group chats. Which archetype?",o:["Realtime messaging & collaboration","Feed & fan-out","Blob / media & delivery","Transactional & booking"],a:0,e:"The server pushes state over long-lived connections with ordering and delivery semantics. Transport ladder (polling → SSE → WebSockets), per-conversation ordering, client_msg_id dedupe, reconnect catch-up."},
+  {q:"Archetype check: design a service that transcodes every uploaded video into multiple resolutions in the background. Which archetype best fits the transcoding half?",o:["Async pipelines & workflows","Search & geo","Feed & fan-out","KV lookup at scale"],a:0,e:"Slow work done off the request path via a job queue and idempotent workers = async pipelines & workflows. (The upload/serve half is blob/media — real systems compose the two.)"},
+  {q:"Archetype check: design Strava — athletes upload GPS activity tracks and friends see a feed of recent activities. Which TWO archetypes dominate?",o:["Time-series & analytics + Feed & fan-out","Search & geo + KV lookup at scale","Transactional & booking + Blob/media","Realtime messaging + Search & geo"],a:0,e:"GPS tracks are time-series data; the friends-see-recent-activities surface is a fan-out feed. Spotting that a prompt stacks two archetypes is the real skill — you then design each half with its own playbook."},
+  {q:"Archetype check: design an ad-click pipeline showing advertisers a near-real-time aggregate count while bounding storage cost over years. Which archetype?",o:["Time-series & analytics","Transactional & booking","Realtime messaging & collaboration","Search & geo"],a:0,e:"High-volume events aggregated over time, with rollups/retention to bound cost = time-series & analytics (counters/aggregation), typically fed through an async ingest pipeline."},
 ];
 
 // section tag per question, parallel to the Qs array order
-const QSEC=['cap','consensus','caching','replication','transactions','consensus','transactions','time','partitioning','messaging','ratelimiting','reliability','cap','reliability','caching','reliability','messaging','consensus','cap','replication','transactions','partitioning','scalability','ratelimiting','scalability','scalability','time','patterns','patterns','patterns','loadbalancing','loadbalancing','framework','reliability','reliability','framework','partitioning','pipelines','framework','framework','time','decisions','decisions','decisions','decisions','decisions','decisions','decisions','decisions'];
+const QSEC=['cap','consensus','caching','replication','transactions','consensus','transactions','time','partitioning','messaging','ratelimiting','reliability','cap','reliability','caching','reliability','messaging','consensus','cap','replication','transactions','partitioning','scalability','ratelimiting','scalability','scalability','time','patterns','patterns','patterns','loadbalancing','loadbalancing','framework','reliability','reliability','framework','partitioning','pipelines','framework','framework','time','decisions','decisions','decisions','decisions','decisions','decisions','decisions','decisions','archetypes','archetypes','archetypes','archetypes','archetypes','archetypes','archetypes','archetypes','archetypes'];
 const QUIZ=Qs.map((q,i)=>({q:q.q,o:q.o,a:q.a,e:q.e,s:QSEC[i]||'misc',id:i}));
 
 // Quiz answers persist across reloads, keyed by question id (shared by section + combined quizzes)
@@ -4902,13 +5551,69 @@ document.addEventListener('DOMContentLoaded',initProgress);
 const DRILL_KEY='dsprep_drills_v1';
 function loadDrills(){try{return JSON.parse(localStorage.getItem(DRILL_KEY))||{};}catch(e){return {};}}
 function saveDrills(d){try{localStorage.setItem(DRILL_KEY,JSON.stringify(d));}catch(e){}}
-function initDrills(){
-  const sec=document.getElementById('section-exercises');
+// per-drill jotted answers (API / data / tradeoff drills), persisted per question
+const ANS_KEY='dsprep_answers_v1';
+function loadAns(){try{return JSON.parse(localStorage.getItem(ANS_KEY))||{};}catch(e){return {};}}
+function saveAns(a){try{localStorage.setItem(ANS_KEY,JSON.stringify(a));}catch(e){}}
+const ANSWERABLE=['API design','Data modeling','Tradeoff'];
+// map a mock-drill prompt to the archetype it trains (first keyword match wins)
+const ARCH_TAGS=[['URL shortener','KV lookup'],['News feed','Feed & fan-out'],['Follow graph','Feed & fan-out'],['Seat booking','Transactional & booking'],['single-table','KV lookup'],['Chat','Realtime messaging'],['Counters','Time-series & analytics'],['Time-series','Time-series & analytics'],['orders and payments','Transactional & booking'],['Metrics ingest','Time-series & analytics'],['File upload','Blob / media'],['Checkout','Transactional & booking'],['proximity','Search & geo'],['job queue','Async pipelines']];
+function archTagFor(t){for(const p of ARCH_TAGS){if(t.indexOf(p[0])>=0)return p[1];}return null;}
+// one-line "archetype lens" prepended to each API/data drill solution (keyword -> sentence)
+const ARCH_LENS=[
+  ['URL shortener API','⬡ KV lookup — API facet: the redirect hot path (301 vs 302) and deriving the owner from auth, not the body.'],
+  ['News feed API','⬡ Feed & fan-out — API facet: cursor (keyset) pagination, and GET /feed is where fan-out-on-write vs read surfaces.'],
+  ['Chat API','⬡ Realtime messaging — API facet: idempotent send (client_msg_id), a real-time transport, and message ordering.'],
+  ['Metrics ingest','⬡ Time-series & analytics — API facet: batched async ingest and a range/aggregate query API that reads the right rollup tier.'],
+  ['File upload','⬡ Blob / media & delivery — API facet: presigned direct-to-storage upload and CDN-signed download — bytes never touch your servers.'],
+  ['Checkout','⬡ Transactional & booking — API facet: an idempotency key so a retried order/charge never double-charges.'],
+  ['Follow graph','⬡ Feed & fan-out — data facet: follow-graph index direction and the celebrity hot-key.'],
+  ['Seat booking','⬡ Transactional & booking — data facet: concurrency control (row lock vs compare-and-set) to stop double-booking.'],
+  ['single-table','⬡ KV lookup — data facet: access-pattern-driven key design so every query is a point/range read, never a scan.'],
+  ['Chat / messaging','⬡ Realtime messaging — data facet: per-conversation ordering, unread counts, and conversation_id as the shard key.'],
+  ['Counters','⬡ Time-series & analytics — data facet: a denormalized count with idempotent async increments, never COUNT(*) at read.'],
+  ['Time-series / metrics','⬡ Time-series & analytics — data facet: (series, time-bucket) partitioning, rollups, and TTL by tier.'],
+  ['proximity','⬡ Search & geo — data facet: a geo index (geohash/S2) that turns 2-D proximity into a 1-D range scan.'],
+  ['job queue','⬡ Async pipelines & workflows — data facet: a lease / visibility-timeout + SKIP LOCKED claim so workers never collide and crashes get retried.']
+];
+function archLensFor(t){for(const p of ARCH_LENS){if(t.indexOf(p[0])>=0)return p[1];}return null;}
+// content-stable id so inserting/reordering drills doesn't scramble saved progress
+function drillKey(ex,prefix,i){
+  const s=ex.querySelector('.ex-prompt strong');
+  const b=(s?s.textContent:String(i)).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  return prefix+(b||i);
+}
+function initDrillsIn(sectionId,prefix,tag){
+  const sec=document.getElementById('section-'+sectionId);
   if(!sec)return;
   const done=loadDrills();
   sec.querySelectorAll('.exercise').forEach((ex,i)=>{
-    const did='drill-'+i;
+    const did=drillKey(ex,prefix,i);
     ex.dataset.did=did;
+    if(tag){
+      const pr=ex.querySelector('.ex-prompt');
+      const ptext=pr?pr.textContent:'';
+      if(!ex.querySelector('.ex-tag.arch')){
+        const label=archTagFor(ptext);
+        if(label){const t=document.createElement('span');t.className='ex-tag arch';t.textContent='⬡ '+label;const f=ex.querySelector('.ex-tag');if(f)f.after(t);else ex.insertBefore(t,ex.firstChild);}
+      }
+      const sol=ex.querySelector('.ex-solution');
+      if(sol&&!sol.querySelector('.arch-lens')){
+        const lens=archLensFor(ptext);
+        if(lens){const l=document.createElement('p');l.className='arch-lens';l.textContent=lens;sol.insertBefore(l,sol.firstChild);}
+      }
+    }
+    // jot-your-answer box for API / data / tradeoff drills, persisted per question
+    const type=(ex.querySelector('.ex-tag')||{}).textContent||'';
+    if(ANSWERABLE.indexOf(type)>=0&&!ex.querySelector('.ex-answer')){
+      const ta=document.createElement('textarea');
+      ta.className='ex-answer';
+      ta.placeholder='Jot your answer (saved automatically), then reveal…';
+      const ans=loadAns();ta.value=ans[did]||'';
+      ta.oninput=()=>{const a=loadAns();if(ta.value.trim())a[did]=ta.value;else delete a[did];saveAns(a);};
+      const btn=ex.querySelector('.ex-btn');
+      if(btn)ex.insertBefore(ta,btn);else ex.appendChild(ta);
+    }
     const lbl=document.createElement('label');
     lbl.className='ex-check';
     const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!done[did];
@@ -4930,15 +5635,17 @@ function initDrills(){
     paint();
     ex.appendChild(lbl);
   });
+}
+function initDrills(){
+  initDrillsIn('exercises','drill-',true);
+  initDrillsIn('archetypes','adrill-',false);
   updateProgressUI();
 }
 document.addEventListener('DOMContentLoaded',initDrills);
 
 /* ---- Mock-designs drills: show one card per group at a time ---- */
 function setupExerciseCarousels(){
-  const sec=document.getElementById('section-exercises');
-  if(!sec)return;
-  sec.querySelectorAll('.ex-group-label').forEach(label=>{
+  document.querySelectorAll('.ex-group-label').forEach(label=>{
     const items=[]; let n=label.nextElementSibling;
     while(n&&n.classList&&n.classList.contains('exercise')){const c=n;n=n.nextElementSibling;items.push(c);}
     if(items.length<2)return;
@@ -4971,6 +5678,40 @@ document.addEventListener('DOMContentLoaded',setupExerciseCarousels);
 .ex-check.done{color:var(--success);font-weight:500}
 .exercise.done{border-color:#86EFAC}
 .ap{margin:.3rem 0}
+.ex-tag.arch{background:transparent;border:1px solid var(--border);color:var(--text-muted);margin-left:6px}
+.ex-answer{display:block;width:100%;box-sizing:border-box;min-height:66px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 11px;margin:.15rem 0 .7rem}
+.ex-answer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ex-answer::placeholder{color:var(--text-faint)}
+.arch-hint{font-size:12.5px;color:var(--text-muted);line-height:1.6;margin:.25rem 0 .85rem}
+.arch-lens{font-size:12px;font-weight:500;color:var(--accent-dark);background:var(--accent-light);border-radius:6px;padding:7px 11px;margin:0 0 .8rem;line-height:1.55}
+.geo-viz{margin:.5rem 0 .9rem}
+.geo-row{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.geo-grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,44px);gap:4px;flex-shrink:0}
+.geo-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-faint)}
+.geo-cell.n{background:var(--accent-light);border-color:transparent;color:var(--accent-dark)}
+.geo-cell.q{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.geo-cell .qs{font-size:8px;font-weight:600;opacity:.9;margin-top:1px}
+.geo-cap{font-size:12.5px;color:var(--text-muted);line-height:1.55;flex:1;min-width:200px}
+.geo-cap b{color:var(--text)}
+.geo-bar{display:flex;margin-top:12px;border:1px solid var(--border);border-radius:7px;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.geo-bar .s{padding:6px 9px;color:var(--text-faint);border-right:1px solid var(--border);white-space:nowrap}
+.geo-bar .s:last-child{border-right:0}
+.geo-bar .s.hot{background:var(--accent-light);color:var(--accent-dark);font-weight:700}
+.geo-barlbl{font-size:11.5px;color:var(--text-muted);margin-top:6px;line-height:1.5}
+.geo-barlbl b{color:var(--text)}
+.ob-flow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:.5rem 0 .2rem}
+.ob-txn{border:2px dashed var(--accent);border-radius:10px;padding:8px 10px;background:var(--accent-light);display:flex;flex-direction:column;justify-content:center}
+.ob-txn-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-dark);margin-bottom:5px;text-align:center}
+.ob-rows{display:grid;gap:5px}
+.ob-chip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 9px;color:var(--text)}
+.ob-chip.out{border-color:var(--accent);color:var(--accent-dark);font-weight:700}
+.ob-chip small{display:block;font-family:inherit;font-size:8.5px;color:var(--text-faint);font-weight:400;margin-top:1px}
+.ob-arr{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:72px;color:var(--text-faint)}
+.ob-arr .a{font-size:18px;font-weight:800;line-height:1}
+.ob-arr small{font-size:9px;font-weight:600;color:var(--text-muted);line-height:1.3;text-align:center;margin-top:2px}
+.ob-box{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:9px 13px;text-align:center;font-size:13px;font-weight:700;color:var(--text)}
+.ob-box small{font-size:10px;font-weight:600;color:var(--text-muted);margin-top:3px}
+@media(max-width:560px){.ob-flow{flex-direction:column;align-items:stretch}.ob-arr{min-width:0;flex-direction:row;gap:6px;padding:3px 0}.ob-arr .a{transform:rotate(90deg)}}
 .exercise.done .ex-prompt strong:first-child::after{content:" ✓";color:var(--success)}
 </style>
 <button id="toTop" aria-label="Scroll to top" title="Back to top">↑</button>

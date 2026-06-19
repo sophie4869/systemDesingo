@@ -181,6 +181,17 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .tldr{background:var(--blue-bg);border-radius:14px;padding:12px 14px;font-size:16px;font-weight:800;color:var(--blue-d);margin-bottom:12px;display:flex;gap:8px}
 .tldr .tag{background:var(--blue);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;height:fit-content;letter-spacing:.5px}
 .point{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:15px;font-weight:700}
+.reqs{flex:1}
+.reqs>b{display:block;font-weight:900;margin-bottom:4px}
+.reqs ul{margin:0;padding-left:18px}
+.reqs li{font-weight:700;margin:3px 0;list-style:disc}
+.v2-spoiler{position:relative;border:2px dashed var(--line-d);border-radius:12px;padding:2px;margin-bottom:9px;cursor:pointer;min-height:56px}
+.v2-spoiler>*{filter:blur(7px);user-select:none;pointer-events:none}
+.v2-spoiler::after{content:'🔒 Recall the requirements & NFRs — tap to reveal';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 14px;font-size:13.5px;font-weight:800;color:var(--muted);background:var(--panel);border-radius:10px}
+.v2-spoiler:hover::after{color:var(--blue-d)}
+.v2-spoiler.revealed{border-color:transparent;padding:0;cursor:default;min-height:0}
+.v2-spoiler.revealed>*{filter:none;user-select:auto;pointer-events:auto}
+.v2-spoiler.revealed::after{display:none}
 .point .pi{font-size:20px;line-height:1.2}
 .point b{font-weight:900;color:var(--ink)}
 .cause{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
@@ -299,9 +310,25 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 /* recall */
 .recall textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);resize:vertical}
 .recall textarea:focus{outline:none;border-color:var(--blue)}
+.mockws{display:grid;gap:9px;margin:14px 0 2px}
+.mockws .wsh{font-size:12.5px;font-weight:900;color:var(--muted);line-height:1.4}
+.mockws label{display:grid;gap:3px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.mockws textarea{width:100%;min-height:150px;border:2px solid var(--line);border-radius:12px;padding:11px 13px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);resize:vertical;line-height:1.5}
+.mockws textarea:focus{outline:none;border-color:var(--blue)}
+.archdraw{display:grid;gap:10px}
+.archdraw .wsh{font-size:12.5px;font-weight:900;color:var(--muted);line-height:1.4}
+.archdraw .canvas{height:460px;border:2px solid var(--line);border-radius:14px;overflow:hidden;position:relative}
+.archdraw .canvas .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 24px;color:var(--faint);font-weight:800;font-size:14px}
+.archdraw .reveal{border:2px solid var(--blue);border-bottom-width:4px;border-radius:12px;background:var(--blue-bg);color:var(--blue-d);font-family:inherit;font-size:14px;font-weight:900;padding:11px 16px;cursor:pointer}
+.archdraw .reveal:active{transform:translateY(2px);border-bottom-width:2px}
 .model{background:var(--green-bg);border-radius:14px;padding:13px 15px;margin-top:12px}
 .model h4{font-size:13px;font-weight:900;color:#3a6b13;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
 .model li{font-size:15px;font-weight:700;margin:0 0 6px 18px;color:#2f5a10}
+.model code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:5px}
+.exarch svg{width:100%;height:auto;display:block}
+.exarch text{font-family:'Comic Sans MS','Comic Sans','Chalkboard SE','Segoe Print','Bradley Hand',cursive}
+.exarch-cap{font-size:13px;color:var(--color-text-secondary);line-height:1.6;margin-top:8px;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.exarch-cap b{color:var(--color-text-primary)}
 .gradebtns{display:flex;gap:8px;margin-top:12px}
 .gradebtns .btn{font-size:13px;padding:12px 8px}
 .llmcoach{display:grid;gap:11px}
@@ -1694,8 +1721,78 @@ const UNITS=[
  ]}
 },
 {
- id:'model',title:'Data Models & Encoding',icon:'🗃️',color:'#0891B2',colorD:'#0E7490',
- blurb:'Relational, document, graph — and schema evolution.',
+ id:'model',title:'Encoding & APIs',icon:'🔌',color:'#0EA5E9',colorD:'#0284C7',
+ blurb:'Wire formats, schema evolution, API protocols, and auth.',
+ lessons:[
+  {id:'model-2',title:'Encoding & evolution',steps:[
+   {t:'teach',h:'Wire formats',body:[
+     {k:'vs',a:{h:'JSON/XML',t:'human-readable, verbose, weak typing. Easy but big.'},b:{h:'Avro / Protobuf / Thrift',t:'compact binary + a schema; fast and small.'}},
+     {k:'note',t:'A schema registry lets producers and consumers evolve independently.'}
+   ]},
+   {t:'teach',h:'Compatibility',body:[
+     {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
+     {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
+   ]},
+   {t:'match',q:'Encoding / compatibility → which?',pairs:[['Human-readable, verbose','JSON / XML'],['Compact binary + schema','Avro / Protobuf'],['New code reads OLD data','Backward compatible'],['Old code reads NEW data','Forward compatible']]},
+   {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
+     {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
+     ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
+   ]},
+   {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
+   {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
+  ]},
+  {id:'model-4',title:'API design',steps:[
+   {t:'teach',h:'REST vs gRPC vs GraphQL',body:[
+     {k:'point',i:'🌐',t:'<b>REST/JSON</b>: simple, cacheable, universal. Default for public/external APIs. Can over/under-fetch.'},
+     {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
+     {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
+   ]},
+   {t:'teach',h:'Pagination',body:[
+     {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
+     {k:'point',i:'📜',t:'Return an opaque <b>next_cursor</b> in each page; the client passes it back. It encodes the last (sort_key, id) seen — never expose raw DB offsets.'}
+   ]},
+   {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
+     {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
+   ]},
+   {t:'mcq',q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random sampling','no pagination'],a:1,why:'Cursor/keyset pagination is stable when data shifts and stays fast deep in the list, unlike OFFSET.'},
+   {t:'cloze',q:'Fill the API blanks.',distract:['SOAP','UDP'],text:[
+     {blank:'REST',alt:['rest']},' is the universal default; ',{blank:'gRPC',alt:['grpc']},' (protobuf/HTTP2) suits fast internal RPC; ',{blank:'GraphQL',alt:['graphql']},
+     ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
+   ]},
+   {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
+  ]},
+  {id:'model-5',title:'Auth',steps:[
+   {t:'teach',h:'Authn vs Authz',body:[
+     {k:'point',i:'🪪',t:'<b>Authentication</b> = who you are (prove identity). <b>Authorization</b> = what you may do (scopes/roles). Validate <em>and</em> scope <b>every</b> request — both, every time.'},
+     {k:'note',t:'Always derive the current user from the <b>verified token</b>, never from the request body. A <b>user_id</b> in the payload is attacker-controlled — identity must come from a signed JWT or a session lookup.'}
+   ]},
+   {t:'teach',h:'The four auth methods',body:[
+     {k:'tldr',t:'Pick by statefulness and who’s calling: <b>Session</b> (opaque token in Redis — revocable, server-rendered) · <b>JWT</b> (signed claims — stateless, short TTL + refresh) · <b>API key</b> (server-to-server/B2B — store only a hash) · <b>OAuth 2.0 / OIDC</b> (delegated, scoped third-party access). Drill the fit below.'}
+   ]},
+   {t:'match',q:'Auth method → when to use it.',pairs:[
+     ['Server-rendered web app, instant logout/revoke','Session token (Redis)'],
+     ['Stateless microservices, no per-request DB lookup','JWT'],
+     ['Server-to-server / B2B integration','API key (store hash)'],
+     ['Let a third-party app act for a user','OAuth 2.0']
+   ]},
+   {t:'mcq',q:'A JWT can\'t be revoked before it expires. The standard fix?',o:['store it in Redis','short TTL + a refresh token','make it longer-lived','sign it twice'],a:1,why:'Keep access tokens short-lived (5–15 min) so a leaked one expires fast; a longer-lived refresh token mints new ones and can itself be revoked.'},
+   {t:'mcq',q:'The current user should come from…',o:['the request body','the verified auth token','a path param','client-typed input'],a:1,why:'Identity must come from something the server verified (a signed JWT or a session lookup) — never a field the client controls.'},
+   {t:'recall',q:'Session vs JWT vs API key vs OAuth — one line each.',model:['Session: opaque token in Redis/DB, looked up each request — instantly revocable, stateful.','JWT: signed self-contained claims — stateless, no lookup, but not revocable before expiry (short TTL + refresh).','API key: long-lived secret for server-to-server / B2B — store only a hash.','OAuth 2.0: delegated, scoped access for third-party apps without sharing the password.']}
+  ]}
+ ],
+ boss:{title:'Encoding & APIs Boss',time:80,q:[
+   {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
+   {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
+   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
+   {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
+   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1},
+   {q:'JWTs are stateless but…',o:['always encrypted','not revocable before expiry','slow to verify','user-specific only'],a:1},
+   {q:'The current user should come from…',o:['the request body','the verified auth token','a query param','client input'],a:1}
+ ]}
+},
+{
+ id:'db',title:'Databases',icon:'🗃️',color:'#0891B2',colorD:'#0E7490',
+ blurb:'Pick a store by access pattern, then shape keys & indexes to match.',
  lessons:[
   {id:'model-1',title:'Pick a model',steps:[
    {t:'teach',h:'Three shapes of data',body:[
@@ -1730,24 +1827,120 @@ const UNITS=[
   <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">⏱️</span><span class="dbv-title">Time-series</span></div><div class="dbv-desc">Append-heavy, time-ordered. Chunked by time window so old data drops cheaply.</div><div class="dbv-ex"><span class="dbv-tag">InfluxDB</span><span class="dbv-tag">Prometheus</span></div><div class="dbv-use">metrics, IoT, monitoring, logs</div></div>
   <div class="dbv-opt"><div class="dbv-head"><span class="dbv-ic">🕸️</span><span class="dbv-title">Graph</span></div><div class="dbv-desc">Many-to-many. Index-free adjacency = O(1) hop vs O(log N) join. When traversals are the query.</div><div class="dbv-ex"><span class="dbv-tag">Neo4j</span><span class="dbv-tag">Neptune</span></div><div class="dbv-use">social graphs, recs, fraud rings</div></div>
 </div>`},
+   {t:'htmlviz',h:'…and what the data physically looks like',
+    html:`<style>
+.dbsh,.dbsh *{box-sizing:border-box}
+.dbsh{font-family:'JetBrains Mono','Monaco',monospace;background:#0f1117;color:#e2e8f0;padding:20px;border-radius:12px;font-size:13px;margin:4px 0;max-width:100%;overflow-x:auto;container-type:inline-size}
+.dbsh-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.dbsh-card{background:#1e2130;border-radius:10px;padding:16px;border:1px solid #2d3148;min-width:0}
+.dbsh-title{font-weight:bold;margin-bottom:4px}
+.dbsh-title .sub{color:#475569;font-weight:normal}
+.dbsh-desc{font-size:11px;color:#64748b;margin-bottom:12px;line-height:1.5}
+.dbsh-inner{background:#131520;border-radius:6px;padding:12px}
+.dbsh-note{margin-top:10px;color:#475569;font-size:10px;line-height:1.8}
+.dbsh-kv{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dbsh-k{background:#1d4ed8;color:#bfdbfe;padding:2px 8px;border-radius:4px;min-width:110px;text-align:center;font-size:11px}
+.dbsh-arrow{color:#475569}
+.dbsh-v{background:#1e3a5f;color:#93c5fd;padding:2px 8px;border-radius:4px;flex:1;min-width:0;font-size:11px;overflow-wrap:anywhere}
+.dbsh-tbl{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+.dbsh-tbl th{padding:4px 8px;text-align:left;font-size:10px;overflow-wrap:anywhere}
+.dbsh-tbl td{padding:4px 8px;overflow-wrap:anywhere}
+.dbsh-tcap{color:#475569;font-size:10px;margin-bottom:4px}
+.dbsh-spec{margin-top:16px;background:#1e2130;border-radius:10px;padding:16px;border:1px solid #2d3148}
+.dbsh-spec-label{font-size:11px;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.dbsh-bar{display:flex;border-radius:6px;overflow:hidden;height:44px}
+.dbsh-seg{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:bold;text-align:center}
+.dbsh-seg small{font-size:9px;opacity:.7;font-weight:normal}
+.dbsh-axis{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#475569}
+@media (max-width:560px){.dbsh-grid{grid-template-columns:1fr}}
+@container (max-width:520px){.dbsh-grid{grid-template-columns:1fr}}
+</style>
+<div class="dbsh">
+  <div class="dbsh-grid">
+
+    <div class="dbsh-card">
+      <div class="dbsh-title" style="color:#60a5fa">① KV Store <span class="sub">(Redis)</span></div>
+      <div class="dbsh-desc">key → opaque value. Lookup by exact key only.</div>
+      <div class="dbsh-inner">
+        <div class="dbsh-kv"><div class="dbsh-k">user:123</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"{name:alice,age:30}"</div></div>
+        <div class="dbsh-kv"><div class="dbsh-k">session:abc</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"eyJhbGci..."</div></div>
+        <div class="dbsh-kv"><div class="dbsh-k">counter:likes</div><div class="dbsh-arrow">→</div><div class="dbsh-v">"18492"</div></div>
+        <div class="dbsh-note">• DB is blind to value contents<br>• No range scans, no structure<br>• O(1) get/set by key</div>
+      </div>
+    </div>
+
+    <div class="dbsh-card">
+      <div class="dbsh-title" style="color:#fb923c">② DynamoDB <span class="sub">(Wide-KV hybrid)</span></div>
+      <div class="dbsh-desc">PK + SK composite key. Structured attrs, no joins.</div>
+      <div class="dbsh-inner">
+        <table class="dbsh-tbl">
+          <thead><tr><th style="background:#7c2d12;color:#fdba74">PK</th><th style="background:#7c2d12;color:#fdba74">SK</th><th style="background:#7c2d12;color:#fdba74">attributes</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">USER#u1</td><td style="color:#fbbf24;font-weight:bold">PROFILE</td><td style="color:#94a3b8">name, email</td></tr>
+            <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">USER#u1</td><td style="color:#fbbf24;font-weight:bold">ORDER#2024…</td><td style="color:#94a3b8">total, status</td></tr>
+            <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">ORDER#o9</td><td style="color:#fbbf24;font-weight:bold">ORDER#o9</td><td style="color:#94a3b8">total, userId</td></tr>
+            <tr style="border-bottom:1px solid #2a1810"><td style="color:#fb923c;font-weight:bold">ORDER#o9</td><td style="color:#fbbf24;font-weight:bold">ITEM#p3</td><td style="color:#94a3b8">qty, price</td></tr>
+          </tbody>
+        </table>
+        <div class="dbsh-note">• Items in same PK = item collection<br>• Query within partition is fast<br>• Cross-partition needs GSI</div>
+      </div>
+    </div>
+
+    <div class="dbsh-card">
+      <div class="dbsh-title" style="color:#a78bfa">③ Bigtable <span class="sub">(Wide-column)</span></div>
+      <div class="dbsh-desc">row key → column families → columns → versioned values.</div>
+      <div class="dbsh-inner">
+        <table class="dbsh-tbl">
+          <thead><tr><th style="background:#312e81;color:#c7d2fe">ROW KEY</th><th style="background:#312e81;color:#c7d2fe">COL FAMILY</th><th style="background:#312e81;color:#c7d2fe">COLUMN : VALUE</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa;font-weight:bold">user#123</td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">name : alice</td></tr>
+            <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa"></td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">age : 30</td></tr>
+            <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa"></td><td style="color:#64748b">activity</td><td style="color:#7dd3fc">last_login : 2026-06 @t3</td></tr>
+            <tr style="border-bottom:1px solid #1e2130"><td style="color:#a78bfa;font-weight:bold">user#124</td><td style="color:#64748b">profile</td><td style="color:#7dd3fc">name : bob</td></tr>
+          </tbody>
+        </table>
+        <div class="dbsh-note">• Rows sorted by row key → range scans<br>• Sparse columns per row OK<br>• Versioned: multiple timestamps per cell</div>
+      </div>
+    </div>
+
+    <div class="dbsh-card">
+      <div class="dbsh-title" style="color:#34d399">④ Relational <span class="sub">(Postgres / Spanner)</span></div>
+      <div class="dbsh-desc">Fixed schema, typed columns, joins across tables.</div>
+      <div class="dbsh-inner">
+        <div class="dbsh-tcap">TABLE: users</div>
+        <table class="dbsh-tbl" style="margin-bottom:10px">
+          <thead><tr><th style="background:#064e3b;color:#6ee7b7">id</th><th style="background:#064e3b;color:#6ee7b7">name</th><th style="background:#064e3b;color:#6ee7b7">email</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">1</td><td style="color:#94a3b8">alice</td><td style="color:#94a3b8">a@x.com</td></tr>
+            <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">2</td><td style="color:#94a3b8">bob</td><td style="color:#94a3b8">b@x.com</td></tr>
+          </tbody>
+        </table>
+        <div class="dbsh-tcap">TABLE: orders</div>
+        <table class="dbsh-tbl">
+          <thead><tr><th style="background:#064e3b;color:#6ee7b7">id</th><th style="background:#064e3b;color:#6ee7b7">user_id</th><th style="background:#064e3b;color:#6ee7b7">total</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">o9</td><td style="color:#fbbf24">1 →FK</td><td style="color:#94a3b8">$42</td></tr>
+            <tr style="border-bottom:1px solid #1a2e25"><td style="color:#34d399;font-weight:bold">o10</td><td style="color:#fbbf24">1 →FK</td><td style="color:#94a3b8">$18</td></tr>
+          </tbody>
+        </table>
+        <div class="dbsh-note">• Joins link tables at query time<br>• Every row has same columns<br>• ACID transactions across tables</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="dbsh-spec">
+    <div class="dbsh-spec-label">Structure Spectrum</div>
+    <div class="dbsh-bar">
+      <div class="dbsh-seg" style="background:#1d4ed8;color:#bfdbfe">Redis<small>key→blob</small></div>
+      <div class="dbsh-seg" style="background:#92400e;color:#fde68a">DynamoDB<small>PK+SK+attrs</small></div>
+      <div class="dbsh-seg" style="background:#312e81;color:#c7d2fe">Bigtable<small>row→cf→col</small></div>
+      <div class="dbsh-seg" style="background:#064e3b;color:#6ee7b7">Postgres<small>tables+joins</small></div>
+    </div>
+    <div class="dbsh-axis"><span>← less structure, more flexible</span><span>more structure, more queryable →</span></div>
+  </div>
+</div>`},
    {t:'recall',q:'When document model over relational?',model:['Document fits self-contained, one-to-many records read together (locality) with a flexible schema.','Relational wins for many-to-many relationships, joins, and ad-hoc queries across entities.']}
-  ]},
-  {id:'model-2',title:'Encoding & evolution',steps:[
-   {t:'teach',h:'Wire formats',body:[
-     {k:'vs',a:{h:'JSON/XML',t:'human-readable, verbose, weak typing. Easy but big.'},b:{h:'Avro / Protobuf / Thrift',t:'compact binary + a schema; fast and small.'}},
-     {k:'note',t:'A schema registry lets producers and consumers evolve independently.'}
-   ]},
-   {t:'teach',h:'Compatibility',body:[
-     {k:'keyt',term:'Backward compatible',def:'NEW code can read OLD data. (add fields with defaults)'},
-     {k:'keyt',term:'Forward compatible',def:'OLD code can read NEW data. (ignore unknown fields)'}
-   ]},
-   {t:'match',q:'Encoding / compatibility → which?',pairs:[['Human-readable, verbose','JSON / XML'],['Compact binary + schema','Avro / Protobuf'],['New code reads OLD data','Backward compatible'],['Old code reads NEW data','Forward compatible']]},
-   {t:'cloze',q:'Fill the evolution blanks.',distract:['eventual','strong'],text:[
-     {blank:'Backward',alt:['backward']},' compatibility = new code reads OLD data; ',{blank:'Forward',alt:['forward']},
-     ' = old code reads NEW data. Binary formats like ',{blank:'Avro',alt:['Protobuf','protobuf','avro']},' give compact encoding plus safe schema evolution.'
-   ]},
-   {t:'mcq',q:'Adding a new OPTIONAL field with a default keeps you…',o:['only backward compatible','backward AND forward compatible','incompatible','strongly consistent'],a:1,why:'New readers use the default for old data (backward); old readers ignore the new field (forward).'},
-   {t:'recall',q:'Define backward vs forward compatibility.',model:['Backward: new code can read data written by old code (you can upgrade readers first).','Forward: old code can read data written by new code (you can upgrade writers first). Rolling upgrades need both.']}
   ]},
   {id:'model-3',title:'Storage engines',steps:[
    {t:'teach',h:'B-tree vs LSM-tree',body:[
@@ -1799,56 +1992,14 @@ const UNITS=[
    {t:'mcq',q:'A write-heavy ingest workload (logs, metrics) fits…',o:['B-tree','LSM-tree','a graph DB','a cache only'],a:1,why:'LSM buffers in memory and flushes sequentially → high write throughput; a B-tree does random-I/O in-place updates.'},
    {t:'recall',q:'B-tree vs LSM — the tradeoff?',model:['B-tree updates in place: random-I/O writes, excellent reads and range scans → read-optimized (Postgres, MySQL).','LSM buffers writes and flushes sequential SSTables with background compaction: high write throughput, reads check multiple levels (Bloom filters mitigate) → write-optimized (Cassandra, RocksDB).','Pick by workload: write-heavy → LSM; read/range-heavy → B-tree.']}
   ]},
-  {id:'model-4',title:'API design',steps:[
-   {t:'teach',h:'REST vs gRPC vs GraphQL',body:[
-     {k:'point',i:'🌐',t:'<b>REST/JSON</b>: simple, cacheable, universal. Default for public/external APIs. Can over/under-fetch.'},
-     {k:'point',i:'⚡',t:'<b>gRPC</b> (HTTP/2 + protobuf): compact, fast, streaming, typed contracts. Great <b>internal</b> service-to-service.'},
-     {k:'point',i:'🔮',t:'<b>GraphQL</b>: client picks exactly the fields → no over-fetch, one round trip for nested data. Cost: server complexity, caching is harder.'}
-   ]},
-   {t:'teach',h:'Pagination',body:[
-     {k:'vs',a:{h:'Offset pagination',t:'LIMIT/OFFSET — simple, but slow deep in the list and items shift as data changes.'},b:{h:'Cursor (keyset)',t:'page by "after id/timestamp X" — stable + fast at scale. Use for feeds.'}},
-     {k:'point',i:'📜',t:'Return an opaque <b>next_cursor</b> in each page; the client passes it back. It encodes the last (sort_key, id) seen — never expose raw DB offsets.'}
-   ]},
-   {t:'sort',q:'Which API style fits?',buckets:['gRPC','GraphQL'],items:[
-     {text:'internal microservice RPC','b':0},{text:'mobile client avoiding over-fetch','b':1},{text:'low-latency streaming between services','b':0},{text:'one call for deeply nested data','b':1}
-   ]},
-   {t:'mcq',q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random sampling','no pagination'],a:1,why:'Cursor/keyset pagination is stable when data shifts and stays fast deep in the list, unlike OFFSET.'},
-   {t:'cloze',q:'Fill the API blanks.',distract:['SOAP','UDP'],text:[
-     {blank:'REST',alt:['rest']},' is the universal default; ',{blank:'gRPC',alt:['grpc']},' (protobuf/HTTP2) suits fast internal RPC; ',{blank:'GraphQL',alt:['graphql']},
-     ' lets clients pick fields to avoid over-fetching. Page feeds with a ',{blank:'cursor',alt:['keyset','cursor (keyset)']},', not an offset.'
-   ]},
-   {t:'recall',q:'When would you pick REST vs gRPC vs GraphQL?',model:['REST/JSON: public/external APIs — simple, cacheable, universal (can over/under-fetch).','gRPC: internal service-to-service — compact protobuf over HTTP/2, typed, supports streaming.','GraphQL: client-driven field selection to avoid over-fetch and collapse nested round-trips — at the cost of server/caching complexity.']}
-  ]},
-  {id:'model-5',title:'Auth',steps:[
-   {t:'teach',h:'Authn vs Authz',body:[
-     {k:'point',i:'🪪',t:'<b>Authentication</b> = who you are (prove identity). <b>Authorization</b> = what you may do (scopes/roles). Validate <em>and</em> scope <b>every</b> request — both, every time.'},
-     {k:'note',t:'Always derive the current user from the <b>verified token</b>, never from the request body. A <b>user_id</b> in the payload is attacker-controlled — identity must come from a signed JWT or a session lookup.'}
-   ]},
-   {t:'teach',h:'The four auth methods',body:[
-     {k:'tldr',t:'Pick by statefulness and who’s calling: <b>Session</b> (opaque token in Redis — revocable, server-rendered) · <b>JWT</b> (signed claims — stateless, short TTL + refresh) · <b>API key</b> (server-to-server/B2B — store only a hash) · <b>OAuth 2.0 / OIDC</b> (delegated, scoped third-party access). Drill the fit below.'}
-   ]},
-   {t:'match',q:'Auth method → when to use it.',pairs:[
-     ['Server-rendered web app, instant logout/revoke','Session token (Redis)'],
-     ['Stateless microservices, no per-request DB lookup','JWT'],
-     ['Server-to-server / B2B integration','API key (store hash)'],
-     ['Let a third-party app act for a user','OAuth 2.0']
-   ]},
-   {t:'mcq',q:'A JWT can\'t be revoked before it expires. The standard fix?',o:['store it in Redis','short TTL + a refresh token','make it longer-lived','sign it twice'],a:1,why:'Keep access tokens short-lived (5–15 min) so a leaked one expires fast; a longer-lived refresh token mints new ones and can itself be revoked.'},
-   {t:'mcq',q:'The current user should come from…',o:['the request body','the verified auth token','a path param','client-typed input'],a:1,why:'Identity must come from something the server verified (a signed JWT or a session lookup) — never a field the client controls.'},
-   {t:'recall',q:'Session vs JWT vs API key vs OAuth — one line each.',model:['Session: opaque token in Redis/DB, looked up each request — instantly revocable, stateful.','JWT: signed self-contained claims — stateless, no lookup, but not revocable before expiry (short TTL + refresh).','API key: long-lived secret for server-to-server / B2B — store only a hash.','OAuth 2.0: delegated, scoped access for third-party apps without sharing the password.']}
-  ]}
  ],
- boss:{title:'Data Models Boss',time:90,q:[
+ boss:{title:'Databases Boss',time:75,q:[
    {q:'Multi-hop connected data suits a…',o:['document DB','graph DB','cache','queue'],a:1},
    {q:'Document model is best for…',o:['many-to-many joins','self-contained records','graph traversal','transactions'],a:1},
    {q:'Denormalization trades…',o:['nothing','faster reads for harder writes','storage for CPU','reads for nothing'],a:1},
-   {q:'Avro/Protobuf give…',o:['human-readable text','compact binary + schema','no typing','no evolution'],a:1},
-   {q:'New code reads old data =',o:['forward compat','backward compat','no compat','strong consistency'],a:1},
-   {q:'A schema registry enables…',o:['faster disks','independent producer/consumer evolution','encryption','sharding'],a:1},
-   {q:'Best for fast internal service-to-service RPC?',o:['REST/JSON','gRPC','GraphQL','SOAP'],a:1},
-   {q:'Feeds should paginate with…',o:['offset/LIMIT','cursor (keyset)','random','no paging'],a:1},
-   {q:'JWTs are stateless but…',o:['always encrypted','not revocable before expiry','slow to verify','user-specific only'],a:1},
-   {q:'The current user should come from…',o:['the request body','the verified auth token','a query param','client input'],a:1}
+   {q:'Write-heavy ingest favors which storage engine?',o:['B-tree','LSM-tree','hash index','none'],a:1},
+   {q:'A B-tree is optimized for…',o:['sequential write throughput','reads + range scans','append-only logs','write amplification'],a:1},
+   {q:'Choose a datastore primarily by…',o:['brand popularity','access pattern + consistency need','license cost','disk vendor'],a:1}
  ]}
 },
 {
@@ -4211,42 +4362,135 @@ const UNITS=[
  lessons:[
   {id:'mock-1',title:'URL shortener',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Design Bitly. Functional: create short link, redirect, basic analytics.'},
-     {k:'point',i:'📐',t:'NFRs: <b>read-heavy</b> (~100:1), low-latency redirects, high availability, codes globally unique.'}
+     {k:'tldr',t:'Design Bitly (a URL shortener).'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['create short link (collision-free unique code)','redirect','basic analytics']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['<b>read-heavy</b> (~100:1)','low-latency redirects','high availability']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · core API. Say them out loud.',model:['Entities: urls(code PK, long_url, owner, created_at, click_count).','API: POST /urls {long_url} → {code}; GET /{code} → 301/302 redirect; GET /urls/{code} → analytics.','Current user from the auth token.']},
-   {t:'mcq',q:'Best way to generate unique short codes?',o:['hash the URL and truncate (collisions)','base62-encode a unique counter/ID','a random string, retry on clash','a UUID v4'],a:1,why:'Base62 of a monotonic ID is collision-free and short (~7 chars covers 3.5e12). Hash-truncate risks collisions.'},
+   {t:'recall',q:'2 · Entities + 3 · core API. Say them out loud.',model:['Entity: <code>urls(code PK, long_url, created_at, click_count)</code>','<code>POST /urls {long_url}</code> → <code>{code}</code>','<code>GET /{code}</code> → 301/302 redirect (the hot path)','<code>GET /urls/{code}</code> → analytics (clicks, created_at)']},
+   {t:'teach',h:'Generating the short code',body:[
+     {k:'tldr',t:'You need a short, unique, collision-free code per URL — the trick is turning a unique number into a short string.'},
+     {k:'point',i:'🔢',t:'<b>Base62-encode a unique ID</b> (a counter or Snowflake id): 0-9a-zA-Z → ~7 chars covers 3.5 trillion codes, collision-free by construction. The usual answer.'},
+     {k:'point',i:'🔼',t:'<b>Counter → Base62</b> gives sequential, index-friendly codes (inserts stay local since <code>code</code> is the PK). The catch: one counter is a write bottleneck, and the codes are <b>enumerable</b> (anyone can walk /1, /2, …). Fixes: hand each server an ID range, or use Snowflake; permute the ID if codes must be unguessable.'},
+     {k:'point',i:'⚠️',t:'<b>Hash the URL + truncate</b> is short but collides — you must detect clashes and retry, and identical URLs collapse to one code.'},
+     {k:'point',i:'🎲',t:'<b>Random string + retry on clash</b> works, but every insert needs a uniqueness check (an extra read).'},
+     {k:'callout',c:'warn',t:'<b>UUID v4</b> is unique but 36 chars (not "short") — wrong tool for a URL shortener. (Random codes hurt PK-insert locality too, but that is true of <em>any</em> random scheme, not UUID specifically.)'}
+   ]},
+   {t:'htmlviz',h:'Three ways to mint the id',
+    html:`<style>
+.idgen{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.idgen .ig{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+.idgen .ig.r{border-color:var(--red)}.idgen .ig.o{border-color:var(--orange)}.idgen .ig.g{border-color:var(--green)}
+.idgen .ig h4{font-size:15px;font-weight:900;color:var(--ink);margin:0}
+.idgen .tag{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:-4px}
+.idgen .mech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;background:var(--panel);border-radius:10px;padding:8px 10px;color:var(--ink)}
+.idgen ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.idgen li{font-size:12.5px;font-weight:700;line-height:1.35;color:var(--ink);display:flex;gap:6px}
+.idgen li.p::before{content:'✓';color:var(--green-d);font-weight:900}
+.idgen li.c::before{content:'✗';color:var(--red-d);font-weight:900}
+.idgen .use{font-size:11.5px;font-weight:800;color:var(--muted);border-top:2px solid var(--line);padding-top:7px;margin-top:auto}
+.idgen-cap{font-size:13px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.idgen-cap b{color:var(--ink)}
+@media(max-width:560px){.idgen{grid-template-columns:1fr}}
+</style>
+<div class="idgen">
+  <div class="ig r">
+    <h4>Counter</h4><div class="tag">INCR / auto-increment</div>
+    <div class="mech">n = INCR(counter)<br>code = base62(n)</div>
+    <ul>
+      <li class="p">Simplest — one atomic op</li>
+      <li class="p">Collision-free by construction</li>
+      <li class="p">Short, sequential codes</li>
+      <li class="c">Counter = coordination point</li>
+      <li class="c">Codes enumerable / guessable</li>
+    </ul>
+    <div class="use">Use when: low write volume — most shorteners. The default.</div>
+  </div>
+  <div class="ig o">
+    <h4>Range allocation</h4><div class="tag">block / ticket</div>
+    <div class="mech">block = INCRBY(counter,1000)<br>serve 1000 ids locally, refill</div>
+    <ul>
+      <li class="p">~1000× fewer round-trips</li>
+      <li class="p">Collision-free</li>
+      <li class="p">Survives brief counter outages</li>
+      <li class="c">Lost block on restart → id gaps</li>
+      <li class="c">Still roughly sequential</li>
+    </ul>
+    <div class="use">Use when: higher write rate, fewer hops.</div>
+  </div>
+  <div class="ig g">
+    <h4>Snowflake</h4><div class="tag">local, time-based</div>
+    <div class="mech">id = [ time | worker | seq ]<br>generated on each node</div>
+    <ul>
+      <li class="p">Zero coordination</li>
+      <li class="p">Time-ordered ids</li>
+      <li class="p">Scales horizontally</li>
+      <li class="c">Needs worker-id assignment</li>
+      <li class="c">Longer codes; clock-skew care</li>
+    </ul>
+    <div class="use">Use when: very high or multi-region writes.</div>
+  </div>
+</div>
+<div class="idgen-cap"><b>Left → right = less central coordination.</b> All three base62-encode a unique number; they differ only in <b>where the number comes from</b>. None needs a separate service — counter and range are a row you already have; Snowflake is local to each node.</div>`},
+   {t:'mcq',q:'Best way to generate unique short codes?',o:['hash the URL and truncate (collisions)','base62-encode a unique counter/ID','a random string, retry on clash','a UUID v4'],a:1,why:'Base62 of a monotonic ID is collision-free and short (~7 chars covers 3.5 trillion). Hash-truncate risks collisions.'},
    {t:'htmlviz',h:'URL shortener — redirect hot path',
     html:`<style>
-.urlv{display:grid;gap:10px}
-.urlv-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
-.urlv-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:88px}
-.urlv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
-.urlv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
-.urlv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
-.urlv-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
-.urlv-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
-.urlv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
-.urlv-side{display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center}
-.urlv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
-.urlv-cap b{color:var(--color-text-primary)}
-@media(max-width:460px){.urlv-side{grid-template-columns:1fr}.urlv-side .urlv-arr{transform:rotate(90deg);text-align:center}}
+.urlx{font-family:'Comic Sans MS','Comic Sans','Chalkboard SE','Segoe Print','Bradley Hand',cursive}
+.urlx svg{width:100%;height:auto;display:block}
+.urlx-cap{font-family:inherit;font-size:13px;color:var(--color-text-secondary);line-height:1.6;margin-top:8px;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.urlx-cap b{color:var(--color-text-primary)}
 </style>
-<div class="urlv">
-  <div class="urlv-main"><div class="urlv-node hot"><div class="urlv-t">GET /abc123</div><div class="urlv-s">100x reads</div></div><div class="urlv-arr">→</div><div class="urlv-node good"><div class="urlv-t">CDN / edge</div><div class="urlv-s">hot redirects</div></div><div class="urlv-arr">→</div><div class="urlv-node info"><div class="urlv-t">Redirect svc</div><div class="urlv-s">cache miss only</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">KV store</div><div class="urlv-s">code to URL</div></div></div>
-  <div class="urlv-side"><div class="urlv-node info"><div class="urlv-t">302 redirect</div><div class="urlv-s">count every click</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">Analytics stream</div><div class="urlv-s">async, not on hot path</div></div></div>
-  <div class="urlv-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when accurate click tracking matters.</div>
+<div class="urlx">
+<svg viewBox="0 0 806 254" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="URL shortener redirect hot path, hand-drawn">
+  <defs><filter id="rgh" x="-5%" y="-20%" width="110%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.4"/></filter></defs>
+  <g filter="url(#rgh)" stroke-linecap="round">
+    <rect x="16" y="52" width="164" height="72" rx="9" fill="#fff3bf" stroke="#f08c00" stroke-width="2.5"/>
+    <rect x="216" y="52" width="164" height="72" rx="9" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2.5"/>
+    <rect x="416" y="52" width="164" height="72" rx="9" fill="#d0ebff" stroke="#1971c2" stroke-width="2.5"/>
+    <rect x="616" y="52" width="164" height="72" rx="9" fill="#f1f3f5" stroke="#868e96" stroke-width="2.5"/>
+    <rect x="16" y="166" width="300" height="72" rx="9" fill="#d0ebff" stroke="#1971c2" stroke-width="2.5"/>
+    <rect x="364" y="166" width="416" height="72" rx="9" fill="#f1f3f5" stroke="#868e96" stroke-width="2.5"/>
+    <g fill="none" stroke="#495057" stroke-width="2.5">
+      <path d="M184 88 L212 88"/><path d="M212 88 L205 83.5"/><path d="M212 88 L205 92.5"/>
+      <path d="M384 88 L412 88"/><path d="M412 88 L405 83.5"/><path d="M412 88 L405 92.5"/>
+      <path d="M584 88 L612 88"/><path d="M612 88 L605 83.5"/><path d="M612 88 L605 92.5"/>
+      <path d="M320 202 L360 202"/><path d="M360 202 L352 197.5"/><path d="M360 202 L352 206.5"/>
+    </g>
+  </g>
+  <g text-anchor="middle" fill="#1e1e1e" font-family="'Comic Sans MS','Comic Sans','Chalkboard SE','Segoe Print','Bradley Hand',cursive">
+    <text x="98" y="84" font-size="17" font-weight="700">GET /abc123</text><text x="98" y="105" font-size="12.5" fill="#5f3dc4">100× reads</text>
+    <text x="298" y="84" font-size="17" font-weight="700">CDN / edge</text><text x="298" y="105" font-size="12.5" fill="#2b8a3e">hot redirects</text>
+    <text x="498" y="84" font-size="17" font-weight="700">Redirect svc</text><text x="498" y="105" font-size="12.5" fill="#1971c2">cache miss only</text>
+    <text x="698" y="84" font-size="17" font-weight="700">KV store</text><text x="698" y="105" font-size="12.5" fill="#495057">code → URL</text>
+    <text x="166" y="198" font-size="17" font-weight="700">302 redirect</text><text x="166" y="219" font-size="12.5" fill="#1971c2">count every click</text>
+    <text x="572" y="198" font-size="17" font-weight="700">Analytics stream</text><text x="572" y="219" font-size="12.5" fill="#495057">async — off the hot path</text>
+  </g>
+</svg>
+<div class="urlx-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when you need to count every click.</div>
 </div>`},
+   {t:'mcq',q:'You need per-click analytics. For the redirect, should you return 301 or 302?',o:['301 (permanent) — fastest, and best for analytics','302 (found / temporary) — every click hits your server','308 — the only correct status here','no real difference, pick either'],a:1,why:'301 gets cached by browsers and CDNs, so repeat clicks skip your server entirely — fast, but you lose per-click analytics. Since you need to count every click, use 302: it routes every click through you (more traffic, but accurate counts). Bitly returns 302 for exactly this reason. Without an analytics requirement, 301 would win.'},
    {t:'build',q:'4 · Pick the high-level components.',options:['ID/counter generator','KV store (code → URL)','CDN / cache for redirects','Async analytics pipeline','A graph database','A relational DB with heavy joins'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:770,h:330,cap:'<b>Read (top):</b> client → redirect svc → Redis (hot codes) → KV store on a miss. <b>Write (bottom):</b> create API mints a base62 id (counter / Snowflake — no separate service) and writes the <code>code → URL</code> mapping to the KV store. <b>Clicks</b> fork to a queue → analytics, off the hot path.',nodes:[{x:20,y:136,w:120,t:'Client',c:'gray'},{x:178,y:44,w:150,t:'Redirect svc',s:'302 + cache-aside',c:'blue'},{x:370,y:44,w:130,t:'Redis cache',s:'hot codes',c:'teal'},{x:540,y:44,w:210,t:'KV store',s:'DynamoDB',c:'gray'},{x:20,y:232,w:200,t:'Create API',s:'POST /urls · base62 id',c:'blue'},{x:370,y:232,w:120,t:'Queue',s:'Kafka',c:'amber'},{x:540,y:232,w:210,t:'Analytics',s:'async',c:'gray'}],edges:[[0,1],[1,2],[2,3],[0,4],[4,3],[1,5],[5,6]]});}},
    {t:'mcq',q:'5 · Where is the main load / bottleneck?',o:['writing new links','the redirect reads (100:1) — cache/CDN them','analytics','the ID generator'],a:1,why:'Reads dominate ~100:1; serve redirects from cache/CDN + read replicas, never the primary.'},
-   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: cache/CDN hot codes + read replicas; shard the KV store by code.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use a mutex/stale-while-revalidate.']}
+   {t:'teach',h:'Failure mode: cache stampede',body:[
+     {k:'tldr',t:'A viral code expires or is evicted, and thousands of in-flight redirects all miss the cache at once — stampeding the KV store (a.k.a. thundering herd / dogpile).'},
+     {k:'point',i:'🔒',t:'<b>Single-flight / request coalescing</b>: on a miss, only ONE request recomputes; the rest wait for and share its result.'},
+     {k:'point',i:'⏳',t:'<b>Stale-while-revalidate</b>: keep serving the slightly-stale cached value while one request refreshes it in the background.'},
+     {k:'point',i:'🎲',t:'<b>Jittered TTL / early refresh</b>: refresh hot keys a little before they expire so they never all lapse in lockstep.'}
+   ]},
+   {t:'mcq',q:'A viral short link expires from cache and thousands of redirects miss at the same instant. What is this, and the fix?',o:['Hot partition — add more shards','Cache stampede — coalesce misses (single-flight) and/or stale-while-revalidate','A DDoS — block the traffic','Cache poisoning — validate inputs'],a:1,why:'Simultaneous misses on one hot key all hit the origin — a cache stampede / thundering herd. Coalesce so only one request recomputes (single-flight), serve stale while revalidating, and jitter TTLs so hot keys don’t expire together. More shards don’t help — it’s one key, not skew.'},
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: cache/CDN hot codes + read replicas; shard the KV store by code.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use single-flight + stale-while-revalidate.']}
   ]},
   {id:'mock-2',title:'News feed / Twitter',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Post a tweet, follow users, see a home timeline (recent posts from people you follow).'},
-     {k:'point',i:'📐',t:'NFRs: read-heavy, feed <200ms, ~100M DAU, eventual consistency is fine.'}
+     {k:'tldr',t:'Design a Twitter-style home feed.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['post a tweet','follow users','see a home timeline (recent posts from people you follow)']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['read-heavy','feed &lt;200ms','~100M DAU','eventual consistency is fine']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: users, tweets(snowflake id, author, text, ts), follows(follower, followee), timeline cache.','API: POST /tweets; GET /feed?cursor=&limit; POST/DELETE /follows. Cursor (keyset) pagination.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>users</code>, <code>tweets(snowflake_id, author, text, ts)</code>, <code>follows(follower, followee)</code>, timeline cache','<code>POST /tweets</code>','<code>GET /feed?cursor=&amp;limit</code> → cursor (keyset) pagination','<code>POST / DELETE /follows</code>']},
    {t:'mcq',q:'Feed delivery for NORMAL users?',o:['fanout-on-read (assemble each time)','fanout-on-write (precompute timelines)','recompute nightly','no caching'],a:1,why:'Reads dominate, so precompute each user’s timeline on write — cheap reads.'},
    {t:'htmlviz',h:'Feed fanout — push normal, pull celebrities',
     html:`<style>
@@ -4267,16 +4511,20 @@ const UNITS=[
   <div class="ffv-flow"><div class="ffv-box warn"><div class="ffv-t">Celebrity posts</div><div class="ffv-s">do not write 50M timelines</div></div><div class="ffv-arr">→</div><div class="ffv-box warn"><div class="ffv-t">Read-time merge</div><div class="ffv-s">merge celebrity ids into feed on read</div></div></div>
   <div class="ffv-cap"><b>Hybrid fanout</b> keeps ordinary reads cheap while avoiding the celebrity write explosion. Time-sortable tweet IDs make the read-time merge straightforward.</div>
 </div>`},
-   {t:'build',q:'4 · High-level components.',options:['Fanout-on-write workers','Timeline cache (Redis)','Follow-graph store','Object store + CDN for media','A global lock service'],correct:[0,1,2,3]},
+   {t:'build',q:'4 · High-level components.',options:['Fanout-on-write workers','Timeline cache (Redis)','Follow-graph store (sharded table)','Object store + CDN for media','A global lock service'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:760,h:340,cap:'<b>Post:</b> API writes the tweet to the <b>posts store</b> (source of truth) and triggers <b>fanout-on-write</b> workers, which read the <b>follow-graph</b> and push post-ids into each follower’s <b>timeline cache</b>. <b>Follow/unfollow</b> are API writes to the follow-graph. <b>Read:</b> pull post-ids from the cache, hydrate from the posts store; media via object store + CDN. Celebrities: fan-out on read.',nodes:[{x:18,y:140,w:110,t:'Client',c:'gray'},{x:150,y:140,w:120,t:'API',c:'blue'},{x:330,y:30,w:170,t:'Fanout workers',s:'on write',c:'purple'},{x:545,y:30,w:190,t:'Timeline cache',s:'Redis, per-user',c:'green'},{x:330,y:250,w:170,t:'Follow-graph',s:'sharded',c:'gray'},{x:545,y:250,w:190,t:'Object store + CDN',s:'media',c:'gray'},{x:545,y:140,w:190,t:'Posts store',s:'source of truth',c:'amber'}],edges:[[0,1],[1,6],[1,2],[2,4],[2,3],[1,3],[1,4],[1,5]]});}},
    {t:'mcq',q:'5 · The hard bottleneck?',o:['posting tweets','celebrity fanout (1 post → millions of writes)','following users','storing media'],a:1,why:'Fanning out a celebrity’s post to 50M timelines is too expensive on write.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Hybrid fanout: push for normal users, pull/merge celebrity tweets at read time.','Time-sortable IDs (Snowflake) give ordering for free.','Failure: replication lag → read-your-writes for your own posts; viral spikes → cache + read-time merge.']}
   ]},
   {id:'mock-3',title:'Chat / WhatsApp',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'1:1 + group messaging, delivery + read receipts, presence, offline delivery.'},
-     {k:'point',i:'📐',t:'NFRs: low latency, ordered per conversation, durable, huge fan-in of connections.'}
+     {k:'tldr',t:'Design a chat / messaging system (WhatsApp-style).'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['1:1 + group messaging','delivery + read receipts','presence','offline delivery']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low latency','ordered per conversation','durable','highly available','scale to millions of concurrent connections']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: conversations, messages(conv_id, msg_id snowflake, sender, body), members(last_read_id).','API: POST send {client_msg_id, text} (idempotency); GET history?before=; WS subscribe for realtime + receipts.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>conversations</code>, <code>messages(conv_id, msg_id snowflake, sender, body)</code>, <code>members(last_read_id)</code>','<code>POST send {client_msg_id, text}</code> (idempotent)','<code>GET history?before=</code>','<code>WS subscribe</code> → realtime messages + receipts']},
    {t:'mcq',q:'Real-time delivery uses…',o:['HTTP polling forever','persistent WebSocket + pub/sub fanout','email','a nightly batch'],a:1,why:'WebSocket (or SSE) pushes messages instantly; pub/sub fans out to the recipient’s connection. Poll only as fallback.'},
    {t:'htmlviz',h:'Chat delivery — persist, then fan out',
     html:`<style>
@@ -4300,15 +4548,19 @@ const UNITS=[
   <div class="ctv-cap"><b>Persist before fanout.</b> WebSocket delivery is a fast notification path, not the source of truth; reconnecting clients catch up from message history.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['WebSocket gateway servers','Pub/Sub for fanout','Message store (wide-column)','Presence + push-notification service','A relational DB with cross-shard joins'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:760,h:306,cap:'Client ↔ WebSocket gateway (long-lived). Send → persist to the message store, then publish to Pub/Sub, which fans out to recipients’ gateways. Offline users get a push via the presence/notification service.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:160,y:132,w:160,t:'WS gateway',s:'connections',c:'blue'},{x:360,y:40,w:150,t:'Pub/Sub',s:'fan-out',c:'purple'},{x:360,y:224,w:170,t:'Message store',s:'wide-column',c:'gray'},{x:560,y:40,w:185,t:'Presence + push',s:'offline delivery',c:'green'}],edges:[[0,1],[1,3],[1,2],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['storing messages','millions of persistent connections + large-group fanout','presence','read receipts'],a:1,why:'Holding millions of live connections is stateful and hard; route by consistent hashing.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Stateful gateways in a consistent-hash ring; pub/sub routes to the recipient’s gateway.','Idempotency keys (client_msg_id) for at-least-once; per-conversation snowflake gives ordering.','Failure: a gateway dies → client reconnects elsewhere; undelivered messages are persisted + redelivered.']}
   ]},
   {id:'mock-4',title:'Ticket booking',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Browse events/seats, hold a seat, book it, pay — with NO double-booking.'},
-     {k:'point',i:'📐',t:'NFRs: strong consistency on seats, extreme contention at on-sale, payment integrity.'}
+     {k:'tldr',t:'Design a ticket-booking system (Ticketmaster).'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['browse events/seats','hold a seat','book it &amp; pay','NO double-booking']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['strong consistency on seats','extreme contention at on-sale','payment integrity']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['seats = static inventory: seats(seat_id, event_id, section, row) — never mutated during on-sale, so it is not a contention point.','tickets = the hold/booking lifecycle + transaction: tickets(ticket_id, seat_id UNIQUE, user_id, price, status[HELD|BOOKED], hold_expires_at, version, created_at). UNIQUE(seat_id) is the double-booking guard.','API: hold(seat), confirm(seat), release(seat).']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['seats = static inventory: seats(seat_id, event_id, section, row) — never mutated during on-sale, so it is not a contention point.','tickets = the hold/booking lifecycle + transaction: tickets(ticket_id, seat_id UNIQUE, user_id, price, status[HELD|BOOKED], hold_expires_at, version, created_at). UNIQUE(seat_id) is the double-booking guard.','<code>hold(seat)</code>','<code>confirm(seat)</code>','<code>release(seat)</code>']},
    {t:'mcq',q:'Prevent double-booking — first tool?',o:['a distributed lock service','an atomic conditional update / optimistic concurrency (DB)','2PC across services','sharding the seats table'],a:1,why:'Start with what the DB enforces: hold = INSERT a ticket where UNIQUE(seat_id) rejects a concurrent 2nd holder (or an UPDATE … WHERE compare-and-set). Reach for distributed locks only if data spans systems.'},
    {t:'mcq',nu:true,q:'Where do price & payment_status belong?',o:['extra columns on the seats row','a separate tickets/orders table','in Redis','on the events row'],a:1,why:'Split static inventory (what seat is this?) from the transaction (who holds/owns it, price, payment). A failed payment changes the ticket, not the seat. The whole HELD→BOOKED lifecycle lives on tickets, with UNIQUE(seat_id) as the double-booking guard.'},
    {t:'htmlviz',h:'Seat booking — hold lifecycle',
@@ -4331,27 +4583,35 @@ const UNITS=[
   <div class="sbv-cap">If payment stalls or the client vanishes, the hold needs cleanup — a background job deletes expired HELD rows (or an ON CONFLICT upsert steals one), else the unique slot blocks re-booking.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Relational DB (ACID)','Seat hold with TTL','Payment via saga','Virtual waiting room / queue for spikes','A cache as the source of truth'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:735,h:306,cap:'A virtual waiting room sheds the on-sale spike. The booking service holds a seat with a TTL — UNIQUE(seat_id) in the ACID DB blocks double-booking — and payment runs as a saga that compensates on failure.',nodes:[{x:18,y:132,w:130,t:'Client',c:'gray'},{x:175,y:132,w:175,t:'Waiting room',s:'queue (spike)',c:'amber'},{x:390,y:40,w:160,t:'Booking svc',s:'hold w/ TTL',c:'blue'},{x:580,y:40,w:150,t:'Relational DB',s:'UNIQUE(seat)',c:'gray'},{x:390,y:224,w:170,t:'Payment saga',s:'compensate',c:'purple'}],edges:[[0,1],[1,2],[2,3],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['browsing seats','contention on popular seats / hot DB rows at on-sale','payment','email confirmation'],a:1,why:'Everyone grabs the same seats at 10:00 — hot rows. Shed load with a waiting-room queue.'},
    {t:'mcq',nu:true,q:'At on-sale, one hot seat draws 10k simultaneous hold attempts. The risk?',o:['the DB deadlocks','retry storms — losers fail fast and re-hammer the row','seats double-book','holds never expire'],a:1,why:'The hold stays correct (UNIQUE rejects the duplicate, or CAS affects 0 rows), but the thousands of losers retry, pounding the hot row. Absorb the spike with a waiting-room queue or a Redis lock that serializes access, and keep the DB constraint as the final safety net — two systems to sync, but the raw spike never reaches the DB.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['seats is static inventory; the HELD→BOOKED lifecycle + UNIQUE(seat_id) guard live on tickets. Hold = INSERT (UNIQUE rejects a 2nd holder); confirm = conditional CAS (still HELD by you, unexpired, expected version).','Expired holds need cleanup — a background job deletes lapsed HELD rows (or an ON CONFLICT upsert steals one), else the unique slot stays blocked. Waiting-room queue to shed the on-sale spike; payment as a saga (compensate on failure).','Failure: held seat never confirmed → cleanup frees the seat for re-booking.']}
   ]},
   {id:'mock-5',title:'Distributed rate limiter',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Limit requests per user/API-key, across many gateway nodes, with low latency.'},
-     {k:'point',i:'📐',t:'NFRs: accurate-ish global limit, tiny added latency, decide fail-open vs fail-closed.'}
+     {k:'tldr',t:'Design a distributed rate limiter.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['limit requests per user / API-key','across many gateway nodes','with low latency']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['accurate-ish global limit','tiny added latency','decide fail-open vs fail-closed']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: counters keyed by (key, window) or (key → token bucket state).','API: middleware allow/deny per request; on deny return 429 + Retry-After.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>counters</code> keyed by (key, window), or (key → token-bucket state)','Middleware <code>allow / deny</code> per request','On deny → <code>429</code> + <code>Retry-After</code>']},
    {t:'mcq',q:'Algorithm: allow short bursts but cap the average?',o:['leaky bucket','token bucket','fixed window','no limiter can'],a:1,why:'Token bucket bursts up to capacity, then enforces the refill rate.'},
    {t:'build',q:'4 · High-level components.',options:['Token-bucket logic','Shared Redis counters (atomic INCR/Lua)','Per-node local quota + periodic sync','Edge / API-gateway enforcement','A relational DB write per request'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:600,h:306,cap:'Enforce at the edge / API gateway. Each node runs a local token bucket for low latency and periodically syncs with shared Redis counters (atomic INCR/Lua) for an accurate-ish global limit. On deny → 429 + Retry-After.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:175,t:'API gateway',s:'enforce limit',c:'blue'},{x:380,y:40,w:185,t:'Local quota',s:'token bucket',c:'green'},{x:380,y:224,w:195,t:'Shared Redis',s:'atomic INCR / Lua',c:'red'}],edges:[[0,1],[1,2],[2,3]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['the algorithm','the shared counter becomes a hotspot / SPOF','the gateway','the client'],a:1,why:'A single shared store per request is a hotspot; mitigate with local pre-checks + quota distribution.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Redis Lua token-bucket, or hand each node a slice of the global quota; sticky-route a key to one node.','Enforce at the edge/gateway before expensive backends; return 429 + Retry-After.','Failure: Redis down → fail-open (allow) to avoid taking the whole API down.']}
   ]},
   {id:'mock-6',title:'Video upload + streaming',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Upload large videos, transcode to multiple renditions, stream to millions (adaptive bitrate).'},
-     {k:'point',i:'📐',t:'NFRs: huge egress bandwidth, global low latency, resumable uploads.'}
+     {k:'tldr',t:'Design a video streaming platform (YouTube / Netflix).'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['upload large videos','transcode to multiple renditions','stream to millions (adaptive bitrate)']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['huge egress bandwidth','global low latency','resumable uploads']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: videos(metadata, status), renditions (per quality).','API: request presigned upload URL; get manifest (HLS/DASH) + stream segments.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>videos(metadata, status)</code>, <code>renditions</code> (per quality)','Request a presigned <code>upload URL</code>','<code>GET manifest</code> (HLS/DASH) + stream segments']},
    {t:'mcq',q:'Large uploads should…',o:['stream bytes through app servers','use a presigned URL direct to object storage (S3)','go into the database','be emailed'],a:1,why:'Presigned URL → client uploads straight to S3, keeping gigabytes off your app tier.'},
    {t:'htmlviz',h:'Video upload — async transcode pipeline',
     html:`<style>
@@ -4373,15 +4633,19 @@ const UNITS=[
   <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback <b>egress</b> — the bytes streamed out to viewers.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Presigned-URL upload to S3','Transcoding worker pool (queue)','CDN for delivery','Metadata DB + object storage','Synchronous transcode in the request'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:745,h:306,cap:'Client uploads directly to object storage via a presigned URL (bytes skip your servers). A storage event enqueues the transcode pool → renditions back to S3 → served via CDN (adaptive bitrate). Metadata DB tracks status.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:40,w:170,t:'Upload',s:'presigned → S3',c:'blue'},{x:375,y:40,w:160,t:'Object store',s:'raw + renditions',c:'gray'},{x:575,y:40,w:160,t:'Transcode pool',s:'queue',c:'purple'},{x:165,y:224,w:160,t:'Metadata DB',s:'status',c:'gray'},{x:575,y:224,w:150,t:'CDN',s:'stream (HLS)',c:'green'}],edges:[[0,1],[1,2],[2,3],[3,5],[1,4],[0,5]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['metadata writes','serving the bytes — egress bandwidth (Tbps)','transcoding speed','upload size'],a:1,why:'Average egress is enormous; a CDN is mandatory — no origin serves that.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Resumable chunked upload → S3; async transcode pipeline (long-running tasks) into ABR renditions; deliver via CDN.','Failure: a transcode job fails → retry / dead-letter; partial upload resumes; reconcile DB metadata with S3 event notifications.']}
   ]},
   {id:'mock-7',title:'Metrics / log pipeline',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Ingest millions of events/sec, store time-series, power dashboards + alerts.'},
-     {k:'point',i:'📐',t:'NFRs: high write throughput, range queries by time, bounded retention cost.'}
+     {k:'tldr',t:'Design a metrics / monitoring system.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['ingest millions of events/sec','store time-series','power dashboards + alerts']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['high write throughput','range queries by time','bounded retention cost']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: time-series points (metric, host/tags, timestamp, value).','API: ingest (batched), query a metric over a time range, define alert rules.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entity: <code>points(metric, host/tags, timestamp, value)</code>','Ingest (batched)','Query a metric over a time range','Define alert rules']},
    {t:'mcq',q:'How do you partition the storage?',o:['by user id','by (metric/series, time bucket) in a TSDB','randomly','one big table'],a:1,why:'Bucketing by series + time keeps partitions bounded and makes range queries touch only relevant buckets.'},
    {t:'htmlviz',h:'Metrics pipeline — ingest, roll up, retain',
     html:`<style>
@@ -4405,61 +4669,82 @@ const UNITS=[
   <div class="metv-cap"><b>Kafka decouples ingest from storage.</b> Rollup tiers keep dashboards fast and make retention a policy instead of an ever-growing bill.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Ingestion buffer (Kafka)','Stream processor (Flink) for aggregation','Time-series DB','Rollup / downsampling jobs','Object store for cold data','One relational table for every point'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:725,h:306,cap:'Agents → Kafka (absorbs spiky writes) → Flink aggregates → time-series DB. Rollup jobs downsample raw into coarse tiers; old data ages out to cheap object storage. Queries route to the coarsest tier that answers.',nodes:[{x:18,y:132,w:120,t:'Agents',c:'amber'},{x:160,y:132,w:150,t:'Kafka',s:'ingest buffer',c:'gray'},{x:350,y:40,w:165,t:'Stream proc',s:'Flink, aggregate',c:'purple'},{x:550,y:40,w:155,t:'Time-series DB',s:'tiered',c:'green'},{x:350,y:224,w:165,t:'Rollup jobs',s:'downsample',c:'blue'},{x:550,y:224,w:160,t:'Object store',s:'cold data',c:'gray'}],edges:[[0,1],[1,2],[2,3],[3,4],[3,5]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['querying','write volume + high cardinality + retention cost','alerting','dashboards'],a:1,why:'Sustained high-cardinality writes and years of retention dominate; fix with rollups + TTL tiers.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Kafka absorbs spikes → stream aggregation → TSDB; downsample raw → 1-min → 1-hour with TTL per tier; long-range queries read coarse rollups.','Failure: ingestion spike → Kafka buffers / backpressure; idempotent writes give exactly-once aggregation.']}
   ]},
   {id:'mock-8',title:'Payment / order system',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Place an order across order, payment, and inventory services — charged exactly once.'},
-     {k:'point',i:'📐',t:'NFRs: correctness > availability, idempotent, no double-charge, no oversell.'}
+     {k:'tldr',t:'Design checkout across order, payment & inventory services.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['place an order across order / payment / inventory services','charged exactly once']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['correctness &gt; availability','idempotent','no double-charge','no oversell']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: orders, payments(idempotency_key), inventory(reserved).','API: POST /orders {idempotency_key, items}; the saga steps reserve → charge → confirm.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>orders</code>, <code>payments(idempotency_key)</code>, <code>inventory(reserved)</code>','<code>POST /orders {idempotency_key, items}</code>','Saga steps: reserve → charge → confirm']},
    {t:'mcq',q:'Cross-service atomicity?',o:['2PC across all services','a Saga with compensating transactions','a global lock','eventual, no coordination'],a:1,why:'Microservices use a saga: local txns + compensations on failure (2PC blocks and is fragile).'},
    {t:'build',q:'4 · High-level components.',options:['Saga orchestrator','Idempotency keys','Outbox + CDC for reliable events','Inventory reservation (CAS)','2PC across all services'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:745,h:306,cap:'Client → saga orchestrator (an idempotency key dedupes retries). The saga drives reserve (CAS) → charge → confirm across services; each emits events via an outbox + CDC (no dual-write gap). Failures trigger compensations.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:180,t:'Saga orchestrator',s:'idempotency keys',c:'purple'},{x:385,y:40,w:160,t:'Order svc',s:'outbox + CDC',c:'blue'},{x:385,y:224,w:180,t:'Inventory svc',s:'reserve (CAS)',c:'green'},{x:590,y:40,w:150,t:'Payment svc',c:'gray'}],edges:[[0,1],[1,2],[1,3],[1,4]]});}},
    {t:'mcq',q:'5 · Bottleneck / risk?',o:['order volume','correctness under retries (duplicate charges)','browsing','search'],a:1,why:'Networks retry, so without idempotency you double-charge. Idempotency keys give exactly-once effect.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Orchestrated saga: reserve inventory (CAS) → charge → confirm; compensate in reverse on failure (refund, release).','Outbox + CDC for reliable event publishing.','Failure: payment succeeds but confirm is lost → idempotent retry reconciles; CAS reservation prevents oversell.']}
   ]},
   {id:'mock-9',title:'Feature store / model serving',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Serve ML features consistently at train AND inference time, with low-latency online lookups.'},
-     {k:'point',i:'📐',t:'NFRs: no train/serve skew, sub-10ms online reads, fresh streaming features.'}
+     {k:'tldr',t:'Design an ML feature store.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['serve features consistently at train AND inference time','low-latency online lookups']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['no train/serve skew','sub-10ms online reads','fresh streaming features']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: feature definitions, an offline store (warehouse) for training, an online store (KV) for inference.','API: get_online_features(entity_ids); materialize batch features; register a feature definition.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: feature definitions, an offline store (warehouse) for training, an online store (KV) for inference','<code>get_online_features(entity_ids)</code>','Materialize batch features','Register a feature definition']},
    {t:'mcq',q:'Avoid train/serve skew with…',o:['separate code for each','a feature store serving the SAME definitions offline + online','retraining nightly','a bigger model'],a:1,why:'One source of feature definitions for both training and serving prevents the values from diverging.'},
    {t:'build',q:'4 · High-level components.',options:['Offline store (warehouse)','Online store (Redis/DynamoDB)','Streaming features (Flink)','Materialization jobs','Model server','One CSV for everything'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:805,h:306,cap:'Batch + streaming features flow through materialization jobs into BOTH an offline store (point-in-time training data) and a low-latency online store. The model server reads online features at inference — same definitions, so no train/serve skew.',nodes:[{x:18,y:40,w:160,t:'Batch sources',s:'warehouse',c:'gray'},{x:18,y:224,w:160,t:'Streams',s:'Flink features',c:'purple'},{x:215,y:132,w:175,t:'Materialization',s:'jobs',c:'blue'},{x:425,y:40,w:160,t:'Offline store',s:'training',c:'gray'},{x:425,y:224,w:195,t:'Online store',s:'Redis/DynamoDB',c:'green'},{x:650,y:224,w:150,t:'Model server',s:'inference',c:'amber'}],edges:[[0,2],[1,2],[2,3],[2,4],[4,5]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['training','feature-lookup latency at inference','storage','logging'],a:1,why:'Inference must fetch features in milliseconds; precompute + a low-latency online KV store.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Precompute batch features → online store; streaming pipeline for fresh features; point-in-time correctness for training labels.','Failure: stale online features → TTL + monitoring; serving falls back to defaults if a feature is missing.']}
   ]},
   {id:'mock-10',title:'Notification / fan-out',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Deliver events to users over push, email, and an in-app inbox, honouring preferences.'},
-     {k:'point',i:'📐',t:'NFRs: at-least-once delivery, dedup, coalesce bursts, per-channel preferences, delivery tracking.'}
+     {k:'tldr',t:'Design a notification system.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['deliver events over push / email / in-app inbox','honour user preferences']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['at-least-once delivery','dedup','coalesce bursts','per-channel preferences','delivery tracking']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: notification(id, user, type, payload, status), user channel prefs, device tokens.','API: emit(event); per-user fan-out → queue per channel; GET /inbox; track sent/delivered/read.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>notification(id, user, type, payload, status)</code>, user channel prefs, device tokens','<code>emit(event)</code> → per-user fan-out → queue per channel','<code>GET /inbox</code>','Track sent / delivered / read']},
    {t:'mcq',q:'A celebrity post must notify 50M followers. The risk?',o:['too few notifications','fan-out write amplification / hot producer','inbox is too small','email is slow'],a:1,why:'Naive fan-out-on-write explodes for high-fan-out producers; use async workers, batching, and pull/hybrid for huge audiences.'},
    {t:'build',q:'4 · High-level components.',options:['Event ingress + queue','Per-channel workers (push/email/inbox)','Preference + device-token store','Dedup + coalesce layer','A synchronous loop over all followers'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:790,h:306,cap:'Events hit an ingress queue → dedup/coalesce (one push, not five) → per-channel workers. Workers check preferences + device tokens, then deliver via APNs/FCM, email (SES), or the in-app inbox. At-least-once + dedupe on event id.',nodes:[{x:18,y:132,w:150,t:'Event ingress',s:'queue',c:'blue'},{x:200,y:132,w:175,t:'Dedup + coalesce',c:'purple'},{x:410,y:40,w:175,t:'Channel workers',s:'push / email / inbox',c:'green'},{x:410,y:224,w:185,t:'Prefs + tokens',s:'store',c:'gray'},{x:625,y:40,w:155,t:'APNs / SES',c:'amber'}],edges:[[0,1],[1,2],[2,3],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['inbox reads','fan-out volume + 3rd-party send limits (APNs/FCM/SMTP)','preferences','dedup'],a:1,why:'Delivery is gated by provider rate limits and fan-out size; smooth with queues, batching, and backpressure.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Async fan-out workers per channel; dedup by event_id; coalesce a burst into one push; respect provider rate limits with retries/backoff.','Failure: provider 5xx → retry/backoff then dead-letter; at-least-once + idempotent send (store sent id) avoids double-notifying.']}
   ]},
   {id:'mock-11',title:'Nearby / geospatial search',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Find drivers/places near a point, ranked, with fresh locations and dense-city read traffic.'},
-     {k:'point',i:'📐',t:'NFRs: low-latency radius/k-NN queries, frequent location updates, high read fan-out in hotspots.'}
+     {k:'tldr',t:'Design proximity / nearby search (Uber, Yelp).'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['find nearby drivers/places (ranked)','fresh location updates','dense-city read traffic']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low-latency radius/k-NN queries','frequent location updates','high read fan-out in hotspots']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: entity(id, lat, lng, geo-cell, updated_at), plus attributes for ranking.','API: update_location(id, lat, lng); query nearby(lat, lng, radius/k) → ranked results.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entity: <code>entity(id, lat, lng, geo-cell, updated_at)</code> + ranking attributes','<code>update_location(id, lat, lng)</code>','<code>nearby(lat, lng, radius/k)</code> → ranked results']},
    {t:'mcq',q:'How do you index location for fast nearby queries?',o:['B-tree on lat then lng','a geohash / quadtree / S2 cell index','full scan + distance filter','hash of (lat,lng)'],a:1,why:'Space-filling curves (geohash/S2) or quadtrees map 2-D proximity to a 1-D key so nearby points share a prefix/cell.'},
    {t:'build',q:'4 · High-level components.',options:['Geo index (geohash/S2/quadtree)','Hot in-memory location store (Redis)','Ranking service','Sharding by geo-cell','One row scan per query'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:745,h:306,cap:'Drivers stream locations into a hot in-memory store, sharded by geo-cell. A query maps the viewport to geohash/S2 cells (+ neighbours), pulls candidates, and the ranking service orders by distance/ETA.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:150,t:'Query API',c:'blue'},{x:355,y:40,w:185,t:'Geo index',s:'geohash / S2',c:'green'},{x:355,y:224,w:195,t:'Location store',s:'Redis, by geo-cell',c:'red'},{x:585,y:40,w:150,t:'Ranking svc',c:'purple'}],edges:[[0,1],[1,2],[2,3],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['location writes are rare','dense-city read hotspots + churny location writes','ranking math','storage size'],a:1,why:'A few cells (downtown) get most traffic; replicate hot cells, cache, and keep live positions in memory.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Geohash/S2 cells as the shard + index key; live positions in Redis with short TTL; query the target cell + neighbours, then rank.','Hot-cell relief: replicas + caching; precision-vs-recall tuned by cell size.','Failure: stale positions → TTL + last-seen filter; a cell shard down → serve neighbours degraded, not error.']}
   ]},
   {id:'mock-12',title:'Search autocomplete / typeahead',steps:[
    {t:'teach',h:'1 · Requirements',body:[
-     {k:'tldr',t:'Return prefix suggestions in <100ms, ranked by popularity, trending-aware, safe to roll out.'},
-     {k:'point',i:'📐',t:'NFRs: very low latency, read-heavy, near-real-time popularity, no offensive/unsafe suggestions.'}
+     {k:'tldr',t:'Design search autocomplete / typeahead.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['return prefix suggestions in &lt;100ms','ranked by popularity','trending-aware','safe to roll out']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['very low latency','read-heavy','near-real-time popularity','no offensive/unsafe suggestions']}
+     ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: prefix → top-k suggestions (precomputed), query-frequency counts.','API: suggest(prefix) → ranked list; offline/stream job rebuilds the prefix→top-k structure.']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>prefix → top-k suggestions</code> (precomputed), query-frequency counts','<code>suggest(prefix)</code> → ranked list','Offline / stream job rebuilds the prefix → top-k structure']},
    {t:'mcq',q:'Why precompute top-k per prefix instead of querying at request time?',o:['it saves storage','reads must be ~O(1); ranking at query time is too slow','it improves write throughput','it avoids caching'],a:1,why:'Typeahead is extremely read-heavy and latency-critical; a prebuilt trie / prefix→top-k served from memory beats per-keystroke ranking.'},
    {t:'build',q:'4 · High-level components.',options:['Trie / prefix→top-k index','Frequency aggregation pipeline (stream)','In-memory serving tier + CDN/edge','Safe-suggestion filter','A SQL LIKE %prefix% per keystroke'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:800,h:306,cap:'Keystrokes hit an in-memory serving tier (CDN/edge) backed by a precomputed prefix→top-k index (trie). A streaming frequency pipeline rebuilds the index for trending; a safe-suggestion filter strips unsafe results.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:185,t:'Serving tier',s:'in-mem + CDN',c:'green'},{x:400,y:40,w:185,t:'Prefix → top-k',s:'trie index',c:'blue'},{x:400,y:224,w:185,t:'Freq pipeline',s:'stream',c:'purple'},{x:625,y:40,w:160,t:'Safe filter',s:'block unsafe',c:'red'}],edges:[[0,1],[1,2],[3,2],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['index rebuild','per-keystroke read latency at scale','storage','the filter'],a:1,why:'Every keystroke is a query; serve from memory/edge and debounce on the client. Rebuilds happen offline.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Stream-count queries → periodically rebuild prefix→top-k (trie) → push to in-memory/edge serving; debounce client input.','Trending: decay old counts so fresh terms surface; filter unsafe suggestions before publish.','Failure: rebuild job fails → keep serving the last good index (stale but available); bad index → fast rollback to previous version.']}
   ]}
@@ -4500,6 +4785,7 @@ const TOOLS=[
     <button class="mini" data-random>Random prompt</button>
     <button class="mini" data-copy-prompt>Copy prompt</button>
     <button class="mini" data-copy-packet>Copy judge packet</button>
+    <button class="mini" data-claude>Grade in Claude ↗</button>
     <span class="status" data-status></span>
   </div>
 </div>`,
@@ -4529,6 +4815,7 @@ const TOOLS=[
       root.querySelector('[data-random]').onclick=function(){i=Math.floor(Math.random()*prompts.length);render();status('New prompt.');};
       root.querySelector('[data-copy-prompt]').onclick=function(){copy(prompts[i],'Prompt copied.');};
       root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Judge packet copied.');};
+      root.querySelector('[data-claude]').onclick=function(){window.open('https://claude.ai/new?q='+encodeURIComponent(packet()),'_blank');status('Opening Claude…');};
       render();
     }},
  ]},
@@ -4550,6 +4837,7 @@ const TOOLS=[
     <button class="mini" data-random>Random drill</button>
     <button class="mini" data-copy-prompt>Copy drill</button>
     <button class="mini" data-copy-packet>Copy judge packet</button>
+    <button class="mini" data-claude>Grade in Claude ↗</button>
     <span class="status" data-status></span>
   </div>
 </div>`,
@@ -4579,6 +4867,7 @@ const TOOLS=[
       root.querySelector('[data-random]').onclick=function(){i=Math.floor(Math.random()*drills.length);render();status('New drill.');};
       root.querySelector('[data-copy-prompt]').onclick=function(){copy(text(drills[i]),'Drill copied.');};
       root.querySelector('[data-copy-packet]').onclick=function(){copy(packet(),'Schema judge packet copied.');};
+      root.querySelector('[data-claude]').onclick=function(){window.open('https://claude.ai/new?q='+encodeURIComponent(packet()),'_blank');status('Opening Claude…');};
       render();
     }},
  ]}
@@ -4783,18 +5072,22 @@ function renderHome(scrollToNext){
 /* ============================ LESSON RUNNER ============================ */
 var R=null; // active run state
 function isQuizStep(t){return t==='mcq'||t==='sort'||t==='match'||t==='order'||t==='build'||t==='cloze'||t==='recall';}
+/* mock "Requirements" stage: a teach step with a masked spoiler — it's a timed recall, so the clock should tick on it */
+function isMockReqStep(step){return step&&step.t==='teach'&&Array.isArray(step.body)&&step.body.some(b=>b.k==='spoiler');}
 function startLesson(id){
   const {u,l}=lessonById(id);
+  const isMock=(u.id==='mock');
   const quizN=l.steps.filter(s=>isQuizStep(s.t)).length;
-  const t=Math.max(60,quizN*25); // clock only ticks on quiz steps; learning steps are untimed
-  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t};
+  const stageTime=300; // mock designs: a generous ~5 min budget per "explain it" stage, reset at each stage
+  const t=isMock?stageTime:Math.max(60,quizN*25); // non-mock: clock ticks ~25s/quiz step
+  R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t,isMock:isMock,stageTime:stageTime,_stageIdx:-1};
   renderStep(); // renderStep starts/pauses the timer per step
 }
 /* run the countdown only on a fresh quiz step (or in boss mode); pause it on learning/review steps */
 function manageTimer(){
   if(R.timeLeft==null){return;}
   const step=R.steps[R.idx];
-  const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+  const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&(isQuizStep(step.t)||(R.isMock&&isMockReqStep(step))));
   if(active){startTimer();}else{stopTimer();}
 }
 function startBoss(uid){
@@ -4858,12 +5151,13 @@ function startUnitRecall(uid){
 }
 
 let timerH=null;
+function fmtTime(s){return s>=60?(Math.floor(s/60)+':'+String(s%60).padStart(2,'0')):(s+'s');}
 function startTimer(){
   stopTimer();
   timerH=setInterval(()=>{
     R.timeLeft--;
     const el=document.getElementById('timerTxt');
-    if(el){el.textContent=R.timeLeft+'s';el.parentElement.classList.toggle('low',R.timeLeft<=15);}
+    if(el){el.textContent=fmtTime(R.timeLeft);el.parentElement.classList.toggle('low',R.timeLeft<=15);}
     if(R.timeLeft<=0){stopTimer();finishRun(true);}
   },1000);
 }
@@ -4878,10 +5172,10 @@ function topbarHTML(){
   let right='';
   if(R.timeLeft!=null){
     const step=R.steps[R.idx];
-    const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&isQuizStep(step.t));
+    const active=(R.mode==='boss')||(R.idx>=R.frontier&&step&&(isQuizStep(step.t)||(R.isMock&&isMockReqStep(step))));
     right=active
-      ?'<div class="timer" title="Beat the clock — it ticks on quiz steps. Run out of time and the round ends."><span>⏱️</span><span id="timerTxt">'+R.timeLeft+'s</span></div>'
-      :'<div class="timer paused" title="Timer pauses while you learn — runs during quiz steps"><span>⏸</span><span>'+R.timeLeft+'s</span></div>';
+      ?'<div class="timer" title="'+(R.isMock?'~5 min per stage — refills at each explain-it step':'Beat the clock — it ticks on quiz steps. Run out of time and the round ends.')+'"><span>⏱️</span><span id="timerTxt">'+fmtTime(R.timeLeft)+'</span></div>'
+      :'<div class="timer paused" title="Timer pauses while you learn — runs during quiz steps"><span>⏸</span><span>'+fmtTime(R.timeLeft)+'</span></div>';
   }
   const back=(R.idx>0&&R.mode!=='boss')?'<button class="lback" id="backBtn" title="Previous">←</button>':'';
   return '<div class="lhead">'
@@ -4898,6 +5192,8 @@ function topbarHTML(){
 function renderStep(){
   if(R.idx>=R.steps.length){finishRun(false);return;}
   const step=R.steps[R.idx];
+  // mock designs: refill the clock to a full ~5 min budget at the start of each "explain it" stage
+  if(R.isMock&&R.idx>=R.frontier&&step&&(step.t==='recall'||isMockReqStep(step))&&R._stageIdx!==R.idx){R.timeLeft=R.stageTime;R._stageIdx=R.idx;}
   let h=topbarHTML()+'<div class="stage" id="stage"></div>';
   h+='<div class="combo" id="combo"></div>';
   APP().innerHTML=h;
@@ -4918,7 +5214,7 @@ function nextUnseenIdx(){
   for(let i=R.idx+1;i<R.steps.length;i++){const s=R.steps[i];if(isQuizStep(s.t)&&!S.answered[sigOf(s)])return i;}
   return -1;
 }
-function jumpToNextUnseen(){const j=nextUnseenIdx();if(j<0)return;R.idx=j;if(R.idx>R.frontier)R.frontier=R.idx;renderStep();}
+function jumpToNextUnseen(){const j=nextUnseenIdx();if(j<0)return;R.idx=j;R.frontier=j;/* land ON the never-answered question as FRESH — set frontier to it, not just forward, so a frontier already past j doesn't make renderStep show it as review */renderStep();}
 function skipStep(){
   const step=R.steps[R.idx];
   // Skipping still means you've SEEN the question — mark it answered so the lesson keeps
@@ -4950,10 +5246,53 @@ function nextStep(){R.idx++;if(R.idx>R.frontier)R.frontier=R.idx;renderStep();}
 
 /* ---------- step: htmlviz (embedded HTML/CSS widget with a scoped setup fn) ---------- */
 function stHtmlViz(stage,step){
+  if(R&&R.isMock&&step.h==='4 · Architecture'&&step.setup){return stArchDraw(stage,step);}
   stage.innerHTML='<div class="q-sub">🎬 Visualize</div><div class="q-title">'+step.h+'</div><div class="htmlviz">'+step.html+'</div>';
   const root=stage.querySelector('.htmlviz');
   if(step.setup){try{step.setup(root,vizStepper);}catch(e){}}
   footBtn('Got it',()=>nextStep());
+}
+/* lazy-load the Excalidraw browser build (React + ReactDOM + Excalidraw UMD) once, from CDN */
+let _excPromise=null;
+function loadExcalidraw(){
+  if(_excPromise)return _excPromise;
+  window.EXCALIDRAW_ASSET_PATH='https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/';
+  function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.crossOrigin='anonymous';s.onload=function(){res();};s.onerror=function(){rej('fail');};document.head.appendChild(s);});}
+  _excPromise=load('https://unpkg.com/react@18.2.0/umd/react.production.min.js')
+    .then(function(){return load('https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js');})
+    .then(function(){return load('https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw.production.min.js');})
+    .then(function(){if(!(window.ExcalidrawLib&&window.ExcalidrawLib.Excalidraw))throw 'no lib';});
+  return _excPromise;
+}
+function unmountExc(){if(window.__excRoot){try{window.__excRoot.unmount();}catch(e){}window.__excRoot=null;}}
+/* mock architecture step — draw your own diagram on an Excalidraw canvas, then reveal the reference (persisted locally) */
+function stArchDraw(stage,step){
+  unmountExc();
+  stage.innerHTML='<div class="q-sub">🎬 Visualize</div><div class="q-title">'+step.h+'</div>'
+    +'<div class="archdraw">'
+    +'<div class="wsh">✍️ Draw your own architecture, then reveal the reference to compare. (Saved on this device.)</div>'
+    +'<div class="canvas" id="excmount"><div class="ph">Loading the drawing canvas…</div></div>'
+    +'<div><button class="reveal" id="revref">Reveal reference diagram ↓</button></div>'
+    +'<div id="refbox" style="display:none"></div>'
+    +'</div>';
+  var refBtn=document.getElementById('revref'),refBox=document.getElementById('refbox');
+  refBtn.onclick=function(){refBtn.style.display='none';refBox.style.display='';refBox.className='htmlviz';try{step.setup(refBox,vizStepper);}catch(e){}};
+  var mount=document.getElementById('excmount');
+  var key='sdp_arch_'+((R&&R.lesson)?R.lesson.id:'x');
+  loadExcalidraw().then(function(){
+    mount.innerHTML='';
+    var saved=[];try{saved=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){}
+    var t;
+    window.__excRoot=ReactDOM.createRoot(mount);
+    window.__excRoot.render(React.createElement(ExcalidrawLib.Excalidraw,{
+      initialData:{elements:saved,scrollToContent:true},
+      excalidrawAPI:function(api){window.__excAPI=api;},
+      onChange:function(elements){clearTimeout(t);t=setTimeout(function(){try{localStorage.setItem(key,JSON.stringify(elements));}catch(e){}},600);}
+    }));
+  }).catch(function(){
+    mount.innerHTML='<div class="ph">Couldn’t load the drawing canvas (it needs network the first time). You can still reveal the reference below.</div>';
+  });
+  footBtn('Got it',function(){unmountExc();nextStep();});
 }
 /* reusable prev/next stepper for htmlviz widgets. Panels (class panelClass) are pre-rendered in the html; this toggles visibility + dots + label. */
 function vizStepper(root,n,opts){
@@ -4976,9 +5315,9 @@ function vizStepper(root,n,opts){
 
 /* feedback bar + advance */
 function feedback(ok,msg,onNext){
-  // Wrong answer: pause the countdown so the clock doesn't drain while you read the explanation.
+  // Once an answer is checked, pause the countdown so the clock doesn't drain while you read the result.
   // Speed runs stay a pure race (no pause). The timer resumes on the next step via manageTimer().
-  if(!ok&&R&&R.timeLeft!=null&&R.mode!=='speed'){
+  if(R&&R.timeLeft!=null&&R.mode!=='speed'){
     stopTimer();
     const tEl=document.querySelector('.timer');
     if(tEl){tEl.classList.add('paused');const ic=tEl.querySelector('span');if(ic)ic.textContent='⏸';}
@@ -5016,6 +5355,7 @@ function finishGraded(step,perfect){
 function blockHTML(b){
   if(b.k==='tldr')return '<div class="tldr"><span class="tag">TL;DR</span><span>'+b.t+'</span></div>';
   if(b.k==='point')return '<div class="point"><span class="pi">'+b.i+'</span><span>'+b.t+'</span></div>';
+  if(b.k==='reqs')return '<div class="point"><span class="pi">'+b.i+'</span><div class="reqs"><b>'+b.label+'</b><ul>'+(b.items||[]).map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div></div>';
   if(b.k==='cause')return '<div class="cause"><div class="box">'+b.a+'</div><div class="arrow">→</div><div class="box">'+b.b+'</div></div>';
   if(b.k==='vs')return '<div class="vs"><div class="col a"><h4>'+b.a.h+'</h4>'+b.a.t+'</div><div class="col b"><h4>'+b.b.h+'</h4>'+b.b.t+'</div></div>';
   if(b.k==='keyt')return '<div class="keyt"><b>'+b.term+'</b> — '+b.def+'</div>';
@@ -5023,13 +5363,57 @@ function blockHTML(b){
   if(b.k==='note')return '<div class="callout note"><span>💡</span><span>'+b.t+'</span></div>';
   if(b.k==='mnemonic')return '<div class="callout mem"><span>🧠</span><span>'+b.t+'</span></div>';
   if(b.k==='html')return b.h;
+  if(b.k==='spoiler')return '<div class="v2-spoiler" onclick="this.classList.toggle(\'revealed\')">'+(b.items||[]).map(function(x){return blockHTML(x);}).join('')+'</div>';
   return '';
+}
+/* Excalidraw-style architecture diagram from a {nodes,edges,cap} spec. Nodes: {x,y,w,h?,t,s?,c}. Edges: [fromIdx,toIdx]. */
+function archDiagram(spec){
+  var PAL={amber:['#fff3bf','#f08c00'],green:['#d3f9d8','#2f9e44'],blue:['#d0ebff','#1971c2'],gray:['#f1f3f5','#868e96'],purple:['#f3d9fa','#9c36b5'],red:['#ffc9c9','#e03131'],teal:['#c3fae8','#0ca678']};
+  var N=spec.nodes, E=spec.edges||[], W=spec.w||806, H=spec.h||306;
+  function hh(b){return b.h||62;}
+  function ctr(b){return [b.x+b.w/2, b.y+hh(b)/2];}
+  function edgePt(b,tx,ty){var c=ctr(b),dx=tx-c[0],dy=ty-c[1];if(!dx&&!dy)return c;var hw=b.w/2,hv=hh(b)/2,t=Math.min(dx?hw/Math.abs(dx):1e9, dy?hv/Math.abs(dy):1e9);return [c[0]+dx*t, c[1]+dy*t];}
+  var lines='';
+  E.forEach(function(p){var a=N[p[0]],b=N[p[1]],ca=ctr(a),cb=ctr(b),p1=edgePt(a,cb[0],cb[1]),p2=edgePt(b,ca[0],ca[1]);
+    var ang=Math.atan2(p2[1]-p1[1],p2[0]-p1[0]);
+    var h1=[p2[0]-10*Math.cos(ang-0.42),p2[1]-10*Math.sin(ang-0.42)], h2=[p2[0]-10*Math.cos(ang+0.42),p2[1]-10*Math.sin(ang+0.42)];
+    function L(x1,y1,x2,y2){return '<path d="M'+x1.toFixed(1)+' '+y1.toFixed(1)+' L'+x2.toFixed(1)+' '+y2.toFixed(1)+'"/>';}
+    lines+=L(p1[0],p1[1],p2[0],p2[1])+L(p2[0],p2[1],h1[0],h1[1])+L(p2[0],p2[1],h2[0],h2[1]);
+  });
+  var boxes='',txt='';
+  N.forEach(function(b){var p=PAL[b.c]||PAL.gray,h=hh(b),cx=b.x+b.w/2,cy=b.y+h/2;
+    boxes+='<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+h+'" rx="9" fill="'+p[0]+'" stroke="'+p[1]+'" stroke-width="2.5"/>';
+    if(b.s){txt+='<text x="'+cx+'" y="'+(cy-2)+'" font-size="14.5" font-weight="700">'+b.t+'</text><text x="'+cx+'" y="'+(cy+15)+'" font-size="11" fill="'+p[1]+'">'+b.s+'</text>';}
+    else{txt+='<text x="'+cx+'" y="'+(cy+5)+'" font-size="14.5" font-weight="700">'+b.t+'</text>';}
+  });
+  return '<div class="exarch"><svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'
+    +'<defs><filter id="rgh2" x="-5%" y="-15%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="2" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.2"/></filter></defs>'
+    +'<g filter="url(#rgh2)"><g fill="none" stroke="#495057" stroke-width="2.5" stroke-linecap="round">'+lines+'</g>'+boxes+'</g>'
+    +'<g text-anchor="middle" fill="#1e1e1e">'+txt+'</g></svg>'
+    +(spec.cap?'<div class="exarch-cap">'+spec.cap+'</div>':'')+'</div>';
 }
 function stTeach(stage,step){
   let h='<div class="q-sub">📘 Learn</div><div class="q-title">'+step.h+'</div>';
   step.body.forEach(b=>h+=blockHTML(b));
+  const ws=(R&&R.isMock&&isMockReqStep(step));
+  if(ws)h+=mockWorksheetHTML();
   stage.innerHTML=h;
+  if(ws)wireWorksheet();
   footBtn('Got it',()=>nextStep());
+}
+/* mock design worksheet — a place to write your own requirements before revealing (self-graded, persisted locally) */
+function wsKey(f){return 'sdp_ws_'+((R&&R.lesson)?R.lesson.id:'x')+'_'+f;}
+function mockWorksheetHTML(){
+  return '<div class="mockws"><div class="wsh">✍️ Your turn first — list the functional requirements + NFRs, then reveal and check. (Saved on this device; not graded.)</div>'
+    +'<label>Requirements<textarea data-ws="req" placeholder="Functional features + NFRs: read/write ratio, scale / QPS, latency, availability, consistency"></textarea></label>'
+    +'</div>';
+}
+function wireWorksheet(){
+  document.querySelectorAll('.mockws textarea[data-ws]').forEach(function(t){
+    var k=wsKey(t.getAttribute('data-ws'));
+    try{t.value=localStorage.getItem(k)||'';}catch(e){}
+    t.addEventListener('input',function(){try{localStorage.setItem(k,t.value);}catch(e){}});
+  });
 }
 
 /* ---------- step: vecviz (interactive version-vector walkthrough) ---------- */
