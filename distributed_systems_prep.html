@@ -3965,7 +3965,10 @@ WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</di
             <tr><td><code>ORDER#o9</code></td><td><code>ITEM#p7</code></td><td>qty, price</td></tr>
           </tbody>
         </table>
-        <p><strong>(a)</strong> get-item PK=USER#u1, SK=PROFILE. <strong>(b)</strong> query PK=USER#u1, SK begins_with "ORDER#", descending — a time-sortable id (ULID/Snowflake) in the SK gives newest-first for free. <strong>(c)</strong> query PK=ORDER#o9 returns the header + all ITEM# rows in one shot (an <em>item collection</em>). <strong>(d)</strong> orders aren't keyed by product, so add a <strong>GSI</strong> with PK=PRODUCT#p3 → query the GSI instead of a full-table Scan.</p>
+        <p class="ap"><strong>(a)</strong> get-item PK=USER#u1, SK=PROFILE.</p>
+        <p class="ap"><strong>(b)</strong> query PK=USER#u1, SK begins_with "ORDER#", descending — a time-sortable id (ULID/Snowflake) in the SK gives newest-first for free.</p>
+        <p class="ap"><strong>(c)</strong> query PK=ORDER#o9 returns the header + all ITEM# rows in one shot (an <em>item collection</em>).</p>
+        <p class="ap"><strong>(d)</strong> orders aren't keyed by product, so add a <strong>GSI</strong> with PK=PRODUCT#p3 → query the GSI instead of a full-table Scan.</p>
         <div class="note"><strong>The trap:</strong> the patterns you didn't index force a <code>Scan</code> (read everything) — slow and expensive. List every access pattern <em>before</em> choosing keys; new patterns later usually mean a new GSI, not a new table.</div>
         <p style="margin-top:1em"><strong>Same problem in Bigtable (Google wide-column).</strong> Bigtable has no secondary indexes and no sort key — there's just <em>one</em> lexicographically-sorted <strong>row key</strong> plus column families. So you design the row key as a path and lean on <em>prefix scans</em>; a single row can hold many columns cheaply, which replaces the "item collection."</p>
         <table class="tbl">
@@ -3977,8 +3980,46 @@ WS   /v1/realtime    (subscribe; server pushes new messages + read receipts)</di
             <tr><td><code>byproduct#p3#&lt;revts&gt;#o9</code></td><td><code>meta:</code> userId, status &nbsp;<span class="sch-cmt">(2nd "index" table)</span></td></tr>
           </tbody>
         </table>
-        <p><strong>(a)</strong> point read row <code>user#u1#profile</code>. <strong>(b)</strong> prefix scan <code>user#u1#order#</code>; encode a <em>reverse</em> timestamp (Bigtable scans ascending) so the newest order sorts first. <strong>(c)</strong> read the single row <code>order#o9</code> — header in <code>meta:</code>, every line item as a column in <code>items:</code>, returned in one read. <strong>(d)</strong> no GSI exists, so on each order write you <em>also</em> write a row to a <code>byproduct#</code> "index" table (or a key prefix in the same table); the admin query is then a prefix scan <code>byproduct#p3#</code>.</p>
+        <p class="ap"><strong>(a)</strong> point read row <code>user#u1#profile</code>.</p>
+        <p class="ap"><strong>(b)</strong> prefix scan <code>user#u1#order#</code>; encode a <em>reverse</em> timestamp (Bigtable scans ascending) so the newest order sorts first.</p>
+        <p class="ap"><strong>(c)</strong> read the single row <code>order#o9</code> — header in <code>meta:</code>, every line item as a column in <code>items:</code>, returned in one read.</p>
+        <p class="ap"><strong>(d)</strong> no GSI exists, so on each order write you <em>also</em> write a row to a <code>byproduct#</code> "index" table (or a key prefix in the same table); the admin query is then a prefix scan <code>byproduct#p3#</code>.</p>
         <div class="note"><strong>DynamoDB vs Bigtable, the one-liner:</strong> DynamoDB gives you a sort key <em>and</em> GSIs, so a new access pattern is usually a new GSI. Bigtable gives you only the row key, so a new access pattern means <em>you</em> maintain a second table and dual-write — there's no async index to lean on. Both punish unplanned patterns; Bigtable just makes the cost explicit.</div>
+
+        <p style="margin-top:1em"><strong>Same problem in Cloud Spanner (relational, globally distributed).</strong> Spanner gives you SQL, transactions, <em>and</em> secondary indexes — and it lets you physically co-locate parent and child rows with <code>INTERLEAVE IN PARENT</code>, so an order and its items live in the same split and join without a cross-node hop.</p>
+        <table class="tbl">
+          <thead><tr><th>table (interleaving)</th><th>primary key</th><th>columns</th></tr></thead>
+          <tbody>
+            <tr><td><code>Users</code></td><td><code>(user_id)</code></td><td>name, email, …</td></tr>
+            <tr><td><code>Orders</code> <span class="sch-cmt">interleave in Users</span></td><td><code>(user_id, order_id)</code></td><td>created_at, status, total</td></tr>
+            <tr><td><code>OrderItems</code> <span class="sch-cmt">interleave in Orders</span></td><td><code>(user_id, order_id, item_id)</code></td><td>product_id, qty, price</td></tr>
+            <tr><td><code>OrdersByProduct</code> <span class="sch-cmt">global secondary index</span></td><td><code>(product_id, order_id)</code></td><td><code>STORING</code> user_id, status</td></tr>
+          </tbody>
+        </table>
+        <p class="ap"><strong>(a)</strong> point read <code>Users</code> by <code>user_id</code>.</p>
+        <p class="ap"><strong>(b)</strong> <code>SELECT … FROM Orders WHERE user_id=@u ORDER BY order_id DESC</code> — interleaved under the user, so it's a local range scan; a time-sortable <code>order_id</code> gives newest-first.</p>
+        <p class="ap"><strong>(c)</strong> read <code>Orders</code> + its interleaved <code>OrderItems</code> together — they share a split, so no distributed join.</p>
+        <p class="ap"><strong>(d)</strong> unlike Bigtable, Spanner has real <strong>secondary indexes</strong>: <code>OrdersByProduct</code> serves the admin query directly — no dual-write.</p>
+        <div class="note"><strong>The Spanner trap:</strong> never lead the primary key with a monotonically increasing value (a raw timestamp or auto-increment id) — every write lands on the last split and you get a <em>hotspot</em>. Hash- or UUID-prefix the key, or rely on interleaving so writes spread across parents.</div>
+
+        <p style="margin-top:1em"><strong>Same data in BigQuery (analytical warehouse).</strong> BigQuery is columnar and built for scans over the whole dataset, <em>not</em> low-latency point reads — so you flip the model: <strong>denormalize</strong>, embed line items as a repeated field, and prune cost with <strong>partitioning + clustering</strong> instead of indexes.</p>
+        <div class="code">CREATE TABLE orders (
+  order_id   STRING,
+  user_id    STRING,
+  created_at TIMESTAMP,
+  status     STRING,
+  total      NUMERIC,
+  items      ARRAY&lt;STRUCT&lt;product_id STRING, qty INT64, price NUMERIC&gt;&gt;   -- line items nested in the row
+)
+PARTITION BY DATE(created_at)     -- prune by day
+CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
+        <p class="ap"><strong>(a)</strong> profiles don't belong here — point reads are an OLTP job (keep them in DynamoDB/Spanner); BigQuery holds the analytics copy.</p>
+        <p class="ap"><strong>(b)</strong> <code>SELECT * FROM orders WHERE user_id=@u ORDER BY created_at DESC</code> — clustering on <code>user_id</code> prunes the scan (seconds, not milliseconds).</p>
+        <p class="ap"><strong>(c)</strong> line items are <em>in the row</em>: <code>SELECT i.* FROM orders, UNNEST(items) i WHERE order_id=@o</code> — no join.</p>
+        <p class="ap"><strong>(d)</strong> the product lookup is the query BigQuery is made for: <code>… FROM orders, UNNEST(items) i WHERE i.product_id=@p</code>, pruned by partition + cluster.</p>
+        <div class="note"><strong>The BigQuery trap:</strong> cost is <em>bytes scanned</em>, not rows returned. <code>SELECT *</code> on an unpartitioned table reads everything; always partition on the time column and select only the columns you need. And keep it off the serving path — it's an analytics store, not a key-value DB.</div>
+
+        <div class="note"><strong>Four stores, one access-pattern list — the through-line:</strong> DynamoDB → sort key + GSIs; Bigtable → one row key, you dual-write your own "index"; Spanner → SQL + interleaving + real secondary indexes; BigQuery → denormalize + partition/cluster for scans, no serving-path reads. Pick the store from the access patterns, then design keys to match — not the other way round.</div>
       </div>
     </div>
 
@@ -4677,6 +4718,16 @@ const SCHEMA_DRILLS=[
     access:['Get a user profile (point read).','List a user orders newest-first (prefix scan + reverse-timestamp key).','Fetch an order with all line items in one row (column family per item).','Admin: list orders for a product via a dual-written 2nd table / key prefix.','Discuss tall-narrow vs wide rows and hot-row avoidance.']
   },
   {
+    title:'Spanner interleaved ecommerce',
+    prompt:'Same ecommerce access patterns, but in Cloud Spanner: relational with SQL, transactions, and secondary indexes. Use INTERLEAVE IN PARENT for parent-child locality, and avoid hot splits from a monotonically increasing primary key.',
+    access:['Get a user profile (point read by primary key).','List a user orders newest-first (local range scan on the interleaved child).','Fetch an order with all line items co-located via interleaving (no cross-node join).','Admin: list orders for a product via a global secondary index (no dual-write).','Avoid a write hotspot from a timestamp-leading primary key.']
+  },
+  {
+    title:'BigQuery analytical ecommerce',
+    prompt:'Model the same ecommerce data for BigQuery analytics (not the serving path): denormalize with nested/repeated fields, partition and cluster for cost, and accept no indexes or enforced keys.',
+    access:['Store line items as a repeated ARRAY<STRUCT> inside the order row (no join).','List a user orders newest-first, pruned by clustering on user_id.','Expand line items with UNNEST for one order.','Admin: find all orders containing a product by scanning + UNNEST, pruned by partition/cluster.','Keep bytes-scanned (cost) bounded with date partitioning.']
+  },
+  {
     title:'URL shortener API/data',
     prompt:'Design APIs and storage schema for URL shortening, redirects, expiration, custom aliases, and analytics without putting analytics on the hot redirect path.',
     access:['Create a short link with optional custom alias and expiration.','Redirect by code with low latency.','Fetch owner analytics for a code.','Record click events asynchronously and tolerate duplicate events.']
@@ -4816,15 +4867,22 @@ function updateProgressUI(){
   document.getElementById('ovText').innerHTML='<span>'+done+'</span> / '+total+' concepts reviewed · '+pct+'%';
   document.querySelectorAll('.section').forEach(sec=>{
     const sid=sec.id.replace('section-','');
-    const secCards=sec.querySelectorAll('.card[data-cid]');
-    if(!secCards.length)return;
-    let d=0;secCards.forEach(c=>{if(prog[c.dataset.cid])d++;});
+    let d=0,tot=0;
+    if(sid==='exercises'){
+      const drills=loadDrills();
+      const exs=sec.querySelectorAll('.exercise[data-did]');
+      tot=exs.length;exs.forEach(e=>{if(drills[e.dataset.did])d++;});
+    }else{
+      const secCards=sec.querySelectorAll('.card[data-cid]');
+      tot=secCards.length;secCards.forEach(c=>{if(prog[c.dataset.cid])d++;});
+    }
+    if(!tot)return;
     const nav=document.querySelector('.nav-item[onclick*="\'' + sid + '\'"]');
     if(nav){
       let cnt=nav.querySelector('.nav-count');
       if(!cnt){cnt=document.createElement('span');cnt.className='nav-count';nav.appendChild(cnt);}
-      cnt.textContent=d+'/'+secCards.length;
-      cnt.classList.toggle('complete',d===secCards.length);
+      cnt.textContent=d+'/'+tot;
+      cnt.classList.toggle('complete',d===tot);
     }
   });
 }
@@ -4839,6 +4897,42 @@ function resetProgress(){
 }
 
 document.addEventListener('DOMContentLoaded',initProgress);
+
+/* ---- Drill (mock-design) done-tracking, persisted separately from concepts ---- */
+const DRILL_KEY='dsprep_drills_v1';
+function loadDrills(){try{return JSON.parse(localStorage.getItem(DRILL_KEY))||{};}catch(e){return {};}}
+function saveDrills(d){try{localStorage.setItem(DRILL_KEY,JSON.stringify(d));}catch(e){}}
+function initDrills(){
+  const sec=document.getElementById('section-exercises');
+  if(!sec)return;
+  const done=loadDrills();
+  sec.querySelectorAll('.exercise').forEach((ex,i)=>{
+    const did='drill-'+i;
+    ex.dataset.did=did;
+    const lbl=document.createElement('label');
+    lbl.className='ex-check';
+    const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!done[did];
+    const span=document.createElement('span');
+    lbl.appendChild(cb);lbl.appendChild(span);
+    const paint=()=>{
+      ex.classList.toggle('done',cb.checked);
+      lbl.classList.toggle('done',cb.checked);
+      span.textContent=cb.checked?'Done':'Mark as done';
+    };
+    cb.onchange=()=>{
+      const d=loadDrills();
+      if(cb.checked)d[did]=true;else delete d[did];
+      saveDrills(d);paint();
+      const car=ex.closest('.ex-carousel');
+      if(car&&car._render)car._render();
+      updateProgressUI();
+    };
+    paint();
+    ex.appendChild(lbl);
+  });
+  updateProgressUI();
+}
+document.addEventListener('DOMContentLoaded',initDrills);
 
 /* ---- Mock-designs drills: show one card per group at a time ---- */
 function setupExerciseCarousels(){
@@ -4856,7 +4950,8 @@ function setupExerciseCarousels(){
     items.forEach(it=>wrap.appendChild(it));
     let cur=0;
     const prev=nav.querySelector('[data-d="-1"]'),next=nav.querySelector('[data-d="1"]'),counter=nav.querySelector('.ex-counter');
-    function render(){items.forEach((it,i)=>it.classList.toggle('ex-on',i===cur));counter.textContent=(cur+1)+' / '+items.length;prev.disabled=cur===0;next.disabled=cur===items.length-1;}
+    function render(){items.forEach((it,i)=>it.classList.toggle('ex-on',i===cur));var d=items.filter(it=>it.classList.contains('done')).length;counter.textContent=(cur+1)+' / '+items.length+(d?' · '+d+' done':'');prev.disabled=cur===0;next.disabled=cur===items.length-1;}
+    wrap._render=render;
     nav.querySelectorAll('.ex-nav-btn').forEach(b=>b.onclick=()=>{cur=Math.max(0,Math.min(items.length-1,cur+ +b.dataset.d));render();});
     render();
   });
@@ -4871,6 +4966,12 @@ document.addEventListener('DOMContentLoaded',setupExerciseCarousels);
 .ex-nav-btn{font:inherit;font-size:13px;font-weight:500;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:6px 14px;cursor:pointer;transition:all .15s}
 .ex-nav-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .ex-nav-btn:disabled{opacity:.4;cursor:not-allowed}
+.ex-check{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-faint);cursor:pointer;user-select:none;margin-top:.85rem;padding-top:.7rem;border-top:1px dashed var(--border)}
+.ex-check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.ex-check.done{color:var(--success);font-weight:500}
+.exercise.done{border-color:#86EFAC}
+.ap{margin:.3rem 0}
+.exercise.done .ex-prompt strong:first-child::after{content:" ✓";color:var(--success)}
 </style>
 <button id="toTop" aria-label="Scroll to top" title="Back to top">↑</button>
 <style>
