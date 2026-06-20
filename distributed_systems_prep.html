@@ -740,6 +740,30 @@ a{color:var(--accent);text-decoration:none}
     <div class="cards">
 
       <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">What consensus is used for</div><div class="card-sub">One primitive — "agree on a value" — wearing many hats</div></div><span class="badge badge-teal">Mental model</span></div>
+        <div class="card-body">
+          <p>Consensus is a single primitive: <strong>get a quorum of nodes to agree on one value despite failures.</strong> A surprising number of distributed-systems problems are just that primitive in disguise — each is "agree on <em>X</em>":</p>
+          <style>
+          .cu-list{list-style:none;margin:.6rem 0;padding:0}
+          .cu-list li{padding:9px 12px;margin-bottom:7px;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;font-size:13.5px;line-height:1.55;background:var(--color-background-secondary)}
+          .cu-list li b{color:var(--color-text-primary)}
+          .cu-list li em{color:var(--color-text-info);font-style:normal;font-weight:600}
+          </style>
+          <ul class="cu-list">
+            <li><b>Strong-consistency replication (SMR)</b> → agree on the <em>order of operations</em> (the replicated log) ⇒ linearizability.</li>
+            <li><b>Leader election</b> → agree on <em>which node leads</em> this term — e.g. electing a shard's single leader.</li>
+            <li><b>Cluster membership</b> → agree on <em>who is in the group</em> (Raft joint consensus for adding/removing nodes).</li>
+            <li><b>Distributed locks / leases</b> → agree on <em>who holds the lock</em> (Chubby, ZooKeeper).</li>
+            <li><b>Config / metadata store</b> → agree on a <em>key's value</em> — where the partition/slot map lives (etcd and ZooKeeper <em>are</em> consensus systems); the very map request routing reads.</li>
+            <li><b>Fault-tolerant atomic commit</b> → make the 2PC coordinator a consensus group so it can't block (Spanner runs <em>2PC across Paxos groups</em> for cross-shard transactions).</li>
+          </ul>
+          <div class="note"><strong>The punchline:</strong> leader election is not a separate problem from consistency — it's the <em>same</em> problem. "Agree on who the leader is" and "agree on the next log entry" both reduce to "get a quorum to agree on one value." That's why Raft bundles leader election and log replication into one protocol — election comes essentially for free.</div>
+          <div class="note">It's usually leader-based (Raft / Multi-Paxos / ZAB), and it's exactly what <strong>leaderless-quorum</strong> systems (Dynamo, Cassandra) deliberately skip to buy availability — which is why they're eventually consistent.</div>
+          <div class="tag-row"><span class="tag">one primitive</span><span class="tag">election = consistency</span><span class="tag">etcd / ZooKeeper</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">Raft</div><div class="card-sub">Designed for understandability</div></div><span class="badge badge-blue">Industry standard</span></div>
         <div class="card-body">
           <p>Raft breaks the consensus problem into three subproblems: leader election, log replication, and safety. The design goal was understandability — Paxos is correct but notoriously hard to implement.</p>
@@ -1349,14 +1373,16 @@ Cancel  &rarr; release seat, unfreeze $50</div>
   function xy(a,rad){var t=(a-90)*Math.PI/180;return [cx+rad*Math.cos(t),cy+rad*Math.sin(t)];}
   function render(){
     var nd=nodes(),positions=[];
-    nd.forEach(function(node,ni){posOf(node).forEach(function(a){positions.push({a:a,ni:ni});});});
+    nd.forEach(function(node,ni){posOf(node).forEach(function(a,vi){positions.push({a:a,ni:ni,vi:vi});});});
     var owners=KEYS.map(function(k){var best=0,bd=1e9;positions.forEach(function(p){var d=((p.a-k)%360+360)%360;if(d<bd){bd=d;best=p.ni;}});return best;});
     var sorted=positions.slice().sort(function(a,b){return a.a-b.a;});
     function arc(a1,a2,rad){var p1=xy(a1,rad),p2=xy(a2,rad),delta=((a2-a1)%360+360)%360,lg=delta>180?1:0;return 'M'+p1[0]+' '+p1[1]+' A '+rad+' '+rad+' 0 '+lg+' 1 '+p2[0]+' '+p2[1];}
     var s='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--color-border-tertiary)" stroke-width="1"/>';
     sorted.forEach(function(p,i){var prev=sorted[(i-1+sorted.length)%sorted.length];s+='<path d="'+arc(prev.a,p.a,R)+'" fill="none" stroke="'+nd[p.ni].color+'" stroke-width="6" opacity="0.85"/>';});
-    positions.forEach(function(p){var d=xy(p.a,R);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="3.5" fill="'+nd[p.ni].color+'" stroke="#fff" stroke-width="1"/>';});
-    nd.forEach(function(node){var b=xy(BASE[node.label],R);s+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="11" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+b[0]+'" y="'+(b[1]+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">'+node.label+'</text>';});
+    positions.forEach(function(p){
+      var node=nd[p.ni],d=xy(p.a,R),label=vnodes?node.label+(p.vi+1):node.label,rad=vnodes?8.5:11,fs=vnodes?7.5:12,dy=vnodes?2.7:4;
+      s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="'+rad+'" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+d[0]+'" y="'+(d[1]+dy)+'" text-anchor="middle" font-size="'+fs+'" font-weight="800" fill="#fff">'+label+'</text>';
+    });
     KEYS.forEach(function(k,i){var d=xy(k,R+14);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="4.5" fill="'+nd[owners[i]].color+'"/>';});
     svg.innerHTML=s;
     var moveTxt='';
@@ -1798,7 +1824,59 @@ COMMIT
   return val</div>
           <p>On a cache miss you pay two round trips — one to the DB, one to populate the cache. Data can go stale between population and TTL expiry. Works well for read-heavy workloads where most data is accessed infrequently. The TTL is your only consistency mechanism — too short and you lose the benefit, too long and you serve stale data.</p>
           <div class="note"><strong>Invalidation, not update:</strong> on a write, <em>delete</em> the cache key rather than updating it. Concurrent update-then-set races can leave a stale value cached forever; delete-on-write lets the next read repopulate cleanly.</div>
+          <div class="note"><strong>The populate-on-miss race:</strong> a reader misses and fetches the old DB value; before it writes that value back, a writer updates the DB and deletes the key — so the reader repopulates a <em>stale</em> value that lives until TTL. Cheap defense: a short TTL + single-flight. Full defense: a <strong>versioned (compare-and-swap) <code>set</code></strong> that rejects a write whose version is older than what's already cached. This race is unique to cache-aside — write-through and write-back populate on the write path, so they never read-then-populate.</div>
           <div class="tag-row"><span class="tag">Redis</span><span class="tag">Memcached</span><span class="tag">read-heavy</span></div>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Read-through (cache loads on miss)</div><div class="card-sub">Same lazy-load effect — but the cache does the loading, not the app</div></div><span class="badge badge-blue">Read path</span></div>
+        <div class="card-body">
+          <p>Read-through produces the <em>same effect</em> as cache-aside — on a miss, data is loaded from the DB into the cache — but it differs on <strong>who orchestrates the load</strong>. In cache-aside the <strong>application</strong> reads the DB and populates the cache. In read-through the <strong>cache itself</strong> has a loader and fetches from the DB on a miss, so the app only ever talks to the cache.</p>
+          <div class="code">read(key):
+  return cache.get(key)   # the cache's loader reads the DB on a miss
+                          # app never touches the DB directly</div>
+          <div class="rtc-wrap" onclick="event.stopPropagation()">
+<style>
+.rtc-dia{display:block;width:100%;height:auto;max-width:400px;margin:.4rem auto 0}
+.rtc-nd{fill:var(--color-background-primary);stroke:var(--color-border-primary);stroke-width:1.4}
+.rtc-nd.cache{fill:var(--color-background-info);stroke:var(--color-border-info)}
+.rtc-t{font-weight:700;font-size:11px;fill:var(--color-text-primary)}
+.rtc-t.cache{fill:var(--color-text-info)}
+.rtc-e{fill:none;stroke:var(--color-text-tertiary);stroke-width:1.6}
+.rtc-e.hot{fill:none;stroke:var(--color-text-danger);stroke-width:2.4}
+.rtc-ttl{font-size:12px;font-weight:800;fill:var(--color-text-primary);text-anchor:middle}
+.rtc-cap{font-size:10.5px;font-weight:700;text-anchor:middle}
+.rtc-cap.hot{fill:var(--color-text-danger)}
+.rtc-el{font-family:var(--font-mono);font-size:8.5px;fill:var(--color-text-tertiary);text-anchor:middle}
+</style>
+            <svg class="rtc-dia" viewBox="0 0 372 188" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cache-aside vs read-through: which component reads the DB on a miss">
+              <defs>
+                <marker id="rtc-g" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-tertiary)"/></marker>
+                <marker id="rtc-r" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" style="fill:var(--color-text-danger)"/></marker>
+              </defs>
+              <line x1="186" y1="24" x2="186" y2="180" stroke="var(--color-border-primary)" stroke-width="1" stroke-dasharray="3 4"/>
+              <!-- Panel A: cache-aside -->
+              <text class="rtc-ttl" x="90" y="16">Cache-aside</text>
+              <rect class="rtc-nd" x="58" y="28" width="64" height="26" rx="7"/><text class="rtc-t" x="90" y="45" text-anchor="middle">App</text>
+              <rect class="rtc-nd cache" x="14" y="116" width="60" height="26" rx="7"/><text class="rtc-t cache" x="44" y="133" text-anchor="middle">Cache</text>
+              <rect class="rtc-nd" x="104" y="116" width="56" height="26" rx="7"/><text class="rtc-t" x="132" y="133" text-anchor="middle">DB</text>
+              <path class="rtc-e" d="M80,54 L52,114" marker-end="url(#rtc-g)"/><text class="rtc-el" x="56" y="90">get</text>
+              <path class="rtc-e hot" d="M104,54 L126,114" marker-end="url(#rtc-r)"/><text class="rtc-el" x="124" y="90" style="fill:var(--color-text-danger)">read</text>
+              <text class="rtc-cap hot" x="90" y="172">App reads the DB</text>
+              <!-- Panel B: read-through -->
+              <text class="rtc-ttl" x="282" y="16">Read-through</text>
+              <rect class="rtc-nd" x="250" y="28" width="64" height="26" rx="7"/><text class="rtc-t" x="282" y="45" text-anchor="middle">App</text>
+              <rect class="rtc-nd cache" x="206" y="116" width="60" height="26" rx="7"/><text class="rtc-t cache" x="236" y="133" text-anchor="middle">Cache</text>
+              <rect class="rtc-nd" x="296" y="116" width="56" height="26" rx="7"/><text class="rtc-t" x="324" y="133" text-anchor="middle">DB</text>
+              <path class="rtc-e" d="M272,54 L244,114" marker-end="url(#rtc-g)"/><text class="rtc-el" x="248" y="90">get</text>
+              <path class="rtc-e hot" d="M266,129 L294,129" marker-end="url(#rtc-r)"/><text class="rtc-el" x="280" y="124" style="fill:var(--color-text-danger)">loader</text>
+              <text class="rtc-cap hot" x="282" y="172">Cache reads the DB</text>
+            </svg>
+          </div>
+          <p>The red edge is the whole distinction: it moves from <strong>App&rarr;DB</strong> to <strong>Cache&rarr;DB</strong>. Read-through keeps app code simple (no miss-logic duplicated at every call site), but it needs a cache that supports a <strong>loader</strong> and couples the cache to your data source. Cache-aside is the common default because plain Redis/Memcached have no loader, and the app keeps working if the cache is down (it just hits the DB).</p>
+          <div class="note"><strong>Pairs with write-through:</strong> read-through is usually combined with write-through — the same idea on the write path, where the cache (not the app) propagates to the DB. Examples: AWS DAX in front of DynamoDB; Caffeine/Ehcache <code>CacheLoader</code>.</div>
+          <div class="tag-row"><span class="tag">same effect, different owner</span><span class="tag">needs a loader</span><span class="tag">DAX / Caffeine</span></div>
         </div>
       </div>
 
@@ -1933,6 +2011,7 @@ COMMIT
           <p><strong>Mutex lock:</strong> only the first request to miss fetches from DB; all others wait on a lock. Adds latency for waiters, but prevents DB overload.</p>
           <p><strong>Probabilistic early expiration (PER):</strong> before the TTL expires, randomly decide to refresh early based on remaining TTL and fetch cost. Smoothly pre-warms the cache.</p>
           <p><strong>Stale-while-revalidate:</strong> serve the stale cached value immediately while a background job refreshes it. No user-visible latency, slightly stale data.</p>
+          <p><strong>Cache warming (pre-warming):</strong> proactively load the hot keys <em>before</em> traffic hits them — on deploy/restart/failover, or ahead of a predictable spike (flash sale, launch). This is the one fix for a <em>cold</em> cache: single-flight has nothing to coalesce and stale-while-revalidate has no stale value to serve when the whole cache is empty, so warming the hot set is what prevents the cold-start herd. <em>Refresh-ahead</em> (background-refresh hot keys before TTL) is the steady-state version.</p>
           <div class="code">Jittered TTL: ttl = base_ttl * (0.9 + random() * 0.2)
 Spreads expiration across a window &rarr; no simultaneous mass expiry</div>
         </div>
@@ -1948,6 +2027,24 @@ Spreads expiration across a window &rarr; no simultaneous mass expiry</div>
           <tr><td>Random</td><td>Random entry</td><td>Low overhead approximation</td></tr>
           <tr><td>TTL</td><td>Expired entries first</td><td>Time-sensitive data</td></tr></table>
           <p>Redis uses approximate LRU — it samples a small set of keys and evicts the least recent among them. TinyLFU (used in Caffeine / Guava) typically outperforms LRU in hit rate for most real workloads.</p>
+        </div>
+      </div>
+
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Local cache vs distributed cache</div><div class="card-sub">In-process L1 in front of the shared L2</div></div><span class="badge badge-blue">Tiering</span></div>
+        <div class="card-body">
+          <p>A <strong>local (in-process)</strong> cache lives in the app server's own memory (Caffeine, Guava) — nanoseconds away but <strong>private to that one instance</strong>. A <strong>distributed</strong> cache (Redis / Memcached) is one network hop away but <strong>shared</strong> by every instance. The common setup is a small local <strong>L1 in front of</strong> the distributed <strong>L2</strong>, in front of the DB.</p>
+          <table class="tbl"><tr><th></th><th>Local (in-process)</th><th>Distributed (Redis)</th></tr>
+          <tr><td>Latency</td><td>~µs, no network hop</td><td>~0.5–2 ms, one hop</td></tr>
+          <tr><td>Sharing</td><td>private per instance</td><td>shared by all apps</td></tr>
+          <tr><td>Hot key</td><td>absorbs it (load spreads across apps)</td><td>can overload one node</td></tr>
+          <tr><td>Consistency</td><td>per-node stale (N copies)</td><td>one copy to invalidate</td></tr>
+          <tr><td>Capacity</td><td>small (duplicated per instance)</td><td>large</td></tr>
+          <tr><td>On restart</td><td>cold (empty)</td><td>warm (survives app restarts)</td></tr></table>
+          <div class="note"><strong>When to add a local cache:</strong> data that's small, read-heavy, slow-changing, and tolerant of brief staleness — feature flags, config, auth keys (JWKS), the routing/slot map — or to absorb a <em>hot key</em> during a spike. <strong>Not for</strong> user sessions, write-heavy data, or anything needing read-your-writes across servers (use the shared Redis).</div>
+          <div class="note"><strong>Keeping it fresh — TTL vs near-cache:</strong> a short <strong>TTL</strong> is the self-healing default (staleness bounded by the TTL, no coordination). A <strong>near-cache</strong> goes further: the local L1 is kept <em>coherent</em> with the distributed L2 — on a write, L2 broadcasts an "evict key K" message (Redis pub/sub or a bus) and every instance drops its copy, shrinking the staleness window from "until TTL" to the propagation delay (ms). You keep local-speed reads but gain coordinated invalidation; the cost is a pub/sub channel and a tiny lag. Built into Hazelcast / Ignite / Ehcache, or Caffeine + Redis by hand (Netflix EVCache is a large-scale cousin).</div>
+          <div class="note"><strong>Good fit = hot, tiny, global, slow-changing, staleness-tolerant:</strong> feature flags, config, JWKS keys, role/permission definitions, rate-limit <em>rules</em> (not counters), the routing/slot map, currency/reference tables, ML model metadata. <strong>Bad fit = per-user, write-heavy, must-be-consistent:</strong> sessions (read-your-writes, land on different servers, must invalidate instantly on logout), anything needing read-your-writes across servers — keep those in the shared Redis.</div>
+          <div class="tag-row"><span class="tag">L1 / L2 tiering</span><span class="tag">hot-key relief</span><span class="tag">near-cache</span></div>
         </div>
       </div>
 
@@ -2967,7 +3064,7 @@ each step independently deployable &amp; rollback-safe</div>
           <div class="note"><strong>Canonical:</strong> Agents → Kafka → stream aggregation (rollups) → TSDB; the query layer routes each request to the right resolution tier.</div>
           <div class="note warn"><strong>Classic trap:</strong> a raw monotonically-increasing timestamp as the sole partition key → one ever-growing hot partition. Bucket and spread.</div>
           <div class="tag-row"><span class="tag">composes: Scaling writes</span><span class="tag">Async pipelines</span></div>
-          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-timeseries')">Time-series / metrics drill</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-metrics-api')">Metrics/time-series API</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Metrics/time-series API')">(LLM drill)</a>.</p>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-timeseries')">Time-series / metrics drill</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-topk-trending')">Top-K trending</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-adclick-aggregation')">Ad-click aggregation</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-metrics-api')">Metrics/time-series API</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Metrics/time-series API')">(LLM drill)</a>.</p>
         </div>
       </div>
 
@@ -2992,7 +3089,7 @@ each step independently deployable &amp; rollback-safe</div>
           </div>
           <div class="note warn"><strong>Classic trap:</strong> one fan-out strategy for everyone — pure write explodes on celebrities, pure read explodes for users following thousands. Pick by follower count.</div>
           <div class="tag-row"><span class="tag">composes: Fan-out</span><span class="tag">Notifications</span><span class="tag">Caching</span></div>
-          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-follow-graph')">Follow graph + tweets</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-newsfeed-api')">News feed API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-counters')">Counters &amp; denormalization</a>.</p>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-follow-graph')">Follow graph + tweets</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-newsfeed-api')">News feed API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-counters')">Counters &amp; denormalization</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('News aggregator API/data')">News aggregator API/data (LLM drill)</a>.</p>
         </div>
       </div>
 
@@ -3044,7 +3141,7 @@ each step independently deployable &amp; rollback-safe</div>
           <div class="note"><strong>Canonical:</strong> idempotent <code>POST</code> message + WebSocket subscribe; server pushes new messages and receipts; history via cursor; presence via heartbeat + TTL.</div>
           <div class="note warn"><strong>Classic trap:</strong> WebSockets-first when polling suffices; assuming global ordering when you only have per-conversation order.</div>
           <div class="tag-row"><span class="tag">composes: Real-time updates</span><span class="tag">Fan-out</span></div>
-          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-api')">Chat API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-data')">Chat / messaging data drill</a>.</p>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-api')">Chat API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-chat-data')">Chat / messaging data drill</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Online chess API/data')">Online chess API/data (LLM drill)</a>.</p>
         </div>
       </div>
 
@@ -3097,31 +3194,31 @@ each step independently deployable &amp; rollback-safe</div>
           <div class="note"><strong>Canonical:</strong> client gets a presigned URL → uploads to S3 → storage event → enqueue transcode → downloads served via CDN with signed URLs.</div>
           <div class="note warn"><strong>Classic trap:</strong> proxying file bytes through the application, or Base64-ing files into the database.</div>
           <div class="tag-row"><span class="tag">composes: Large blobs</span><span class="tag">Long-running tasks</span><span class="tag">Multi-step</span></div>
-          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-google-drive')">File sharing permissions</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('File sharing permissions')">(LLM drill)</a>; the Large-blobs pattern.</p>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-google-drive')">File sharing permissions</a> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('File sharing permissions')">(LLM drill)</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Image upload + delivery API/data')">Image upload + delivery API/data (LLM drill)</a>; the Large-blobs pattern.</p>
         </div>
       </div>
 
       <div class="card" onclick="toggle(this)">
         <div class="card-header"><div class="card-meta"><div class="card-title">7 · KV lookup at scale</div><div class="card-sub">URL shortener, ad serving, feature flags, ID gen</div></div><span class="badge badge-purple">Archetype</span></div>
         <div class="card-body">
-          <p><strong>Essence.</strong> A simple key → value lookup at enormous read volume. The whole game is <em>sharding, caching, and unique keys</em>.</p>
+          <p><strong>Essence.</strong> A simple key → value lookup at enormous read volume. The whole game is <em>unique keys, caching, and scaling the origin KV store only when needed</em>.</p>
           <p><strong>You're here when</strong> you hear "shorten / expand", "lookup by id", "extremely high read QPS", "redirect", "generate a unique id", or "feature flag".</p>
           <p class="ap"><strong>Key generation</strong> — collision-free codes (base62 of a counter / Snowflake) or a hash; globally-unique, time-sortable IDs (Snowflake / UUIDv7) for index locality.</p>
-          <p class="ap"><strong>Sharding</strong> — consistent hashing on the key; never <code>hash % N</code> (catastrophic resharding churn).</p>
-          <p class="ap"><strong>Cache the hot path</strong> — CDN / Redis in front; this is read-dominated (often 100:1+).</p>
+          <p class="ap"><strong>Partitioning the KV store</strong> — relevant once the corpus / miss traffic outgrows one node or partition. Use the short code as the partition key; if you manage nodes yourself, prefer fixed partitions / consistent hashing over <code>hash % N</code>.</p>
+          <p class="ap"><strong>Cache the hot path</strong> — usually Redis / in-process cache in front; use CDN / edge only for globally hot, cacheable redirects where losing per-click server hits is acceptable.</p>
           <p class="ap"><strong>Keep analytics off the hot path</strong> — record clicks asynchronously; don't write on the redirect.</p>
           <div class="ctv" onclick="event.stopPropagation()">
             <div class="ctv-flow">
               <div class="ctv-box good"><div class="ctv-t">Client</div><div class="ctv-s">GET /{code}</div></div>
               <div class="ctv-arr">→</div>
-              <div class="ctv-box info"><div class="ctv-t">Cache / CDN</div><div class="ctv-s">hot path</div></div>
+              <div class="ctv-box info"><div class="ctv-t">Redis cache</div><div class="ctv-s">hot path</div></div>
               <div class="ctv-arr">→</div>
-              <div class="ctv-box warn"><div class="ctv-t">KV store</div><div class="ctv-s">sharded (consistent hash)</div></div>
+              <div class="ctv-box warn"><div class="ctv-t">KV store</div><div class="ctv-s">partition by code</div></div>
             </div>
             <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Unique IDs</div><div class="ctv-s">Snowflake / base62</div></div><div class="ctv-box"><div class="ctv-t">Analytics</div><div class="ctv-s">logged async, off hot path</div></div></div>
           </div>
-          <div class="note"><strong>Canonical:</strong> <code>POST</code> create → store code → url; <code>GET /{code}</code> → cache → 301/302 redirect; clicks logged async.</div>
-          <div class="note warn"><strong>Classic trap:</strong> 301 (browser-cached, loses analytics) vs 302 (every click hits you); putting analytics writes on the redirect path; <code>hash % N</code> resharding.</div>
+          <div class="note"><strong>Canonical:</strong> <code>POST</code> create → store code → url; <code>GET /{code}</code> → cache-aside lookup → 301/302 redirect; clicks logged async.</div>
+          <div class="note warn"><strong>Classic trap:</strong> 301 (browser-cached, loses analytics) vs 302 (every click hits you); putting analytics writes on the redirect path; premature sharding, or <code>hash % N</code> if you do need to rebalance nodes.</div>
           <div class="tag-row"><span class="tag">composes: Scaling reads</span><span class="tag">Caching</span><span class="tag">Unique IDs</span></div>
           <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-url-api')">URL shortener API</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('URL shortener API/data')">URL shortener API/data (LLM drill)</a>.</p>
         </div>
@@ -3164,7 +3261,7 @@ each step independently deployable &amp; rollback-safe</div>
           <div class="note"><strong>Canonical:</strong> API enqueues a job → worker pool → idempotent handler → outbox/events downstream; saga compensations on failure.</div>
           <div class="note warn"><strong>Classic trap:</strong> queueing reflexively for short jobs; trusting the broker for exactly-once; dual-writing DB + broker without an outbox.</div>
           <div class="tag-row"><span class="tag">composes: Long-running tasks</span><span class="tag">Multi-step</span><span class="tag">Notifications</span></div>
-          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Outbox + event publishing')">Outbox + event publishing (LLM drill)</a>.</p>
+          <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-job-scheduler-data')">Distributed job scheduler data model</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-job-scheduler-api')">Job scheduler API</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Distributed job scheduler API/data')">Job scheduler API/data (LLM drill)</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('Outbox + event publishing')">Outbox + event publishing (LLM drill)</a>.</p>
         </div>
       </div>
 
@@ -3222,6 +3319,52 @@ each step independently deployable &amp; rollback-safe</div>
         <p class="ap"><strong>Playbook:</strong> a denormalised count column updated by idempotent async increments (don't <code>COUNT(*)</code> millions of rows); cache the hot counts.</p>
         <p class="ap"><strong>"Did I like it?":</strong> a separate membership lookup keyed by (post, user) — don't scan the likes.</p>
         <div class="note warn"><strong>Trap:</strong> computing the count from the likes table on every read; double-counting under retries (make increments idempotent).</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-topk-trending">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design a Top-K trending topics service</strong> — ingest topic mentions at high volume and return the top 20 topics by rolling time window, region, and language.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Time-series &amp; analytics</strong> (windowed aggregation / heavy hitters) — composes with <strong>Batch &amp; stream</strong> for near-real-time updates.</p>
+        <p class="ap"><strong>Playbook:</strong> ingest mention events into Kafka; stream processor maintains per-partition counts or approximate heavy-hitter sketches per window; reducer merges local candidates into global Top-K snapshots.</p>
+        <p class="ap"><strong>Read path:</strong> dashboards read cached snapshots keyed by <code>(window, region, language, k)</code>, not raw events. Optional drill-down reads exact counts from a separate aggregate store.</p>
+        <div class="ctv" onclick="event.stopPropagation()">
+          <div class="ctv-flow">
+            <div class="ctv-box good"><div class="ctv-t">Mentions</div><div class="ctv-s">topic events</div></div>
+            <div class="ctv-arr">→</div>
+            <div class="ctv-box info"><div class="ctv-t">Window workers</div><div class="ctv-s">local top-k</div></div>
+            <div class="ctv-arr">→</div>
+            <div class="ctv-box warn"><div class="ctv-t">Merge heap</div><div class="ctv-s">global snapshot</div></div>
+          </div>
+          <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">Approx path</div><div class="ctv-s">sketches bound memory</div></div><div class="ctv-box"><div class="ctv-t">Exact path</div><div class="ctv-s">batch/replay correction</div></div></div>
+        </div>
+        <div class="note warn"><strong>Trap:</strong> sorting all topics on every request, or keeping one global counter per hot topic. Precompute snapshots and shard hot counters.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-adclick-aggregation">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design an ad-click aggregation system</strong> — collect click events, deduplicate retries, show near-real-time campaign stats, and handle late conversions.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Time-series &amp; analytics</strong> (event aggregation / reporting) — composes with <strong>Async pipelines</strong> to keep reporting off the click redirect path.</p>
+        <p class="ap"><strong>Playbook:</strong> click collector emits immutable raw events to Kafka; stream workers dedupe by <code>click_id</code>, aggregate by event-time window, and materialize campaign/ad rollups for dashboard reads.</p>
+        <p class="ap"><strong>Reliability half:</strong> keep raw events in object storage for audit and replay; late events and fraud corrections update rollups instead of mutating history in place.</p>
+        <div class="ctv" onclick="event.stopPropagation()">
+          <div class="ctv-flow">
+            <div class="ctv-box good"><div class="ctv-t">Click pixel</div><div class="ctv-s">click_id</div></div>
+            <div class="ctv-arr">→</div>
+            <div class="ctv-box info"><div class="ctv-t">Kafka raw log</div><div class="ctv-s">durable replay</div></div>
+            <div class="ctv-arr">→</div>
+            <div class="ctv-box warn"><div class="ctv-t">Dedup + rollups</div><div class="ctv-s">campaign stats</div></div>
+          </div>
+          <div class="ctv-side"><div class="ctv-box"><div class="ctv-t">OLAP store</div><div class="ctv-s">dashboard queries</div></div><div class="ctv-box"><div class="ctv-t">Fraud jobs</div><div class="ctv-s">signals from stream</div></div></div>
+        </div>
+        <div class="note warn"><strong>Trap:</strong> writing dashboard aggregates synchronously during redirect; it slows the money path and makes retries double-count unless every increment is idempotent.</div>
       </div>
     </div>
 
@@ -4225,6 +4368,109 @@ Processing time = when the stream processor sees the event
       </div>
     </div>
 
+    <!-- Full-system mock drills -->
+    <div class="ex-group-label">Full-system mock drills</div>
+
+    <div class="exercise" id="ex-distributed-cache">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Distributed cache.</strong> Design a Redis/Memcached-style cache service used by many application services. Support get/set/delete, TTLs, horizontal scale, node failures, hot keys, and cache stampede protection.</div>
+      <div class="ex-tests">Tests: cache-aside role, consistent hashing, TTL/eviction, replication/failover, hot-key and stampede handling.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> this is a cache, not the source of truth. Start with <code>GET key</code>, <code>SET key value ttl</code>, <code>DELETE key</code>, optional <code>MGET</code>, and a client library or proxy that routes keys to cache nodes.</p>
+        <p><strong>Internal API (gRPC):</strong> the cache is a service-to-service dependency, so a typed proto over HTTP/2 fits — compact, low-latency, fast-failing.</p>
+        <div class="code">syntax = "proto3";
+package cache.v1;
+
+message CacheEntry {
+  string key     = 1;
+  bytes  value   = 2;   // opaque blob — the cache never parses it
+  int64  version = 3;   // 0 = don't check (no CAS)
+}
+
+message GetRequest  { string key = 1; }
+message GetResponse { CacheEntry entry = 1; bool found = 2; }   // found=false &rarr; miss, not an error
+
+message MGetRequest  { repeated string keys = 1; }
+message MGetResponse { map&lt;string, CacheEntry&gt; entries = 1; }   // absent key = miss
+
+message SetRequest  { CacheEntry entry = 1; int32 ttl_seconds = 2; }  // 0 = server default TTL
+message SetResponse { bool accepted = 1; string reason = 2; }        // accepted=false &rarr; stale version (CAS)
+
+message DeleteRequest  { string key = 1; }
+message DeleteResponse { bool deleted = 1; }   // deleted=false &rarr; wasn't present, not an error
+
+service CacheService {
+  rpc Get    (GetRequest)    returns (GetResponse);
+  rpc MGet   (MGetRequest)   returns (MGetResponse);
+  rpc Set    (SetRequest)    returns (SetResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+}</div>
+        <p><strong>Why this shape:</strong> <code>value</code> is <code>bytes</code> because a cache is type-agnostic — the app serializes, the cache stores an opaque blob. A miss is a normal result, never a gRPC error: <code>found=false</code>, an absent map entry, or <code>deleted=false</code>. <code>MGet</code> batches reads to amortize round trips. Unlike the payment proto, no <code>idempotency_key</code> is needed — Get is safe and Set/Delete are naturally idempotent.</p>
+        <p><strong><code>version</code> = compare-and-swap, and only cache-aside needs it.</strong> It closes the populate-on-miss race: a reader that fetched an old DB value is rejected when it tries to <code>Set</code> a version older than what's cached. Write-through/write-back populate on the write path and never read-then-populate, so they have no such race. Prefer <code>ttl_seconds = 0 &rarr; server default</code> over "no expiry" — an unset proto3 int is also 0, and silently-permanent keys leak memory.</p>
+        <p><strong>Architecture:</strong> use consistent hashing with virtual nodes (or fixed slots like Redis Cluster) so adding/removing nodes only moves a fraction of keys. Store values in memory with TTL plus LRU/LFU eviction. Replicate hot/important shards if availability matters.</p>
+        <p><strong>Writes and consistency:</strong> most product systems use cache-aside: app writes the database, then invalidates the cache key. Do not update the cache first and pretend it is durable. Stale reads are acceptable only within the TTL/invalidation window.</p>
+        <p><strong>Deep dives:</strong> hot key gets replicated or locally cached; node failure causes misses and refill, not data loss; stampede is handled with single-flight, jittered TTLs, stale-while-revalidate, cache warming (pre-warm hot keys on a cold cache or before a spike), and backpressure to protect the origin DB.</p>
+        <div class="note warn"><strong>Trap:</strong> saying "just add Redis" without explaining key routing, rebalancing, eviction, and what happens when a popular key expires.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-news-aggregator">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>News aggregator.</strong> Design a Google News/Apple News-style aggregator that ingests articles from many publishers, deduplicates near-identical stories, clusters them into topics, ranks the feed, and serves personalized views.</div>
+      <div class="ex-tests">Tests: crawl/ingest pipeline, deduplication, search/indexing, feed ranking, freshness vs quality tradeoff.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> ingest RSS/sitemaps/APIs and publisher web pages; parse article metadata/body; dedupe syndicated copies; cluster related articles; serve topic pages, search, and a personalized front page.</p>
+        <p><strong>Architecture:</strong> source scheduler -> fetchers with per-domain politeness -> parser/extractor -> canonical URL/content hash + near-duplicate detector -> topic clustering/indexing -> ranker -> feed cache.</p>
+        <p><strong>Data model:</strong> articles, sources, canonical_story clusters, topic labels, user follows/preferences, click/impression events. Search index stores text; relational/NoSQL store holds metadata; object storage keeps raw HTML for replay.</p>
+        <p><strong>Deep dives:</strong> freshness from stream ingest and fast indexing; quality from source authority and spam filtering; personalization as a read-time rerank over precomputed candidate pools; late corrections through reprocessing raw articles.</p>
+        <div class="note warn"><strong>Trap:</strong> treating it as only a feed. The hard parts are crawl politeness, duplicate/syndicated content, clustering multiple sources into one story, and ranking fresh content without amplifying spam.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-online-chess">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Online chess.</strong> Design a chess platform with matchmaking, real-time games, clocks, legal move validation, reconnects, spectators, and durable game history.</div>
+      <div class="ex-tests">Tests: authoritative game state, WebSocket fanout, timer correctness, idempotent moves, reconnect and anti-cheat signals.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> players join queues, get matched, play legal moves under clocks, reconnect, resign/draw, and review completed games. Spectators can watch without affecting the game.</p>
+        <p><strong>Architecture:</strong> WebSocket gateways route by game_id to an authoritative game service shard. The game service validates moves, updates clocks, appends a move event, persists snapshots/history, and publishes state to both players and spectators.</p>
+        <p><strong>Consistency:</strong> one game has one authoritative sequencer at a time. Each move carries a client move id and expected move number; duplicates return the committed move, stale/out-of-order moves are rejected.</p>
+        <p><strong>Deep dives:</strong> clocks run server-side, not client-side; reconnect fetches the latest game snapshot + move list; shard by game_id; failover needs a persisted move log and fencing so two servers do not accept moves for the same game.</p>
+        <div class="note warn"><strong>Trap:</strong> making both clients peer-authoritative or trusting client clocks. The server owns legality, turn order, time, and final result.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-image-upload">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Image upload service.</strong> Design image upload and delivery for a social app: large/mobile uploads, metadata, thumbnails, moderation, transformations, CDN delivery, and safe retries.</div>
+      <div class="ex-tests">Tests: presigned upload, metadata/storage reconciliation, async processing, idempotency, CDN/cache invalidation, abuse handling.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> clients upload images, see upload status, get thumbnails/variants, delete images, and retrieve CDN URLs. App servers should not proxy image bytes.</p>
+        <p><strong>Architecture:</strong> API creates an upload record and presigned object-storage URL; client uploads directly; storage event enqueues processing; workers validate file type, strip metadata, generate variants, run moderation, then mark the asset ready.</p>
+        <p><strong>Data model:</strong> assets(id, owner_id, status, original_object_key, content_hash, created_at), variants(asset_id, size, object_key), moderation_result, and an idempotency key for retry-safe upload creation.</p>
+        <p><strong>Deep dives:</strong> multipart/resumable upload for mobile; CDN with immutable versioned URLs; reconcile DB rows with object-store events; quarantine suspicious images before public delivery.</p>
+        <div class="note warn"><strong>Trap:</strong> streaming every upload through the app tier, or marking an image public before validation/moderation and variant generation finish.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-llm-serving">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>LLM serving platform.</strong> Design an API that serves chat/completion requests for multiple models with streaming tokens, batching, GPU scheduling, rate limits, prompt/context limits, and safe rollout of model versions.</div>
+      <div class="ex-tests">Tests: GPU bottlenecks, request scheduling, streaming, KV cache, model routing, quotas, reliability and rollout.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> accept chat/completion requests, stream tokens, enforce auth/quotas/context limits, route to a model version, and expose usage/latency metrics. Training is out of scope.</p>
+        <p><strong>Architecture:</strong> API gateway validates requests and rate limits; scheduler batches compatible requests by model/context shape; GPU workers run inference and stream tokens back; model registry controls versions, canaries, and rollback.</p>
+        <p><strong>Performance:</strong> GPUs are the bottleneck. Use continuous batching, KV-cache reuse within a request, admission control for long prompts, priority queues, and autoscaling by queue delay/GPU utilization.</p>
+        <p><strong>Reliability:</strong> if a worker dies mid-stream, return a clear retryable error or resume only if the product stores deterministic request state. Log prompts/responses according to privacy policy and redact sensitive data from observability.</p>
+        <div class="note warn"><strong>Trap:</strong> treating inference like a normal stateless HTTP handler. The design is mostly GPU scheduling, batching, backpressure, model rollout, and cost control.</div>
+      </div>
+    </div>
+
     <!-- Back-of-envelope drills -->
     <div class="ex-group-label">Back-of-envelope drills</div>
 
@@ -4248,7 +4494,7 @@ Processing time = when the stream processor sees the event
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
         <p><strong>Writes:</strong> 100M/day ÷ 86,400 ≈ <strong>~1.2K/sec</strong>; peak ≈ ~6K/sec.</p>
-        <p><strong>Reads (redirects):</strong> ×100 = 10B/day ≈ <strong>~116K/sec</strong>; peak ≈ ~580K/sec → serve from cache/CDN + read replicas, never the primary.</p>
+        <p><strong>Reads (redirects):</strong> ×100 = 10B/day ≈ <strong>~116K/sec</strong>; peak ≈ ~580K/sec → serve hot codes from Redis/cache-aside + read replicas, never the primary.</p>
         <div class="urlv" onclick="event.stopPropagation()">
 <style>
 .urlv{display:grid;gap:10px;margin:.75rem 0}
@@ -4265,9 +4511,9 @@ Processing time = when the stream processor sees the event
 .urlv-cap b{color:var(--color-text-primary)}
 @media(max-width:560px){.urlv-side{grid-template-columns:1fr}.urlv-side .urlv-arr{transform:rotate(90deg);text-align:center}}
 </style>
-          <div class="urlv-main"><div class="urlv-node hot"><div class="urlv-t">GET /abc123</div><div class="urlv-s">100x reads</div></div><div class="urlv-arr">→</div><div class="urlv-node good"><div class="urlv-t">CDN / edge</div><div class="urlv-s">hot redirects</div></div><div class="urlv-arr">→</div><div class="urlv-node info"><div class="urlv-t">Redirect svc</div><div class="urlv-s">cache miss only</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">KV store</div><div class="urlv-s">code to URL</div></div></div>
+          <div class="urlv-main"><div class="urlv-node hot"><div class="urlv-t">GET /abc123</div><div class="urlv-s">100x reads</div></div><div class="urlv-arr">→</div><div class="urlv-node good"><div class="urlv-t">Redis cache</div><div class="urlv-s">hot codes</div></div><div class="urlv-arr">→</div><div class="urlv-node info"><div class="urlv-t">Redirect svc</div><div class="urlv-s">cache miss only</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">KV store</div><div class="urlv-s">code to URL</div></div></div>
           <div class="urlv-side"><div class="urlv-node info"><div class="urlv-t">302 redirect</div><div class="urlv-s">count every click</div></div><div class="urlv-arr">→</div><div class="urlv-node"><div class="urlv-t">Analytics stream</div><div class="urlv-s">async, not on hot path</div></div></div>
-          <div class="urlv-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when accurate click tracking matters.</div>
+          <div class="urlv-cap"><b>Redirect reads are the system.</b> Redis/cache-aside is the default; CDN/edge is a later optimization for globally hot, cacheable redirects. Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when accurate click tracking matters.</div>
         </div>
         <p><strong>Storage:</strong> 100M × 500 B = 50 GB/day → × 365 × 5 × 3 ≈ <strong>~270 TB</strong>.</p>
         <p><strong>Code length:</strong> total links over 5 yr = 100M × 365 × 5 ≈ 182B. Base62 needs ⌈log₆₂(1.8×10¹¹)⌉ ≈ 6.2 → <strong>7 characters</strong> (62⁷ ≈ 3.5×10¹², huge headroom).</p>
@@ -4299,7 +4545,7 @@ Processing time = when the stream processor sees the event
 GET    /{code}         -> 301/302 redirect to long_url      (hot path)
 GET    /v1/urls/{code} -> {long_url, clicks, created_at}     (owner only)
 DELETE /v1/urls/{code}</div>
-        <p><strong>Notes:</strong> the redirect is the read hot path — cache/CDN it. <strong>301 (permanent)</strong> gets cached by browsers → fewer analytics hits; <strong>302 (temporary)</strong> routes every click through you → accurate analytics. Derive the owner from the auth token, never the request body.</p>
+        <p><strong>Notes:</strong> the redirect is the read hot path — cache hot codes with Redis/cache-aside first; add CDN/edge only when the redirect can be cached and the analytics tradeoff is acceptable. <strong>301 (permanent)</strong> gets cached by browsers → fewer analytics hits; <strong>302 (temporary)</strong> routes every click through you → accurate analytics. Derive the owner from the auth token, never the request body.</p>
       </div>
     </div>
 
@@ -4476,6 +4722,74 @@ GET  /v1/files/{id}                                          -> {status, downloa
 POST /v1/orders/{id}/payment  Idempotency-Key: &lt;uuid&gt;  {method}   -> {status:"paid"|"failed"}
 GET  /v1/orders/{id}                                              -> {status, items, payment_state}</div>
         <p><strong>Notes:</strong> the <strong>Idempotency-Key</strong> header is the whole game — the server stores it with the result, so a retried <code>POST</code> returns the original outcome instead of charging twice. Inventory is <strong>reserved</strong> (conditional update / row lock) at order creation and decremented on payment; a reservation TTL releases abandoned carts. Cross-service (order → payment → inventory) runs as a <strong>saga</strong> with compensations, not 2PC.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-job-scheduler-api">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>Distributed job scheduler API.</strong> Define endpoints to enqueue delayed jobs, inspect status, cancel jobs, and let workers claim/heartbeat/complete work safely.</div>
+      <div class="ex-tests">Tests: delayed scheduling, worker leases, idempotent enqueue, cancellation, retry visibility.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/jobs
+  Idempotency-Key: &lt;uuid&gt;
+  {type, payload, run_at, priority, max_attempts} -> {job_id, status:"queued"}
+
+GET    /v1/jobs/{job_id}                 -> {status, attempts, run_at, last_error?}
+POST   /v1/jobs/{job_id}:cancel          -> {status:"canceled"}
+
+POST   /v1/workers/{worker_id}:claim     {types, limit, lease_seconds} -> {jobs:[...], lease_token}
+POST   /v1/jobs/{job_id}:heartbeat       {lease_token, extend_by_seconds}
+POST   /v1/jobs/{job_id}:complete        {lease_token, result}
+POST   /v1/jobs/{job_id}:fail            {lease_token, error, retry_after?}</div>
+        <p><strong>Notes:</strong> clients enqueue with an <strong>idempotency key</strong> so retries do not create duplicate jobs. Workers do not receive a permanent lock; they receive a short <strong>lease token</strong>. Heartbeat extends it, complete/fail must include it, and the DB only accepts the update if the token still matches.</p>
+        <p><strong>Scheduler behavior:</strong> the claim endpoint returns due jobs ordered by priority and age. Failures reschedule with exponential backoff + jitter until <code>max_attempts</code>, then move to a dead-letter state for inspection/replay.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-online-chess-api">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>Online chess API.</strong> Define the matchmaking + in-game API for real-time chess: join a queue, play legal moves under a server clock, reconnect, and watch as a spectator.</div>
+      <div class="ex-tests">Tests: idempotent moves, expected-move-number guard, server-authoritative clock, reconnect catch-up, spectator fanout.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/matchmaking:join   {rating_band, time_control} -> {ticket_id}   // poll/push when matched
+WS   /v1/games/{game_id}     (player or spectator socket)
+
+// client -> server frames
+{op:"move", move_no, uci, client_move_id}    // idempotent: dup id returns the committed move
+{op:"resign"} | {op:"offer_draw"} | {op:"claim_draw"}
+
+// server -> client frames
+{ev:"state", fen, turn, move_no, clock:{white_ms, black_ms, ts}}
+{ev:"move_applied", move_no, uci, san}
+{ev:"rejected", reason:"out_of_turn|illegal|stale_move_no"}
+{ev:"game_over", result, reason}
+
+GET  /v1/games/{game_id}    -> {snapshot, moves_since?:N}   // reconnect / replay</div>
+        <p><strong>Authority:</strong> the server owns legality, turn order, and the clock. Each move carries an <code>expected move_no</code> and a <code>client_move_id</code>; a stale move_no is rejected, a duplicate id returns the already-committed move (idempotent retry over a flaky socket).</p>
+        <p><strong>Reconnect:</strong> clients re-open the socket and call <code>GET /games/{id}</code> for the latest snapshot plus moves since their last seen <code>move_no</code>, then resume the live subscription. Spectators use the same read path on a read-only socket.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-image-upload-api">
+      <span class="ex-tag">API design</span>
+      <div class="ex-prompt"><strong>Image upload API.</strong> Define an upload + delivery API where clients send bytes directly to object storage (never through the app tier), then poll for processed variants.</div>
+      <div class="ex-tests">Tests: presigned direct upload, idempotent create, async status lifecycle, variant URLs, safe delete.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show model answer</button>
+      <div class="ex-solution">
+        <div class="code">POST /v1/images
+  Idempotency-Key: &lt;uuid&gt;
+  {content_type, byte_size} -> {asset_id, upload_url, object_key, status:"pending"}
+                                          // upload_url = presigned PUT (single or multipart)
+
+PUT  {upload_url}                        // client -> object storage directly (not the app tier)
+
+GET  /v1/images/{asset_id}  -> {status:"pending|ready|quarantined|failed",
+                                variants:{thumb, medium, original}?, cdn_base?}
+DELETE /v1/images/{asset_id} -> {status:"deleting"}   // revoke now, purge storage/CDN async</div>
+        <p><strong>Why presigned:</strong> app servers issue permission and store metadata only; image bytes go client&rarr;object-store so the app tier is not a bandwidth bottleneck. A storage event then triggers async processing (validate, strip EXIF, generate variants, moderate).</p>
+        <p><strong>Idempotency &amp; status:</strong> the <code>Idempotency-Key</code> makes a retried create return the same <code>asset_id</code>/<code>upload_url</code>. Reads expose a status lifecycle; variant URLs and a CDN base appear only once the asset is <code>ready</code>, so nothing public is served before moderation finishes.</p>
       </div>
     </div>
 
@@ -4827,30 +5141,161 @@ CLUSTER BY user_id, status;       -- co-locate a user's / a status's rows</div>
       </div>
     </div>
 
-    <div class="exercise">
+    <div class="exercise" id="ex-job-scheduler-data">
       <span class="ex-tag">Data modeling</span>
-      <div class="ex-prompt"><strong>Durable job queue.</strong> Model a table that lets a pool of workers pull and run background jobs — with retries, delays, and no two workers ever grabbing the same job — surviving worker crashes.</div>
-      <div class="ex-tests">Tests: lease / visibility timeout, SKIP LOCKED claim, retry + dead-letter.</div>
+      <div class="ex-prompt"><strong>Distributed job scheduler.</strong> Model a table that lets a pool of workers run delayed and priority jobs — with retries, leases, cancellation, and no two workers ever completing the same job — surviving worker crashes.</div>
+      <div class="ex-tests">Tests: run_at ordering, priority, lease / visibility timeout, SKIP LOCKED claim, retry + dead-letter, exactly-once effect.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
       <div class="ex-solution">
         <div class="code">jobs(
   id            PK,
   type,                          -- which handler runs it
   payload       JSON,
-  status        ready | running | done | dead,
-  run_after     TIMESTAMP,       -- delayed / scheduled jobs
+  status        queued | running | done | canceled | dead,
+  run_at        TIMESTAMP,       -- delayed / scheduled jobs
+  priority      INT,             -- higher first within due jobs
   attempts      INT,
   max_attempts  INT,
+  lease_token   UUID NULL,       -- fencing token for the current worker
   locked_until  TIMESTAMP NULL,  -- lease / visibility timeout
-  dedupe_key    NULL
+  idempotency_key NULL,
+  last_error    TEXT NULL,
+  completed_at  TIMESTAMP NULL
 )
-  INDEX  (status, run_after)     -- fetch the next due job
-  UNIQUE (dedupe_key)            -- idempotent enqueue</div>
-        <p class="ap"><strong>Claim a job</strong> — <code>SELECT … WHERE status='ready' AND run_after &lt;= now() FOR UPDATE SKIP LOCKED LIMIT 1</code>, then set <code>status=running, locked_until=now()+timeout</code>. <code>SKIP LOCKED</code> is what stops two workers grabbing the same row without them blocking each other.</p>
-        <p class="ap"><strong>Lease / visibility timeout</strong> — a crashed worker's <code>locked_until</code> expires, so the job becomes claimable again (at-least-once → handlers stay idempotent). You model a <em>lease column</em>; you don't hold a transaction open for the whole job.</p>
-        <p class="ap"><strong>Retry + dead-letter</strong> — on failure, if <code>attempts &lt; max_attempts</code> → back to <code>ready</code> with <code>run_after = now()+backoff</code>; else <code>status='dead'</code> (the DLQ).</p>
-        <p class="ap"><strong>Idempotent enqueue</strong> — <code>UNIQUE(dedupe_key)</code> so the same event enqueued twice becomes one job.</p>
-        <div class="note warn"><strong>The trap:</strong> holding a row lock for the whole job (locks it for minutes), or a plain <code>SELECT</code> without <code>SKIP LOCKED</code> — workers stampede the same head-of-queue row instead of spreading across ready jobs.</div>
+  INDEX  (status, run_at, priority DESC) -- fetch due work
+  UNIQUE (idempotency_key)               -- idempotent enqueue
+
+job_results(
+  job_id PK,
+  effect_key UNIQUE,              -- e.g. email_id / invoice_id / export_id
+  result JSON,
+  created_at
+)</div>
+        <p class="ap"><strong>Claim a job</strong> — <code>SELECT … WHERE status='queued' AND run_at &lt;= now() ORDER BY priority DESC, run_at FOR UPDATE SKIP LOCKED LIMIT N</code>, then set <code>status='running', lease_token=&lt;uuid&gt;, locked_until=now()+timeout</code>. <code>SKIP LOCKED</code> stops workers colliding without serializing the whole pool.</p>
+        <p class="ap"><strong>Lease / visibility timeout</strong> — a crashed worker's <code>locked_until</code> expires, so a sweeper or claim query makes it claimable again. You model a <em>lease column</em>; you do not hold a DB transaction open while the job runs.</p>
+        <p class="ap"><strong>Fencing on completion</strong> — <code>UPDATE jobs SET status='done' WHERE id=? AND lease_token=? AND locked_until&gt;now()</code>. If the lease expired and another worker reclaimed the job, the stale worker's completion is rejected.</p>
+        <p class="ap"><strong>Retry + dead-letter</strong> — on failure, if <code>attempts &lt; max_attempts</code> set <code>status='queued'</code> and <code>run_at = now()+backoff+jitter</code>; otherwise <code>status='dead'</code> (the DLQ) with <code>last_error</code> for replay/debugging.</p>
+        <p class="ap"><strong>Exactly-once effect</strong> — delivery is at-least-once. The effect becomes exactly-once by making handlers idempotent: a unique <code>effect_key</code>, transactional result write, or downstream idempotency key prevents duplicate emails, charges, exports, etc.</p>
+        <div class="note warn"><strong>The trap:</strong> promising exactly-once execution, holding a row lock for the whole job, or using a plain <code>SELECT</code> without <code>SKIP LOCKED</code> — workers stampede the same head-of-queue row instead of spreading across due jobs.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-news-aggregator-data">
+      <span class="ex-tag">Data modeling</span>
+      <div class="ex-prompt"><strong>News aggregator.</strong> Model sources, articles, and the dedup/clustering that folds many syndicated copies into one story. Support: list a topic's stories newest-first, and collapse near-duplicate articles into one cluster.</div>
+      <div class="ex-tests">Tests: canonical/near-dup keys, article→story clustering, topic feed ordering, raw-content replay.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
+      <div class="ex-solution">
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">sources</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">source_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">domain</span>, <span class="sch-f">fetch_schedule</span></li>
+              <li><span class="sch-f">trust_score</span> <span class="sch-cmt">ranking + spam</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">articles</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">article_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">source_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">canonical_url</span> <span class="sch-cmt">dedup syndication</span></li>
+              <li><span class="sch-f">content_hash / simhash</span> <span class="sch-cmt">near-dup</span></li>
+              <li><span class="sch-f">story_id</span> <span class="sch-tag sch-fk">FK</span> <span class="sch-cmt">cluster</span></li>
+              <li><span class="sch-f">raw_object_key</span> <span class="sch-cmt">HTML in blob store</span></li>
+              <li><span class="sch-f">published_at</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">story_clusters</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">story_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">topic_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">rep_article_id</span> <span class="sch-cmt">canonical copy</span></li>
+              <li><span class="sch-f">score</span>, <span class="sch-f">updated_at</span></li>
+            </ul>
+            <div class="sch-meta"><span>feed: <code>INDEX (topic_id, updated_at DESC)</code></span><span>dedup: <code>UNIQUE (canonical_url)</code> + simhash match</span></div>
+          </div>
+        </div>
+        <p><strong>Clustering:</strong> ingest writes an <code>articles</code> row; a dedup step assigns <code>story_id</code> by canonical URL then near-duplicate similarity (simhash/MinHash) so syndicated copies fold into one cluster. The feed reads <code>story_clusters</code> by <code>(topic_id, updated_at)</code>, never raw articles.</p>
+        <p><strong>Replay:</strong> keep raw HTML in object storage at <code>raw_object_key</code> so a parser or ranking change can reprocess history without re-crawling. The search index and personalization rerank are read-side derivations, not the source of truth.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-online-chess-data">
+      <span class="ex-tag">Data modeling</span>
+      <div class="ex-prompt"><strong>Online chess.</strong> Model a live game as a small authoritative state machine plus an append-only move log. Support: validate the next move, reject duplicates/out-of-turn, reconnect from a snapshot, and fence a stale owner after failover.</div>
+      <div class="ex-tests">Tests: per-game ownership, append-only moves, idempotent client_move_id, expected move_no guard, lease/fencing.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
+      <div class="ex-solution">
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">games</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">game_id</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-cmt">shard key</span></li>
+              <li><span class="sch-f">status</span> <span class="sch-cmt">active | done</span></li>
+              <li><span class="sch-f">fen</span> <span class="sch-cmt">current board</span></li>
+              <li><span class="sch-f">turn</span>, <span class="sch-f">move_no</span></li>
+              <li><span class="sch-f">white_ms, black_ms, clock_ts</span></li>
+              <li><span class="sch-f">owner_id, lease_token, locked_until</span> <span class="sch-cmt">fencing</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">moves</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">game_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">move_no</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-cmt">append-only</span></li>
+              <li><span class="sch-f">uci / san</span></li>
+              <li><span class="sch-f">client_move_id</span> <span class="sch-cmt">idempotency</span></li>
+              <li><span class="sch-f">ts</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (game_id, move_no)</code> — append + replay</span><span>idempotency <code>UNIQUE (game_id, client_move_id)</code></span></div>
+          </div>
+        </div>
+        <p><strong>Commit rule:</strong> apply a move only if <code>move_no = games.move_no + 1</code> and the turn/legality check passes; append to <code>moves</code> and bump <code>games</code> in one transaction. A duplicate <code>client_move_id</code> returns the committed move; a stale <code>move_no</code> is rejected.</p>
+        <p><strong>Failover:</strong> one owner per <code>game_id</code>. Writes are fenced with <code>WHERE lease_token = ? AND locked_until &gt; now()</code>, so a recovered old owner can't accept moves. Reconnect = read the <code>games</code> snapshot + <code>moves</code> since N. Clocks are server-derived from <code>clock_ts</code>, never client-trusted.</p>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-image-upload-data">
+      <span class="ex-tag">Data modeling</span>
+      <div class="ex-prompt"><strong>Image upload service.</strong> Model assets, generated variants, and processing/moderation state for direct-to-object-storage uploads. Support: idempotent create, status lookup, variant fetch, and reconciliation of orphaned bytes/rows.</div>
+      <div class="ex-tests">Tests: status lifecycle, asset→variant one-to-many, idempotency key, content-hash dedup, orphan reconciliation.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show worked solution</button>
+      <div class="ex-solution">
+        <div class="schema" onclick="event.stopPropagation()">
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">assets</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">asset_id</span> <span class="sch-tag sch-pk">PK</span></li>
+              <li><span class="sch-f">owner_id</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">status</span> <span class="sch-cmt">pending→ready|quarantined|failed</span></li>
+              <li><span class="sch-f">original_object_key</span></li>
+              <li><span class="sch-f">content_hash</span> <span class="sch-cmt">dedup</span></li>
+              <li><span class="sch-f">idempotency_key</span>, <span class="sch-f">created_at</span></li>
+            </ul>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">variants</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">asset_id</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">size</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-cmt">thumb|medium|…</span></li>
+              <li><span class="sch-f">object_key</span>, <span class="sch-f">w</span>, <span class="sch-f">h</span></li>
+            </ul>
+            <div class="sch-meta"><span>composite <code>PRIMARY KEY (asset_id, size)</code></span></div>
+          </div>
+          <div class="sch-tbl">
+            <div class="sch-hd"><span class="sch-name">moderation_results</span></div>
+            <ul class="sch-fields">
+              <li><span class="sch-f">asset_id</span> <span class="sch-tag sch-pk">PK</span> <span class="sch-tag sch-fk">FK</span></li>
+              <li><span class="sch-f">verdict</span>, <span class="sch-f">labels</span>, <span class="sch-f">checked_at</span></li>
+            </ul>
+            <div class="sch-meta"><span>idempotent create: <code>UNIQUE (owner_id, idempotency_key)</code></span></div>
+          </div>
+        </div>
+        <p><strong>Status lifecycle:</strong> create a <code>pending</code> asset + presigned URL; a storage event runs workers that write <code>variants</code> and <code>moderation_results</code>, then flip status to <code>ready</code> (or <code>quarantined</code>). Variant URLs are exposed only when <code>ready</code>.</p>
+        <p><strong>Reconciliation:</strong> metadata and bytes live in different systems, so a sweep closes both gaps — <code>pending</code> rows whose object never arrived (expire/cleanup) and objects with no <code>ready</code> asset (orphan purge). <code>content_hash</code> dedupes identical uploads.</p>
       </div>
     </div>
 
@@ -4960,6 +5405,8 @@ const Qs=[
   {q:"Cassandra is classified as which type in CAP?",o:["CP — consistent & partition tolerant","AP — available & partition tolerant","CA — consistent & available","None of the above"],a:1,e:"Cassandra is AP with tunable consistency (ONE, QUORUM, ALL). The AP behaviour is clearest at low levels like ONE: during a partition it stays available and may return stale data. Note the nuance — at QUORUM, if a quorum of replicas can't be reached it actually *fails* the request rather than returning stale data; you trade availability for consistency as you raise the level."},
   {q:"In Raft, what must be true for a candidate to win an election?",o:["It has the most recent log entry","It receives votes from all nodes","It receives votes from a strict majority","It has been a follower the longest"],a:2,e:"A candidate needs a strict majority (quorum). Additionally, a node won't vote for a candidate with a less up-to-date log than itself — this ensures the elected leader always has all committed entries."},
   {q:"Main risk of write-behind (write-back) caching?",o:["Higher write latency","Cache fills up too quickly","Data loss if cache crashes before DB flush","Stale reads after writes"],a:2,e:"Write-behind writes to cache immediately but persists to DB asynchronously. A cache crash before the flush means data is lost. Mitigated by Redis AOF persistence, but it's an inherent durability risk."},
+  {q:"Cache-aside and read-through both lazy-load on a miss. What actually differs?",o:["Read-through never expires entries","Who reads the DB on a miss — the app (cache-aside) or the cache's loader (read-through)","Cache-aside can't use a TTL","Read-through skips the cache entirely"],a:1,e:"The effect is identical (load from DB into cache on a miss); only the orchestrator differs. Cache-aside: the app reads the DB and populates the cache, so it keeps working if the cache is down. Read-through: the cache has a loader and fetches from the DB itself (AWS DAX, Caffeine CacheLoader), so the app only ever talks to the cache and code stays simpler — at the cost of coupling the cache to your data source. Read-through usually pairs with write-through."},
+  {q:"A single viral key is overloading one Redis node. What's the cheapest relief, and its main cost?",o:["Raise the TTL — costs nothing","A local (in-process) cache for that key in each app — costs per-node staleness","Switch to write-through — costs durability","Add more Redis nodes — costs consistency"],a:1,e:"A local in-process cache (L1) serves the hot key from each app server's own memory, so the read load spreads across all app servers instead of hammering one Redis node. The cost is that each instance has its own copy, so a write can't invalidate them all at once — bound the staleness with a short TTL, or use pub/sub eviction (near-cache) when you need it fresher. Local caches suit small, read-heavy, slow-changing data (flags, config, auth keys), not sessions or write-heavy data."},
   {q:"N=3, W=2, R=2. A write fails on one replica. Can you still guarantee reading the latest value?",o:["Yes — W+R=4>3 ensures quorum overlap","No — quorum is broken","Only with hinted handoff","Only if all 3 replicas respond"],a:0,e:"W+R > N (4 > 3) means at least one node in every read quorum has the latest write. Even with one write failure, 2 nodes have the data, and a read quorum of 2 must overlap with at least one of them."},
   {q:"Which isolation level prevents dirty reads but allows non-repeatable reads?",o:["Read uncommitted","Read committed","Repeatable read","Serializable"],a:1,e:"Read committed prevents dirty reads (you only see committed data) but if you read the same row twice, another committed transaction may have modified it between your reads — that's a non-repeatable read."},
   {q:"What problem do fencing tokens solve?",o:["Network partition between lock holders","A GC-paused client resuming with a stale lock","Clock skew between nodes","Leader election ties"],a:1,e:"A process can hold a lock, pause (GC/network), and resume after expiry — not knowing its lock is gone. Fencing tokens (monotonically increasing per grant) let storage reject writes from stale holders. TTL alone doesn't work — the paused client's clock didn't advance during the pause."},
@@ -5010,7 +5457,7 @@ const Qs=[
   {q:"Archetype check: design Ticketmaster seat selection so two buyers can never get the same seat. Which archetype?",o:["Transactional & booking","Search & geo","Async pipelines & workflows","Time-series & analytics"],a:0,e:"Concurrent actors competing for a limited resource, where correctness beats raw scale = transactional & booking. Reach for a single-DB transaction (row lock or compare-and-set) before distributed locks or 2PC."},
   {q:"Archetype check: design Twitter's home timeline, including accounts with tens of millions of followers. Which archetype?",o:["Feed & fan-out","Realtime messaging & collaboration","Blob / media & delivery","KV lookup at scale"],a:0,e:"One write reaching many timelines = the fan-out family. The celebrity case forces the hybrid: fan-out on write for normal users, fan-out on read (merge at read time) for celebrities."},
   {q:"Archetype check: design 'restaurants near me' filtered by the current map viewport. Which archetype?",o:["Search & geo","Feed & fan-out","Transactional & booking","Async pipelines & workflows"],a:0,e:"Location lookup over a large corpus without scanning everything = search & geo. Geohash / quadtree / S2 / H3 turn 2-D proximity into an indexable 1-D range."},
-  {q:"Archetype check: design a URL shortener serving an enormous volume of redirects. Which archetype?",o:["KV lookup at scale","Time-series & analytics","Realtime messaging & collaboration","Search & geo"],a:0,e:"A read-dominated key→value lookup: the game is unique code generation, sharding (consistent hashing, not hash%N), and caching the redirect. Keep click analytics off the hot path."},
+  {q:"Archetype check: design a URL shortener serving an enormous volume of redirects. Which archetype?",o:["KV lookup at scale","Time-series & analytics","Realtime messaging & collaboration","Search & geo"],a:0,e:"A read-dominated key→value lookup: the game is unique code generation, caching the redirect, and partitioning the origin KV store by code only once the corpus or miss traffic needs it. Keep click analytics off the hot path."},
   {q:"Archetype check: design WhatsApp messaging with delivery guarantees and correct ordering, including group chats. Which archetype?",o:["Realtime messaging & collaboration","Feed & fan-out","Blob / media & delivery","Transactional & booking"],a:0,e:"The server pushes state over long-lived connections with ordering and delivery semantics. Transport ladder (polling → SSE → WebSockets), per-conversation ordering, client_msg_id dedupe, reconnect catch-up."},
   {q:"Archetype check: design a service that transcodes every uploaded video into multiple resolutions in the background. Which archetype best fits the transcoding half?",o:["Async pipelines & workflows","Search & geo","Feed & fan-out","KV lookup at scale"],a:0,e:"Slow work done off the request path via a job queue and idempotent workers = async pipelines & workflows. (The upload/serve half is blob/media — real systems compose the two.)"},
   {q:"Archetype check: design Strava — athletes upload GPS activity tracks and friends see a feed of recent activities. Which TWO archetypes dominate?",o:["Time-series & analytics + Feed & fan-out","Search & geo + KV lookup at scale","Transactional & booking + Blob/media","Realtime messaging + Search & geo"],a:0,e:"GPS tracks are time-series data; the friends-see-recent-activities surface is a fan-out feed. Spotting that a prompt stacks two archetypes is the real skill — you then design each half with its own playbook."},
@@ -5350,6 +5797,11 @@ function shuffleFlash(){for(let i=FLASH.length-1;i>0;i--){const j=Math.floor(Mat
 // ---- LLM-judged mock packet ----
 const LLM_MOCK_PROMPTS=[
   'Design a collaborative document editor like Google Docs. Focus on real-time collaboration, conflict handling, document storage, permissions, and offline/reconnect behavior.',
+  'Design a distributed cache like Redis or Memcached. Support get/set/delete, TTLs, horizontal scaling, node failures, hot keys, eviction, and cache stampede protection.',
+  'Design a news aggregator like Google News. Support ingesting publisher content, deduplicating related articles, clustering stories, ranking feeds, search, personalization, and freshness.',
+  'Design an online chess platform. Support matchmaking, real-time games over WebSockets, legal move validation, clocks, reconnects, spectators, and durable game history.',
+  'Design an image upload and delivery service for a social app. Support direct uploads, thumbnails, moderation, metadata, CDN delivery, deletion, and retry-safe clients.',
+  'Design an LLM serving platform. Support chat/completion APIs, token streaming, GPU scheduling, batching, model routing, context limits, quotas, observability, and safe model rollout.',
   'Design a notification system for a large social app. Support push, email, in-app inbox, preferences, deduplication, and delivery tracking.',
   'Design search autocomplete for a global shopping app. Support low latency prefix suggestions, personalization, trending terms, and safe rollout of new indexes.',
   'Design a Dropbox/Google Drive style file storage system. Support large uploads, sync across devices, sharing permissions, version history, and conflict resolution.',
@@ -5470,6 +5922,11 @@ const SCHEMA_DRILLS=[
     access:['Write business row and outbox row atomically.','Relay unpublished events to a log/broker.','Handle relay crash after publish but before marking sent.','Let consumers dedupe and replay safely.']
   },
   {
+    title:'Distributed job scheduler API/data',
+    prompt:'Design APIs and storage schema for a distributed job scheduler. Support delayed jobs, priority, retries with backoff, worker leases, cancellation, dead-letter handling, and exactly-once effect.',
+    access:['Enqueue a job idempotently when the client retries.','Claim due jobs across many workers without two workers completing the same job.','Reschedule failed jobs with backoff and move poison jobs to a DLQ.','Fence stale workers whose leases expired before completion.','Expose job status and cancellation safely.']
+  },
+  {
     title:'Metrics/time-series API',
     prompt:'Design ingest/query APIs and storage schema for a metrics system ingesting millions of points/sec with rollups and retention.',
     access:['Batch ingest metric points with tags.','Query one series over a time range.','Query aggregate dashboard panels over long ranges.','Expire raw data while keeping rollups.','Avoid high-cardinality hot partitions.']
@@ -5483,6 +5940,21 @@ const SCHEMA_DRILLS=[
     title:'Restaurant search API/data',
     prompt:'Design APIs and indexes for restaurants-near-me search. Support map bounds, filters, ranking, freshness, and high read traffic in dense cities.',
     access:['Find restaurants within a radius or map viewport.','Filter by cuisine/open-now/rating.','Update restaurant availability and location metadata.','Paginate stable results while the map moves.']
+  },
+  {
+    title:'News aggregator API/data',
+    prompt:'Design APIs and data model for a news aggregator like Google News. Ingest articles from many publishers, deduplicate syndicated/near-identical content, cluster articles into stories, and serve ranked feeds, topic pages, and search.',
+    access:['Ingest and normalize articles from RSS/sitemaps/publisher APIs with per-source freshness scheduling.','Detect canonical and near-duplicate copies before clustering (canonical URL, content hash, similarity).','Group related articles into a story_cluster and serve a topic page.','Serve a ranked feed with cursor pagination without scanning raw articles per request.','Keep raw fetched content for replay/reprocessing after a parser or ranking change.']
+  },
+  {
+    title:'Online chess API/data',
+    prompt:'Design the API and data model for an online chess platform. Support matchmaking, real-time legal moves with a server-authoritative game state and clocks, reconnects, spectators, and durable game history.',
+    access:['Apply a move idempotently when the client retries (expected move number + client_move_id).','Reject out-of-turn, illegal, or stale moves against the authoritative game state.','Reconnect: fetch the latest snapshot plus moves since N and resume the subscription.','Guarantee one authoritative owner per game; fence a stale owner after failover.','Fetch a completed game (move log / SAN, clocks, result) for replay.']
+  },
+  {
+    title:'Image upload + delivery API/data',
+    prompt:'Design APIs and data model for image upload and delivery for a social app. Support large retryable uploads via presigned URLs, async variant generation, moderation, CDN delivery, and deletion — without routing image bytes through app servers.',
+    access:['Create an upload idempotently and return a presigned direct-to-object-storage URL.','Track asset status (PENDING→READY/QUARANTINED) and expose variant URLs only when ready.','Reconcile orphans: object bytes with no ready asset, or asset rows whose bytes never arrived.','Serve images via CDN over immutable/versioned keys.','Delete an asset: revoke visibility immediately and purge storage/CDN eventually.']
   }
 ];
 const SCHEMA_JUDGE_INSTRUCTIONS=`You are a strict system design interviewer grading an API and data-model artifact.
@@ -5635,7 +6107,7 @@ function loadAns(){try{return JSON.parse(localStorage.getItem(ANS_KEY))||{};}cat
 function saveAns(a){try{localStorage.setItem(ANS_KEY,JSON.stringify(a));}catch(e){}}
 const ANSWERABLE=['API design','Data modeling','Tradeoff'];
 // map a mock-drill prompt to the archetype it trains (first keyword match wins)
-const ARCH_TAGS=[['URL shortener','KV lookup'],['News feed','Feed & fan-out'],['Follow graph','Feed & fan-out'],['Seat booking','Transactional & booking'],['single-table','KV lookup'],['Chat','Realtime messaging'],['Counters','Time-series & analytics'],['Time-series','Time-series & analytics'],['orders and payments','Transactional & booking'],['Metrics ingest','Time-series & analytics'],['File upload','Blob / media'],['Checkout','Transactional & booking'],['proximity','Search & geo'],['job queue','Async pipelines']];
+const ARCH_TAGS=[['URL shortener','KV lookup'],['News feed','Feed & fan-out'],['Follow graph','Feed & fan-out'],['Seat booking','Transactional & booking'],['single-table','KV lookup'],['Chat','Realtime messaging'],['Counters','Time-series & analytics'],['Time-series','Time-series & analytics'],['orders and payments','Transactional & booking'],['Metrics ingest','Time-series & analytics'],['File upload','Blob / media'],['Checkout','Transactional & booking'],['proximity','Search & geo'],['Distributed job scheduler','Async pipelines'],['job queue','Async pipelines']];
 function archTagFor(t){for(const p of ARCH_TAGS){if(t.indexOf(p[0])>=0)return p[1];}return null;}
 // one-line "archetype lens" prepended to each API/data drill solution (keyword -> sentence)
 const ARCH_LENS=[
@@ -5652,6 +6124,7 @@ const ARCH_LENS=[
   ['Counters','⬡ Time-series & analytics — data facet: a denormalized count with idempotent async increments, never COUNT(*) at read.'],
   ['Time-series / metrics','⬡ Time-series & analytics — data facet: (series, time-bucket) partitioning, rollups, and TTL by tier.'],
   ['proximity','⬡ Search & geo — data facet: a geo index (geohash/S2) that turns 2-D proximity into a 1-D range scan.'],
+  ['Distributed job scheduler','⬡ Async pipelines & workflows — scheduler facet: due-time ordering + worker leases + idempotent effects, because execution is at-least-once.'],
   ['job queue','⬡ Async pipelines & workflows — data facet: a lease / visibility-timeout + SKIP LOCKED claim so workers never collide and crashes get retried.']
 ];
 function archLensFor(t){for(const p of ARCH_LENS){if(t.indexOf(p[0])>=0)return p[1];}return null;}

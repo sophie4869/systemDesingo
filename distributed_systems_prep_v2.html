@@ -308,7 +308,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .bopt.miss{border-color:var(--red);background:var(--red-bg)}
 
 /* recall */
-.recall textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);resize:vertical}
+.recall textarea{width:100%;min-height:200px;border:2px solid var(--line);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);resize:vertical}
 .recall textarea:focus{outline:none;border-color:var(--blue)}
 .mockws{display:grid;gap:9px;margin:14px 0 2px}
 .mockws .wsh{font-size:12.5px;font-weight:900;color:var(--muted);line-height:1.4}
@@ -317,7 +317,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .mockws textarea:focus{outline:none;border-color:var(--blue)}
 .archdraw{display:grid;gap:10px}
 .archdraw .wsh{font-size:12.5px;font-weight:900;color:var(--muted);line-height:1.4}
-.archdraw .canvas{height:460px;border:2px solid var(--line);border-radius:14px;overflow:hidden;position:relative}
+.archdraw .canvas{height:540px;border:2px solid var(--line);border-radius:14px;overflow:hidden;position:relative;width:calc(100vw - 36px);margin-left:calc(50% - 50vw + 18px)}
 .archdraw .canvas .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 24px;color:var(--faint);font-weight:800;font-size:14px}
 .archdraw .reveal{border:2px solid var(--blue);border-bottom-width:4px;border-radius:12px;background:var(--blue-bg);color:var(--blue-d);font-family:inherit;font-size:14px;font-weight:900;padding:11px 16px;cursor:pointer}
 .archdraw .reveal:active{transform:translateY(2px);border-bottom-width:2px}
@@ -803,6 +803,19 @@ const UNITS=[
      {k:'point',i:'👑',t:'Powers <b>leader election</b>, <b>distributed locks</b>, <b>replicated logs</b>, <b>config/membership</b>, and <b>atomic commit</b>.'},
      {k:'note',t:'You rarely build it yourself — you lean on a coordination service (ZooKeeper, etcd, Consul) that solves consensus for you.'}
    ]},
+   {t:'teach',h:'One primitive, many jobs',body:[
+     {k:'tldr',t:'Consensus is ONE primitive — agree on a value among a quorum despite failures — and a surprising number of distributed-systems problems are just that primitive in disguise.'},
+     {k:'mnemonic',t:'<b>Leader election isn’t separate from consistency — it’s the same problem.</b> "Agree on who the leader is" and "agree on the next log entry" both reduce to "get a quorum to agree on one value." That’s why Raft bundles election + log replication into one protocol.'},
+     {k:'point',i:'📋',t:'<b>Strong-consistency replication (SMR):</b> agree on the <b>order of operations</b> (the replicated log) → linearizability.'},
+     {k:'point',i:'👑',t:'<b>Leader election:</b> agree on <b>which node leads</b> this term — e.g. electing the single leader of a shard.'},
+     {k:'point',i:'🧩',t:'<b>Cluster membership:</b> agree on <b>who is in the group</b> (Raft joint consensus for adding/removing nodes).'},
+     {k:'point',i:'🔒',t:'<b>Distributed locks / leases:</b> agree on <b>who holds the lock</b> (Chubby, ZooKeeper).'},
+     {k:'point',i:'🗺️',t:'<b>Config / metadata store:</b> agree on a key’s value — this is where the <b>partition / slot map</b> lives (etcd and ZooKeeper <i>are</i> consensus systems), the very map that request routing reads.'},
+     {k:'point',i:'🤝',t:'<b>Fault-tolerant atomic commit:</b> make the 2PC coordinator a consensus group so it can’t block — Spanner runs <b>2PC across Paxos groups</b> for cross-shard transactions.'},
+     {k:'note',t:'It’s usually leader-based (Raft / Multi-Paxos / ZAB), and it’s exactly the thing <b>leaderless-quorum</b> systems (Dynamo / Cassandra) deliberately skip to buy availability — which is why they’re eventually consistent.'}
+   ]},
+   {t:'match',q:'Each job → the "one value" consensus agrees on.',pairs:[['Strong-consistency replication','the order of operations (the log)'],['Leader election','which node leads this term'],['Config / partition map','a key’s value'],['Distributed lock','who currently holds it']]},
+   {t:'mcq',q:'Why does Raft bundle leader election and log replication into one protocol?',o:['election is only needed at startup','they’re the same primitive — agreeing on one value among a quorum','log replication is optional','to save bandwidth'],a:1,why:'"Agree on who leads" and "agree on the next log entry" both reduce to getting a quorum to agree on a single value, so one consensus mechanism serves both — election comes essentially for free.'},
    {t:'teach',h:'What "agree" really means',body:[
      {k:'point',i:'🤝',t:'<b>Agreement</b>: no two correct nodes decide different values.'},
      {k:'point',i:'✅',t:'<b>Validity / integrity</b>: the chosen value was actually proposed, and each node decides at most once.'},
@@ -1624,14 +1637,16 @@ const UNITS=[
       function xy(a,rad){var t=(a-90)*Math.PI/180;return [cx+rad*Math.cos(t),cy+rad*Math.sin(t)];}
       function render(){
         var nd=nodes(),positions=[];
-        nd.forEach(function(node,ni){posOf(node).forEach(function(a){positions.push({a:a,ni:ni});});});
+        nd.forEach(function(node,ni){posOf(node).forEach(function(a,vi){positions.push({a:a,ni:ni,vi:vi});});});
         var owners=KEYS.map(function(k){var best=0,bd=1e9;positions.forEach(function(p){var d=((p.a-k)%360+360)%360;if(d<bd){bd=d;best=p.ni;}});return best;});
         var sorted=positions.slice().sort(function(a,b){return a.a-b.a;});
         function arc(a1,a2,rad){var p1=xy(a1,rad),p2=xy(a2,rad),delta=((a2-a1)%360+360)%360,lg=delta>180?1:0;return 'M'+p1[0]+' '+p1[1]+' A '+rad+' '+rad+' 0 '+lg+' 1 '+p2[0]+' '+p2[1];}
         var s='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--color-border-tertiary)" stroke-width="1"/>';
         sorted.forEach(function(p,i){var prev=sorted[(i-1+sorted.length)%sorted.length];s+='<path d="'+arc(prev.a,p.a,R)+'" fill="none" stroke="'+nd[p.ni].color+'" stroke-width="6" opacity="0.85"/>';});
-        positions.forEach(function(p){var d=xy(p.a,R);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="3.5" fill="'+nd[p.ni].color+'" stroke="#fff" stroke-width="1"/>';});
-        nd.forEach(function(node){var b=xy(BASE[node.label],R);s+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="11" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+b[0]+'" y="'+(b[1]+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">'+node.label+'</text>';});
+        positions.forEach(function(p){
+          var node=nd[p.ni],d=xy(p.a,R),label=vnodes?node.label+(p.vi+1):node.label,rad=vnodes?8.5:11,fs=vnodes?7.5:12,dy=vnodes?2.7:4;
+          s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="'+rad+'" fill="'+node.color+'" stroke="#fff" stroke-width="2"/><text x="'+d[0]+'" y="'+(d[1]+dy)+'" text-anchor="middle" font-size="'+fs+'" font-weight="800" fill="#fff">'+label+'</text>';
+        });
         KEYS.forEach(function(k,i){var d=xy(k,R+14);s+='<circle cx="'+d[0]+'" cy="'+d[1]+'" r="4.5" fill="'+nd[owners[i]].color+'"/>';});
         svg.innerHTML=s;
         var moveTxt='';
@@ -1703,12 +1718,15 @@ const UNITS=[
        '<p>The main table cannot answer "who follows carol?" without a scatter-gather — carol followers are spread across many follower partitions. The GSI groups them under one partition key.</p></div></div>'}
    ]},
    {t:'mcq',q:'A DynamoDB Global Secondary Index is…',o:['local, scatter-gather','global, often async (can be stale)','always strongly consistent','impossible'],a:1,why:'Global indexes are partitioned by the indexed term and updated asynchronously.'},
-   {t:'teach',h:'Request routing',body:[
-     {k:'point',i:'🧭',t:'Client must find "which node owns this key" as membership changes.'},
-     {k:'point',i:'🗺️',t:'Options: a routing proxy, a partition-aware client, or any-node redirect.'},
-     {k:'note',t:'The partition map itself often lives in ZooKeeper/etcd or spreads via gossip. Its sibling problem is <b>service discovery</b> — finding healthy <i>instances</i> rather than data — via DNS, Consul, Eureka, or Kubernetes Services.'}
+   {t:'teach',h:'Request routing — client library vs proxy',body:[
+     {k:'tldr',t:'Something must turn a <b>key</b> into <b>"which node owns it"</b> as membership changes. Two separate questions: <b>where</b> the routing logic runs, and <b>how</b> it learns the live topology.'},
+     {k:'point',i:'🧭',t:'<b>Where it runs.</b> Either a <b>smart client library</b> linked into the app (it holds the ring/slot map and talks to the owning node directly), or a <b>proxy tier</b> the app points at (the proxy holds the map and forwards). A lightweight third option: <b>any-node redirect</b> — hit any node and get bounced to the owner (Redis Cluster <code>MOVED</code>).'},
+     {k:'vs',a:{h:'Client library',t:'The map lives <b>in the app</b> → <b>one hop</b>, no extra infra (e.g. a Redis Cluster client). Cost: every app/language needs the smart client, and a topology change means redeploying clients.'},b:{h:'Proxy tier',t:'Thin clients point at a <b>proxy</b> (Twemproxy, mcrouter, Envoy) that routes. Clients stay dumb + language-agnostic and routing/failover changes in <b>one place</b>. Cost: an extra hop + a tier you must scale and keep available.'}},
+     {k:'point',i:'🗺️',t:'<b>How it learns topology.</b> The partition/slot map — who is alive, who owns what — lives in a <b>config service</b> (ZooKeeper / etcd / Consul) that clients or the proxy <b>watch</b> for changes, or spreads by <b>gossip</b> between nodes (Redis Cluster). A hand-edited static list is the rigid simple version.'},
+     {k:'note',t:'The same routing happens <b>twice</b>: first pick the <b>shard</b> (partition the key), then within a replicated shard pick the <b>leader</b> for writes or a <b>follower</b> for reads. Its sibling problem is <b>service discovery</b> — finding healthy <i>instances</i> rather than data — via DNS, Consul, Eureka, or Kubernetes Services.'}
    ]},
-   {t:'recall',q:'How does a client find the right shard for a key?',model:['Via a routing tier/proxy, a partition-aware client, or any-node redirect (forward/MOVED).','The partition map is kept in a coordination service (ZooKeeper/etcd) or gossiped between nodes.']}
+   {t:'mcq',q:'Your nodes re-shard often and you have apps in 5 languages. Where should routing live?',o:['A smart client library in each app','A proxy tier the apps point at','hash(key) % node_count in each app','One large node, no routing'],a:1,why:'A proxy centralizes routing + failover, so membership changes happen in one place and the thin clients stay language-agnostic — you avoid shipping and redeploying a smart client across 5 stacks. The price is an extra network hop and a proxy tier you must keep highly available.'},
+   {t:'recall',q:'How does a client find the right node for a key — and where does the topology come from?',model:['<b>Where routing runs:</b> a smart client library (one hop, but every app needs the client), a proxy tier (extra hop, but clients stay dumb and routing/failover is centralized), or any-node redirect (forward / <code>MOVED</code>).','<b>Where topology lives:</b> a coordination/config service (ZooKeeper / etcd / Consul) that clients or the proxy watch, or gossip between nodes. Static config is the rigid simple option.','Same idea applies twice: pick the shard (partition the key), then within a replicated shard pick the leader (writes) or a follower (reads).']}
   ]}
  ],
  boss:{title:'Partitioning Boss',time:65,q:[
@@ -2554,7 +2572,14 @@ const UNITS=[
      {k:'tldr',t:'The app manages the cache: check cache → on a miss, read the DB and populate it. Also called <b>lazy loading</b> — data is cached only when first requested.'},
      {k:'point',i:'🐢',t:'A miss costs <b>two round trips</b> — one to the DB, one to re-populate the cache. Worth it for read-heavy data read repeatedly.'},
      {k:'point',i:'⏲️',t:'TTL is your only consistency knob: <b>too short</b> → you lose the hit-rate benefit; <b>too long</b> → you serve stale data.'},
-     {k:'callout',c:'warn',t:'<b>Invalidate, don’t update</b>: on a write, DELETE the cache key. A concurrent update-then-set race can cache a stale value forever; deleting lets the next read repopulate cleanly. (Redis, Memcached)'}
+     {k:'callout',c:'warn',t:'<b>Invalidate, don’t update</b>: on a write, DELETE the cache key. A concurrent update-then-set race can cache a stale value forever; deleting lets the next read repopulate cleanly. (Redis, Memcached)'},
+     {k:'point',i:'🏁',t:'<b>Populate-on-miss race:</b> a reader fetches the old DB value, then a writer updates the DB and deletes the key — so the reader re-caches a <b>stale</b> value until TTL. Cheap fix: short TTL + single-flight. Full fix: a <b>versioned (compare-and-swap) set</b> that rejects writes older than what is cached. Unique to cache-aside — write-through/back populate on the write path, never read-then-populate.'}
+   ]},
+   {t:'teach',h:'Read-through (cache loads on miss)',body:[
+     {k:'tldr',t:'Same lazy-load <i>effect</i> as cache-aside — but the <b>cache</b> does the loading, not your app. The app only ever talks to the cache; on a miss the cache calls a <b>loader</b> that reads the DB, stores the value, and returns it.'},
+     {k:'vs',a:{h:'Cache-aside',t:'The <b>app</b> orchestrates: on a miss it reads the DB and populates the cache. Plain Redis/Memcached. Survives a cache outage — the app just falls back to the DB.'},b:{h:'Read-through',t:'The <b>cache</b> orchestrates: a loader fetches from the DB on a miss. App code stays simple (no miss-logic repeated at every call site), but the cache is wired to your data source.'}},
+     {k:'point',i:'🔌',t:'Needs a cache that supports a <b>loader</b> — e.g. AWS DAX in front of DynamoDB, or a Caffeine/Ehcache <code>CacheLoader</code>. It usually pairs with <b>write-through</b>: same idea on the write path — the cache, not the app, propagates to the DB.'},
+     {k:'mnemonic',t:'<b>Same effect, different owner.</b> Cache-aside = <i>app</i> loads on miss; read-through = <i>cache</i> loads on miss. Both lazy-load; only the orchestration moves.'}
    ]},
    {t:'teach',h:'Write strategies',body:[
      {k:'vs',a:{h:'Write-through',t:'write cache + DB together. Always warm + strongly consistent, but slower + write pollution.'},b:{h:'Write-behind (write-back)',t:'write cache now, flush DB later. Lowest write latency, but a crash before flush loses data.'}},
@@ -2587,7 +2612,8 @@ const UNITS=[
       var X={App:45,Cache:160,DB:275},BOX={App:[6,78],Cache:[121,78],DB:[236,78]},ORDER=['App','Cache','DB'];
       var PANELS=[
         {label:'Cache-aside read — HIT',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'App',x:'value (hit)',k:'ok'}],ex:'Most reads are served straight from the cache — the fast path.'},
-        {label:'Cache-aside read — MISS',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'App',x:'miss',k:'bad'},{f:'App',t:'DB',x:'read'},{f:'DB',t:'App',x:'value'},{f:'App',t:'Cache',x:'SET key (TTL)',k:'ok'}],ex:'On a miss the app reads the DB and <b>populates</b> the cache with a TTL — the TTL is your only consistency knob.'},
+        {label:'Cache-aside read — MISS',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'App',x:'miss',k:'bad'},{f:'App',t:'DB',x:'read'},{f:'DB',t:'App',x:'value'},{f:'App',t:'Cache',x:'SET key (TTL)',k:'ok'}],ex:'On a miss the <b>app</b> reads the DB and <b>populates</b> the cache with a TTL — the app does both round trips. The TTL is your only consistency knob.'},
+        {label:'Read-through read — MISS',msgs:[{f:'App',t:'Cache',x:'GET key'},{f:'Cache',t:'DB',x:'loader reads',k:'bad'},{f:'DB',t:'Cache',x:'value'},{f:'Cache',t:'App',x:'value (filled)',k:'ok'}],ex:'Same miss, different owner: the <b>app only talks to the cache</b>. On a miss the cache’s <b>loader</b> reads the DB and fills itself — the app never sees the DB (contrast cache-aside above, where the app does both hops).'},
         {label:'Cache-aside write — DELETE the key',msgs:[{f:'App',t:'DB',x:'write'},{f:'App',t:'Cache',x:'DELETE key',k:'bad'}],ex:'<b>Delete the key, do not update it.</b> Two writers updating the cache can interleave and cache a stale value forever; deleting forces the next read to repopulate cleanly.',warn:1},
         {label:'Write-through',msgs:[{f:'App',t:'Cache',x:'write'},{f:'Cache',t:'DB',x:'write (sync)'},{f:'DB',t:'App',x:'ack',k:'ok'}],ex:'Cache and DB are written <b>together</b> → always warm and strongly consistent, but every write pays DB latency (and rarely-read keys pollute the cache).'},
         {label:'Write-back (write-behind)',msgs:[{f:'App',t:'Cache',x:'write'},{f:'Cache',t:'App',x:'ack',k:'ok'},{f:'Cache',t:'DB',x:'flush later (async)',k:'dash'}],ex:'The cache <b>acks instantly</b> (lowest write latency) and flushes to the DB later/batched. A crash before the flush loses recent writes.',warn:1}
@@ -2623,10 +2649,12 @@ const UNITS=[
 </style>
 <table class="cmx"><thead><tr><th style="width:23%">Strategy</th><th>Write lat</th><th>Read lat</th><th>Consist.</th><th>Complex.</th><th>Data loss</th></tr></thead><tbody>
 <tr><td class="rh">Cache-aside</td><td class="g">low</td><td class="w">miss→slow</td><td class="w">TTL/stale</td><td class="g">low</td><td class="g">none</td></tr>
+<tr><td class="rh">Read-through</td><td class="w">—</td><td class="w">miss→slow</td><td class="w">TTL/stale</td><td class="w">medium</td><td class="g">none</td></tr>
 <tr><td class="rh">Write-through</td><td class="b">high</td><td class="g">warm</td><td class="g">strong</td><td class="w">medium</td><td class="g">none</td></tr>
 <tr><td class="rh">Write-back</td><td class="g">lowest</td><td class="g">warm</td><td class="w">lags DB</td><td class="b">high</td><td class="b">risk</td></tr>
 </tbody></table>`},
-   {t:'match',q:'Constraint → best cache strategy.',pairs:[['Read-heavy, staleness OK, keep it simple','Cache-aside'],['Reads must be fresh + zero data loss','Write-through'],['Write-heavy, latency-critical, can lose recent writes','Write-back']]},
+   {t:'mcq',q:'Cache-aside vs read-through — what actually differs?',o:['Whether data gets cached at all','Who loads from the DB on a miss — the app (cache-aside) or the cache itself (read-through)','Read-through entries never expire','Cache-aside can’t use a TTL'],a:1,why:'Both lazy-load on a miss; the only difference is the orchestrator. Cache-aside: the app reads the DB and populates. Read-through: the cache’s loader does it, so the app only ever talks to the cache.'},
+   {t:'match',q:'Constraint → best cache strategy.',pairs:[['Read-heavy, staleness OK, keep it simple','Cache-aside'],['App stays simple; cache owns DB loading','Read-through'],['Reads must be fresh + zero data loss','Write-through'],['Write-heavy, latency-critical, can lose recent writes','Write-back']]},
    {t:'mcq',q:'A like-counter takes massive writes; instant writes matter and losing a few on a crash is fine. Best cache strategy?',o:['cache-aside','write-through','write-back','no cache'],a:2,why:'Write-back acks from cache immediately (lowest write latency); the small crash-loss risk is acceptable for like counts.'},
    {t:'sort',q:'Consistent or fast-but-risky?',buckets:['Consistent','Fast/risky'],items:[
      {text:'write-through',b:0},{text:'write-behind',b:1}
@@ -2639,7 +2667,8 @@ const UNITS=[
      {k:'cause',a:'A hot key expires',b:'Thousands of misses hit the DB at once → it falls over'},
      {k:'point',i:'🔒',t:'Fix 1: a mutex so only one request rebuilds the value.'},
      {k:'point',i:'🎲',t:'Fix 2: jittered TTLs so keys don’t all expire together.'},
-     {k:'point',i:'♻️',t:'Fix 3: stale-while-revalidate — serve old, refresh in background.'}
+     {k:'point',i:'♻️',t:'Fix 3: stale-while-revalidate — serve old, refresh in background.'},
+     {k:'point',i:'🔥',t:'Fix 4: cache warming — pre-load hot keys before traffic (on restart/failover or ahead of a known spike). The only fix for a COLD cache: nothing to coalesce, no stale value to serve.'}
    ]},
    {t:'htmlviz',h:'Cache stampede — one expiry, many misses',
     html:`<style>
@@ -2683,6 +2712,23 @@ const UNITS=[
      {k:'note',t:'FIFO/random are simpler; TTL expiry is orthogonal. Many caches combine TTL + LRU.'}
    ]},
    {t:'mcq',q:'Cache is full; you drop the coldest-by-recency entry. That’s…',o:['LFU','LRU','FIFO','TTL'],a:1,why:'LRU evicts the least-recently-used key; LFU evicts by frequency, FIFO by insertion order.'},
+   {t:'teach',h:'Local cache vs distributed cache',body:[
+     {k:'tldr',t:'A <b>local (in-process)</b> cache lives in the app server’s own memory (Caffeine, Guava) — nanoseconds away but <b>private to that one instance</b>. A <b>distributed</b> cache (Redis / Memcached) is one network hop away but <b>shared</b> by every instance. Use local as an <b>L1 in front of</b> the distributed L2.'},
+     {k:'point',i:'⚡',t:'<b>Why local:</b> it kills a <b>hot key</b> (each app serves it from memory → the read load spreads across all app servers instead of one Redis node), gives <b>sub-ms</b> reads (no network hop), and shields Redis + the DB.'},
+     {k:'callout',c:'warn',t:'<b>The catch — staleness.</b> Each instance has its own copy, so a write can’t invalidate them all at once. Only use local for data that tolerates a bounded staleness window; it’s also duplicated per instance (small data only) and cold on every deploy / restart.'},
+     {k:'vs',a:{h:'Local (in-process)',t:'~µs, no network hop, absorbs hot keys. But per-node stale, memory duplicated, cold on restart, no cross-instance sharing.'},b:{h:'Distributed (Redis)',t:'shared across all apps, one copy to invalidate, holds large datasets. But a network hop away, and a hot key can overload one node.'}},
+     {k:'note',t:'<b>Keep it fresh:</b> a short <b>TTL</b> (self-healing — the default), or <b>pub/sub eviction</b> — on a write, broadcast "evict key K" so every instance drops it (the <b>near-cache</b> pattern).'}
+   ]},
+   {t:'mcq',q:'One viral key is overloading a single Redis node. Cheapest relief?',o:['shard Redis further','add a small local (in-process) cache for that key in each app','raise the TTL','switch to write-through'],a:1,why:'A local cache serves the hot key from each app server’s own memory, so the read load spreads across all app servers instead of hammering one Redis node. Bound the staleness with a short TTL.'},
+   {t:'recall',q:'When do you add a local (in-process) cache, and what’s the cost?',model:['Add it when the data is small, read-heavy, slow-changing, and tolerates brief staleness — most often to kill a <b>hot key</b> (spread reads across app servers) or to get sub-ms reads for config / feature flags / auth keys.','<b>Cost:</b> each instance has its own copy, so a write can’t invalidate them all at once → per-node staleness; memory is duplicated; it’s cold on restart.','Keep it fresh with a short <b>TTL</b>, or <b>pub/sub eviction</b> (near-cache) when you need it fresher. Not for sessions or anything needing strong cross-node consistency — that stays in the shared cache.']},
+   {t:'teach',h:'Near-cache (local L1 kept fresh)',body:[
+     {k:'tldr',t:'A <b>near-cache</b> is a local in-process L1 that the cache layer keeps <b>coherent</b> with the distributed L2 — you get local-speed reads <b>plus</b> coordinated invalidation, instead of N silently-stale copies.'},
+     {k:'point',i:'📩',t:'On a write, the L2 <b>broadcasts an "evict key K"</b> message (Redis pub/sub or a bus); every instance drops its local copy and reloads on the next read. The staleness window shrinks from "until TTL" to the <b>propagation delay</b> (ms).'},
+     {k:'point',i:'⚖️',t:'The middle ground: faster + fresher than a plain-TTL local cache, but more moving parts (a pub/sub channel) and still per-instance memory plus a tiny propagation lag.'},
+     {k:'mnemonic',t:'<b>Plain local cache</b> = fast but goes stale until TTL. <b>Near-cache</b> = fast <i>and</i> evicted on write — local cache that listens for invalidations.'},
+     {k:'note',t:'Built into many caches: Hazelcast / Ignite near-cache, Ehcache distributed tiers, or Caffeine + Redis pub/sub by hand. Netflix EVCache is a large-scale cousin.'}
+   ]},
+   {t:'mcq',q:'A plain-TTL local cache is too stale for your flags, but you still want local-speed reads. What gives you both?',o:['raise the TTL','a near-cache: local L1 + pub/sub eviction on writes','move everything to Redis','sticky sessions'],a:1,why:'A near-cache keeps each instance’s local copy coherent by broadcasting an evict message on every write, so reads stay local-fast while the staleness window drops to the pub/sub propagation delay.'},
    {t:'teach',h:'CDN & edge caching',body:[
      {k:'tldr',t:'Cache content at edge PoPs near users — cuts latency and offloads the origin.'},
      {k:'vs',a:{h:'Pull CDN',t:'edge fetches from origin on first miss, then caches. Simple; first hit is slow.'},b:{h:'Push CDN',t:'you pre-upload/prewarm content to the edge. Good for large or predictable assets.'}},
@@ -2698,12 +2744,15 @@ const UNITS=[
  ],
  boss:{title:'Caching Boss',time:80,q:[
    {q:'Cache-aside consistency relies on…',o:['the TTL','2PC','quorums','nothing'],a:0},
+   {q:'In read-through (vs cache-aside), the DB on a miss is read by…',o:['the app','the cache loader','the client','nobody'],a:1},
    {q:'On a write you should…',o:['update the key','delete the key','ignore cache','lock the DB'],a:1},
    {q:'Write-behind risks…',o:['latency','data loss on crash','too consistent','no hits'],a:1},
    {q:'A cache stampede happens when…',o:['cache is empty','a hot key expires en masse','TTL is long','LRU runs'],a:1},
    {q:'Jittered TTLs help by…',o:['saving memory','spreading expirations','encrypting','evicting LRU'],a:1},
    {q:'Bloom filters have no…',o:['false positives','false negatives','memory use','hashing'],a:1},
    {q:'Evicting the coldest-by-recency entry is…',o:['LFU','LRU','FIFO','random'],a:1},
+   {q:'A local (in-process) cache best relieves…',o:['a hot key on one node','large per-user data','cross-server sessions','write durability'],a:0},
+   {q:'The main cost of a local cache is…',o:['network latency','per-node staleness (each instance has its own copy)','it can’t use a TTL','too much consistency'],a:1},
    {q:'A pull CDN fetches from origin…',o:['never','on first miss, then caches','every request','only at night'],a:1},
    {q:'Write-heavy, instant writes, OK to lose a few on crash →',o:['cache-aside','write-through','write-back','no cache'],a:2},
    {q:'Reads must be fresh with no data loss →',o:['cache-aside','write-through','write-back','TTL only'],a:1}
@@ -4460,19 +4509,19 @@ const UNITS=[
   </g>
   <g text-anchor="middle" fill="#1e1e1e" font-family="'Comic Sans MS','Comic Sans','Chalkboard SE','Segoe Print','Bradley Hand',cursive">
     <text x="98" y="84" font-size="17" font-weight="700">GET /abc123</text><text x="98" y="105" font-size="12.5" fill="#5f3dc4">100× reads</text>
-    <text x="298" y="84" font-size="17" font-weight="700">CDN / edge</text><text x="298" y="105" font-size="12.5" fill="#2b8a3e">hot redirects</text>
+    <text x="298" y="84" font-size="17" font-weight="700">Redis cache</text><text x="298" y="105" font-size="12.5" fill="#2b8a3e">hot codes</text>
     <text x="498" y="84" font-size="17" font-weight="700">Redirect svc</text><text x="498" y="105" font-size="12.5" fill="#1971c2">cache miss only</text>
     <text x="698" y="84" font-size="17" font-weight="700">KV store</text><text x="698" y="105" font-size="12.5" fill="#495057">code → URL</text>
     <text x="166" y="198" font-size="17" font-weight="700">302 redirect</text><text x="166" y="219" font-size="12.5" fill="#1971c2">count every click</text>
     <text x="572" y="198" font-size="17" font-weight="700">Analytics stream</text><text x="572" y="219" font-size="12.5" fill="#495057">async — off the hot path</text>
   </g>
 </svg>
-<div class="urlx-cap"><b>Redirect reads are the system.</b> Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when you need to count every click.</div>
+<div class="urlx-cap"><b>Redirect reads are the system.</b> Redis/cache-aside is the default; CDN/edge is a later optimization for globally hot, cacheable redirects. Keep analytics and writes off the hot path; choose 301 for browser caching, 302 when you need to count every click.</div>
 </div>`},
    {t:'mcq',q:'You need per-click analytics. For the redirect, should you return 301 or 302?',o:['301 (permanent) — fastest, and best for analytics','302 (found / temporary) — every click hits your server','308 — the only correct status here','no real difference, pick either'],a:1,why:'301 gets cached by browsers and CDNs, so repeat clicks skip your server entirely — fast, but you lose per-click analytics. Since you need to count every click, use 302: it routes every click through you (more traffic, but accurate counts). Bitly returns 302 for exactly this reason. Without an analytics requirement, 301 would win.'},
-   {t:'build',q:'4 · Pick the high-level components.',options:['ID/counter generator','KV store (code → URL)','CDN / cache for redirects','Async analytics pipeline','A graph database','A relational DB with heavy joins'],correct:[0,1,2,3]},
-   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:770,h:330,cap:'<b>Read (top):</b> client → redirect svc → Redis (hot codes) → KV store on a miss. <b>Write (bottom):</b> create API mints a base62 id (counter / Snowflake — no separate service) and writes the <code>code → URL</code> mapping to the KV store. <b>Clicks</b> fork to a queue → analytics, off the hot path.',nodes:[{x:20,y:136,w:120,t:'Client',c:'gray'},{x:178,y:44,w:150,t:'Redirect svc',s:'302 + cache-aside',c:'blue'},{x:370,y:44,w:130,t:'Redis cache',s:'hot codes',c:'teal'},{x:540,y:44,w:210,t:'KV store',s:'DynamoDB',c:'gray'},{x:20,y:232,w:200,t:'Create API',s:'POST /urls · base62 id',c:'blue'},{x:370,y:232,w:120,t:'Queue',s:'Kafka',c:'amber'},{x:540,y:232,w:210,t:'Analytics',s:'async',c:'gray'}],edges:[[0,1],[1,2],[2,3],[0,4],[4,3],[1,5],[5,6]]});}},
-   {t:'mcq',q:'5 · Where is the main load / bottleneck?',o:['writing new links','the redirect reads (100:1) — cache/CDN them','analytics','the ID generator'],a:1,why:'Reads dominate ~100:1; serve redirects from cache/CDN + read replicas, never the primary.'},
+   {t:'build',q:'4 · Pick the high-level components.',options:['ID/counter generator','KV store (code → URL)','Redis/cache-aside for hot redirects','Async analytics pipeline','A graph database','A relational DB with heavy joins'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:770,h:330,cap:'<b>Read (top):</b> client → redirect svc → Redis (hot codes) → KV store on a miss. <b>Write (bottom):</b> create API mints a base62 id (counter / Snowflake — no separate service) and writes the <code>code → URL</code> mapping to the KV store. <b>Clicks</b> fork to a queue → analytics, off the hot path. CDN/edge is optional for cacheable global hotspots, not the starting point.',nodes:[{x:20,y:136,w:120,t:'Client',c:'gray'},{x:178,y:44,w:150,t:'Redirect svc',s:'302 + cache-aside',c:'blue'},{x:370,y:44,w:130,t:'Redis cache',s:'hot codes',c:'teal'},{x:540,y:44,w:210,t:'KV store',s:'DynamoDB',c:'gray'},{x:20,y:232,w:200,t:'Create API',s:'POST /urls · base62 id',c:'blue'},{x:370,y:232,w:120,t:'Queue',s:'Kafka',c:'amber'},{x:540,y:232,w:210,t:'Analytics',s:'async',c:'gray'}],edges:[[0,1],[1,2],[2,3],[0,4],[4,3],[1,5],[5,6]]});}},
+   {t:'mcq',q:'5 · Where is the main load / bottleneck?',o:['writing new links','the redirect reads (100:1) — cache hot codes','analytics','the ID generator'],a:1,why:'Reads dominate ~100:1; serve hot redirects from Redis/cache-aside and use read replicas before reaching for CDN. CDN/edge is useful only when the redirect result is cacheable and the analytics tradeoff is acceptable.'},
    {t:'teach',h:'Failure mode: cache stampede',body:[
      {k:'tldr',t:'A viral code expires or is evicted, and thousands of in-flight redirects all miss the cache at once — stampeding the KV store (a.k.a. thundering herd / dogpile).'},
      {k:'point',i:'🔒',t:'<b>Single-flight / request coalescing</b>: on a miss, only ONE request recomputes; the rest wait for and share its result.'},
@@ -4480,7 +4529,126 @@ const UNITS=[
      {k:'point',i:'🎲',t:'<b>Jittered TTL / early refresh</b>: refresh hot keys a little before they expire so they never all lapse in lockstep.'}
    ]},
    {t:'mcq',q:'A viral short link expires from cache and thousands of redirects miss at the same instant. What is this, and the fix?',o:['Hot partition — add more shards','Cache stampede — coalesce misses (single-flight) and/or stale-while-revalidate','A DDoS — block the traffic','Cache poisoning — validate inputs'],a:1,why:'Simultaneous misses on one hot key all hit the origin — a cache stampede / thundering herd. Coalesce so only one request recomputes (single-flight), serve stale while revalidating, and jitter TTLs so hot keys don’t expire together. More shards don’t help — it’s one key, not skew.'},
-   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: cache/CDN hot codes + read replicas; shard the KV store by code.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use single-flight + stale-while-revalidate.']}
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Scale reads: Redis/cache-aside hot codes + read replicas. Partition the origin KV store by code only once the corpus or miss traffic needs it; add CDN/edge only for cacheable global hotspots.','301 (cached by browser, fewer analytics) vs 302 (every hit counted).','Failure: a viral link expires from cache → stampede; use single-flight + stale-while-revalidate.']}
+  ]},
+  {id:'mock-cache',title:'Distributed cache',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a distributed cache like Redis / Memcached.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['get / set / delete by key','per-entry TTL expiration','multi-key reads / batch operations','explicit invalidation by key']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['single-digit-ms reads','high availability','horizontal scalability across cache nodes','bounded memory with eviction','stale data acceptable within policy']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>cache_entry(key, value:bytes, ttl/expires_at, version?)</code> plus node membership / slot map.','Internal gRPC <code>CacheService</code>: <code>Get</code>, <code>MGet</code> (batch), <code>Set(entry, ttl_seconds)</code>, <code>Delete</code>. <code>value</code> is opaque <b>bytes</b> (the cache never parses it); a miss is a normal result (<code>found=false</code> / absent key), never an error.','No <code>idempotency_key</code> needed — Get is safe and Set/Delete are naturally idempotent. <code>version</code> gives compare-and-swap, and <b>only cache-aside</b> needs it: it rejects a stale populate-on-miss write. Prefer <code>ttl_seconds=0 → server default</code> over "no expiry" (an unset proto3 int is also 0).','Client library or cache proxy maps each key to the right node; the cache is not the source of truth.']},
+   {t:'mcq',q:'Adding/removing cache nodes should avoid remapping almost every key. Use…',o:['hash(key) % node_count','consistent hashing / fixed slots with virtual nodes','one huge cache node','round-robin every request'],a:1,why:'Modulo depends on N, so changing N changes nearly every mapping. Consistent hashing or fixed slots move only a fraction of keys when membership changes; virtual nodes smooth load.'},
+   {t:'build',q:'4 · High-level components.',options:['Client library / proxy','Consistent hash ring or fixed slot map','Cache nodes with TTL + LRU/LFU eviction','Replication or failover for important shards','Single relational DB as the cache backend','No expiration policy'],correct:[0,1,2,3]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:800,h:330,cap:'A cache client/proxy routes each key through a consistent hash ring (or fixed slots) to the cache nodes; TTL + eviction bound memory and replication + stampede protection keep it available. <b>Whether it fronts an origin DB — and how — is a usage choice that depends on the problem:</b> cache-aside (read origin on miss, invalidate on write), read-through / write-through / write-back, or no origin at all when the cache IS the primary store. This view shows the common cache-aside case.',nodes:[{x:18,y:136,w:120,t:'App',c:'gray'},{x:165,y:136,w:165,t:'Cache client',s:'route key',c:'blue'},{x:370,y:40,w:185,t:'Hash ring / slots',s:'virtual nodes',c:'purple'},{x:595,y:40,w:170,t:'Cache nodes',s:'TTL + eviction',c:'green'},{x:595,y:232,w:170,t:'Origin DB',s:'source of truth',c:'gray'},{x:370,y:232,w:175,t:'Single-flight',s:'miss coalescing',c:'amber'}],edges:[[0,1],[1,2],[2,3],[3,4],[1,5],[5,4]]});}},
+   {t:'htmlviz',h:'Routing: client library vs proxy',html:`<style>
+.clp-cap{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.clp-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<svg viewBox="0 0 680 332" style="width:100%;height:auto;display:block;max-width:660px;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="clpt clpd">
+<title id="clpt">Client library vs proxy routing</title>
+<desc id="clpd">Left: each app holds the routing map and talks directly to cache nodes in one hop. Right: thin apps send to a shared proxy that holds the map and forwards to cache nodes in two hops. Both learn membership from a config service or gossip.</desc>
+<defs><marker id="clp-ar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5F5E5A"/></marker></defs>
+<text x="167" y="24" text-anchor="middle" font-size="15" font-weight="500" fill="var(--color-text-primary)">Client library</text>
+<text x="513" y="24" text-anchor="middle" font-size="15" font-weight="500" fill="var(--color-text-primary)">Proxy tier</text>
+<line x1="340" y1="38" x2="340" y2="226" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<rect x="22" y="64" width="156" height="98" rx="9" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.4"/>
+<text x="34" y="84" font-size="13" font-weight="500" fill="var(--color-text-primary)">App</text>
+<text x="34" y="100" font-size="11" font-weight="400" fill="#444441">(in every app)</text>
+<rect x="34" y="108" width="132" height="46" rx="7" fill="#B5D4F4" stroke="#185FA5" stroke-width="1.4"/>
+<text x="100" y="131" text-anchor="middle" font-size="12" font-weight="500" fill="#042C53">router + slot map</text>
+<rect x="214" y="70" width="100" height="30" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="264" y="89" text-anchor="middle" font-size="11" fill="#173404">cache node</text>
+<rect x="214" y="112" width="100" height="30" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="264" y="131" text-anchor="middle" font-size="11" fill="#173404">cache node</text>
+<rect x="214" y="154" width="100" height="30" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="264" y="173" text-anchor="middle" font-size="11" fill="#173404">cache node</text>
+<path d="M166,126 L208,86" fill="none" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#clp-ar)"/>
+<path d="M166,128 L208,127" fill="none" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#clp-ar)"/>
+<path d="M166,130 L208,168" fill="none" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#clp-ar)"/>
+<text x="167" y="208" text-anchor="middle" font-size="12" font-weight="500" fill="var(--color-text-primary)">map in every app · 1 hop</text>
+<rect x="356" y="92" width="104" height="50" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.4"/>
+<text x="408" y="113" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">App</text>
+<text x="408" y="129" text-anchor="middle" font-size="11" font-weight="400" fill="#444441">thin client</text>
+<rect x="486" y="84" width="80" height="66" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="1.4"/>
+<text x="526" y="111" text-anchor="middle" font-size="12" font-weight="500" fill="#042C53">proxy</text>
+<text x="526" y="127" text-anchor="middle" font-size="11" fill="#042C53">slot map</text>
+<rect x="596" y="66" width="76" height="28" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="634" y="84" text-anchor="middle" font-size="11" fill="#173404">node</text>
+<rect x="596" y="104" width="76" height="28" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="634" y="122" text-anchor="middle" font-size="11" fill="#173404">node</text>
+<rect x="596" y="142" width="76" height="28" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.3"/><text x="634" y="160" text-anchor="middle" font-size="11" fill="#173404">node</text>
+<path d="M460,117 L482,117" fill="none" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#clp-ar)"/>
+<path d="M566,115 L592,82" fill="none" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#clp-ar)"/>
+<path d="M566,117 L592,118" fill="none" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#clp-ar)"/>
+<path d="M566,119 L592,154" fill="none" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#clp-ar)"/>
+<text x="513" y="208" text-anchor="middle" font-size="12" font-weight="500" fill="var(--color-text-primary)">map in the proxy · 2 hops</text>
+<text x="340" y="246" text-anchor="middle" font-size="12" fill="#444441">Both learn live membership from a config service (etcd / ZooKeeper) or gossip.</text>
+<rect x="116" y="292" width="13" height="13" rx="3" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="135" y="303" font-size="11" fill="var(--color-text-primary)">app / client</text>
+<rect x="268" y="292" width="13" height="13" rx="3" fill="#B5D4F4" stroke="#185FA5" stroke-width="1.2"/><text x="287" y="303" font-size="11" fill="var(--color-text-primary)">routing logic</text>
+<rect x="430" y="292" width="13" height="13" rx="3" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="449" y="303" font-size="11" fill="var(--color-text-primary)">cache node</text>
+</svg>
+<div class="clp-cap">Same blue <b>routing logic</b>, different home. <b>Client library</b> — the slot map lives in every app: one hop, but you ship and redeploy the smart client everywhere. <b>Proxy</b> — the map lives in one shared tier: thin, language-agnostic clients, but an extra hop and a tier to keep available. Either way, live membership comes from a config service (etcd / ZooKeeper) or gossip.</div>`},
+   {t:'mcq',q:'5 · Main bottleneck / failure mode?',o:['the cache stores too little data','hot keys and stampedes overload one cache node or the origin DB','the API has too few verbs','consistent hashing is too slow'],a:1,why:'Distributed cache interviews usually probe skew and failure: one viral key can overload one node, and a popular key expiring can send every request to the origin. Add hot-key replication/local caching, single-flight, stale-while-revalidate, and jittered TTLs.'},
+   {t:'mcq',q:'On a product write, the safest cache-aside move is…',o:['update the DB, then delete/invalidate the cache key','update the cache only','update the cache first, then maybe the DB','keep the stale cache until TTL always'],a:0,why:'The database is the source of truth. Write the DB, then invalidate the cache so the next read repopulates. Updating the cache directly can race and leave stale values cached.'},
+   {t:'recall',q:'6 · Deep dive + failures.',model:['Routing: consistent hashing / fixed slots with virtual nodes; membership changes move only a fraction of keys. The routing logic lives in a <b>client library or a proxy</b>; the slot map comes from a <b>config service</b> (ZooKeeper/etcd) or <b>gossip</b>.','Memory: TTL + LRU/LFU eviction bound memory. <b>How the cache meets a backing store depends on the problem</b> — cache-aside (read origin on miss, invalidate on write), read-through / write-through / write-back, or <b>no origin at all</b> if the cache is the primary store. The cache engine itself is mode-agnostic; don’t assume a DB read.','<b>Failure — node down:</b> its keys miss and refill from the source, or a replica is promoted if the shard is replicated. Consistent hashing limits the blast radius to that node’s slice, not the whole keyspace.','<b>Failure — hot key:</b> one viral key overloads a single node. Replicate that key across nodes or add a small client-side / local cache so reads spread out.','<b>Failure — stampede (a hot key expires):</b> every request misses at once and stampedes the origin. Coalesce with <b>single-flight</b> (one rebuild, others wait), serve <b>stale-while-revalidate</b>, and <b>jitter TTLs</b> so keys don’t expire together. For a cold cache (nothing to coalesce) or a known spike, <b>cache-warm</b> hot keys ahead of time.']}
+  ]},
+  {id:'mock-news-agg',title:'News aggregator',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a news aggregator like Google News.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['ingest articles from publishers','deduplicate syndicated / near-identical content','cluster articles into stories/topics','serve ranked feeds, topic pages, and search']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['fresh updates within minutes','high read traffic','quality/spam filtering','personalization without slow feed reads']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>sources</code>, <code>articles</code>, <code>story_clusters</code>, <code>topics</code>, user follows/preferences, click/impression events.','<code>GET /feed?user=&amp;cursor</code>, <code>GET /topics/{id}</code>, <code>GET /search?q=...</code>.','Internal ingest APIs/jobs fetch RSS/sitemaps/publisher APIs, parse pages, and publish normalized article events.']},
+   {t:'mcq',q:'The crawler should handle each publisher with…',o:['unlimited parallel fetches','per-domain politeness, backoff, and source freshness schedules','one global cron once a day','browser clients doing crawl work'],a:1,why:'Crawlers must avoid hammering publishers. Keep per-domain queues, obey robots/publisher terms where applicable, back off on errors, and schedule more frequent fetches only for high-value fast-changing sources.'},
+   {t:'build',q:'4 · High-level components.',options:['Source scheduler + fetchers','Parser / extractor','Canonical URL + near-duplicate detector','Story clustering + topic classifier','Search index + feed/ranking service','One SQL query over raw HTML per feed read'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:820,h:330,cap:'Fetchers ingest publisher content with politeness. The pipeline extracts article text/metadata, dedupes canonical and near-identical copies, clusters related articles into stories, and indexes candidates. Feed reads hit ranked/cached story candidates; raw HTML stays in object storage for replay.',nodes:[{x:18,y:132,w:130,t:'Publishers',s:'RSS / APIs / pages',c:'gray'},{x:175,y:132,w:140,t:'Fetchers',s:'polite crawl',c:'blue'},{x:350,y:40,w:150,t:'Parser',s:'extract text',c:'green'},{x:350,y:224,w:170,t:'Raw store',s:'HTML replay',c:'gray'},{x:545,y:40,w:150,t:'Dedup + cluster',s:'stories',c:'purple'},{x:545,y:224,w:150,t:'Search index',s:'query',c:'amber'},{x:715,y:132,w:90,t:'Feed API',s:'ranked',c:'green'}],edges:[[0,1],[1,2],[1,3],[2,4],[4,5],[4,6],[5,6]]});}},
+   {t:'mcq',q:'5 · Main hard problem?',o:['only storing article text','deduping/clustering fresh content while filtering spam and ranking quality','serving one static home page','choosing JSON vs XML'],a:1,why:'The differentiator is not just ingest. It is grouping duplicate/syndicated stories, ranking fresh but trustworthy content, and keeping reads fast with precomputed candidates.'},
+   {t:'recall',q:'6 · Deep dive + failures.',model:['Ingest: source scheduler → fetchers with politeness → parser/extractor → raw store + normalized article event.','Dedup/cluster: canonical URL, content hash, near-duplicate similarity, story_cluster id; search index and topic classifier build read candidates.','Feed: precompute ranked candidate pools, personalize/rerank at read time, cache hot topics.','Failure: parser bug or ranking bug → replay raw HTML/events; source spam → quality classifier and source trust score.']}
+  ]},
+  {id:'mock-chess',title:'Online chess',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design an online chess platform.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['match players','play legal moves in real time','maintain clocks','support reconnects, spectators, resign/draw, and game history']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low-latency moves','authoritative server state','no double moves / out-of-turn moves','durable completed games']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>players</code>, <code>match_queue</code>, <code>games(game_id,status,fen,turn,clock_state)</code>, <code>moves(game_id,move_no,uci,san,client_move_id)</code>.','<code>POST /matchmaking/join</code>; WebSocket <code>move</code>, <code>state</code>, <code>clock</code>, <code>resign</code>; <code>GET /games/{id}</code>.','Each move includes expected move number and client_move_id for idempotent retry.']},
+   {t:'mcq',q:'Who should validate legal moves and clocks?',o:['both browsers independently','the authoritative game service','the spectator client','the CDN'],a:1,why:'The server owns the game. Clients can pre-validate for UX, but the authoritative service validates legality, turn order, clocks, and final result.'},
+   {t:'build',q:'4 · High-level components.',options:['Matchmaking queue','WebSocket gateway','Authoritative game service sharded by game_id','Move log + game snapshot store','Pub/Sub for players and spectators','Peer-to-peer move agreement only'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:815,h:330,cap:'Players connect through WebSocket gateways, but one authoritative game shard owns each game_id. It validates moves, updates server-side clocks, appends to the move log, persists snapshots, and publishes state to players and spectators. Reconnects read the latest snapshot plus move log.',nodes:[{x:18,y:40,w:125,t:'Player A',c:'gray'},{x:18,y:224,w:125,t:'Player B',c:'gray'},{x:175,y:132,w:150,t:'WS gateway',s:'connections',c:'blue'},{x:365,y:40,w:160,t:'Matchmaking',s:'queue',c:'amber'},{x:365,y:224,w:185,t:'Game shard',s:'validate + clocks',c:'green'},{x:590,y:40,w:190,t:'Move log',s:'durable events',c:'gray'},{x:590,y:224,w:190,t:'Pub/Sub',s:'spectators',c:'purple'}],edges:[[0,2],[1,2],[2,4],[3,4],[4,5],[4,6],[6,2]]});}},
+   {t:'mcq',q:'5 · Critical consistency rule?',o:['any server can accept any move at any time','one authoritative sequencer per game, fenced on failover','clients vote on the final board','spectators write the state'],a:1,why:'A game is a small strongly consistent state machine. Route game_id to one owner; on failover, use persisted move log and fencing so two owners do not accept moves concurrently.'},
+   {t:'recall',q:'6 · Deep dive + failures.',model:['Game state is a per-game state machine: validate expected move_no, legal move, turn, and server clock before append.','Idempotency: duplicate client_move_id returns the committed move; stale expected move_no is rejected.','Reconnect: fetch snapshot + moves since N, then resume WebSocket subscription.','Failure: game shard dies → recover from move log/snapshot with a new fenced owner; clock is server-derived, not client trusted.']}
+  ]},
+  {id:'mock-image-upload',title:'Image upload service',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design image upload and delivery for a social app.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['upload images from mobile/web','generate thumbnails/variants','serve images via CDN','delete images','track status and moderation']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['large/retryable uploads','low app-server bandwidth','safe file validation','eventual processing is acceptable']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>assets(id,owner,status,original_key,content_hash)</code>, <code>variants(asset_id,size,key)</code>, moderation result.','<code>POST /images</code> → upload_id + presigned URL; <code>GET /images/{id}</code> → status + URLs; <code>DELETE /images/{id}</code>.','Use an idempotency key so retrying upload creation returns the same upload record.']},
+   {t:'mcq',q:'Large image bytes should flow through…',o:['the app server process','direct-to-object-storage presigned upload','a SQL BLOB column','a WebSocket message'],a:1,why:'App servers issue permission and store metadata. Clients upload bytes directly to object storage so the app tier is not a bandwidth bottleneck.'},
+   {t:'build',q:'4 · High-level components.',options:['Upload API + presigned URLs','Object storage for originals/variants','Storage event / queue','Image processing workers','Moderation / virus scan','CDN with versioned URLs','Database as the image byte store'],correct:[0,1,2,3,4,5]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:820,h:330,cap:'The API creates metadata and a presigned upload URL. The client uploads directly to object storage. A storage event enqueues processors that validate, strip metadata, generate variants, run moderation, and publish immutable CDN URLs when ready.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:40,w:155,t:'Upload API',s:'metadata + URL',c:'blue'},{x:165,y:224,w:155,t:'Object store',s:'original bytes',c:'gray'},{x:360,y:224,w:125,t:'Queue',s:'events',c:'amber'},{x:520,y:224,w:155,t:'Processors',s:'variants + scan',c:'purple'},{x:520,y:40,w:155,t:'Asset DB',s:'status',c:'green'},{x:705,y:132,w:95,t:'CDN',s:'serve',c:'green'}],edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[4,6],[1,5],[0,6]]});}},
+   {t:'mcq',q:'5 · Common failure gap?',o:['the image has too many pixels','DB says uploaded but object bytes never arrived, or object exists without a DB-ready asset','CDN is too colorful','there are too many thumbnails only'],a:1,why:'Metadata and object storage are separate systems. Use upload status, storage events, reconciliation jobs, and cleanup of orphaned objects or stale pending rows.'},
+   {t:'recall',q:'6 · Deep dive + failures.',model:['Direct upload: create PENDING asset + presigned URL; client uploads to object store; event triggers processors.','Processing: validate MIME/content, strip EXIF, generate immutable variants, moderate/quarantine, then mark READY.','Delivery: CDN over versioned object keys; deletion revokes DB visibility and eventually purges storage/CDN.','Failure: storage event lost → reconciliation scans pending rows/object prefixes; retry-safe create via idempotency key.']}
+  ]},
+  {id:'mock-llm-serving',title:'LLM serving platform',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design an LLM serving platform for chat/completions.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['chat/completion API','stream generated tokens','route to model versions','enforce auth, quotas, context limits, and safety policy']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low time-to-first-token','high GPU utilization','bounded tail latency/cost','safe model rollout and rollback']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: models/model_versions, deployments, requests, token usage, rate-limit buckets, safety/audit events.','<code>POST /v1/chat/completions</code> with stream=true; server sends token deltas over SSE/WebSocket.','Internal scheduler queues requests by model, priority, context length, and tenant quota.']},
+   {t:'mcq',q:'The cost-dominant bottleneck is usually…',o:['the REST JSON parser','GPU inference capacity and memory','the user table','CSS rendering'],a:1,why:'LLM serving is dominated by GPU memory/compute, KV cache, batching efficiency, and queueing. Ordinary web handlers are not the hard part.'},
+   {t:'build',q:'4 · High-level components.',options:['API gateway with auth/quotas','Request scheduler / priority queues','Model registry + rollout controller','GPU worker pool','Continuous batching + KV cache management','Streaming response gateway','One CPU process per request only'],correct:[0,1,2,3,4,5]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:835,h:335,cap:'Requests enter through an API gateway, then a scheduler batches compatible prompts by model/version, priority, and context shape. GPU workers stream tokens back through the gateway. A model registry controls canaries/rollback; admission control protects GPU memory and tail latency.',nodes:[{x:18,y:132,w:120,t:'Client',s:'stream',c:'gray'},{x:165,y:132,w:145,t:'API gateway',s:'auth + quota',c:'blue'},{x:345,y:40,w:170,t:'Scheduler',s:'batch + priority',c:'purple'},{x:345,y:224,w:170,t:'Model registry',s:'versions',c:'gray'},{x:550,y:40,w:145,t:'GPU pool',s:'inference',c:'green'},{x:550,y:224,w:145,t:'Safety/logs',s:'policy',c:'red'},{x:715,y:132,w:100,t:'SSE stream',s:'tokens',c:'amber'}],edges:[[0,1],[1,2],[2,4],[4,6],[6,1],[3,2],[1,5],[4,5]]});}},
+   {t:'mcq',q:'5 · How do you keep utilization high without destroying latency?',o:['only run one request per GPU','continuous batching with admission control and queue deadlines','turn off streaming','ignore context length'],a:1,why:'Continuous batching improves throughput by sharing GPU work across active requests. Admission control and deadlines keep long prompts or low-priority work from wrecking tail latency.'},
+   {t:'recall',q:'6 · Deep dive + failures.',model:['Scheduler groups by model/version and compatible shapes; continuous batching + KV cache management drive GPU utilization.','Admission control: context length limits, tenant quotas, priority queues, queue timeout, and backpressure when GPU memory is full.','Streaming: send token deltas; if a worker dies mid-stream, return a retryable error unless deterministic resume state is explicitly stored.','Rollout: model registry supports canary, shadow evals, metrics, and fast rollback; logs must respect privacy/redaction policy.']}
   ]},
   {id:'mock-2',title:'News feed / Twitter',steps:[
    {t:'teach',h:'1 · Requirements',body:[
@@ -4673,6 +4841,72 @@ const UNITS=[
    {t:'mcq',q:'5 · Bottleneck?',o:['querying','write volume + high cardinality + retention cost','alerting','dashboards'],a:1,why:'Sustained high-cardinality writes and years of retention dominate; fix with rollups + TTL tiers.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Kafka absorbs spikes → stream aggregation → TSDB; downsample raw → 1-min → 1-hour with TTL per tier; long-range queries read coarse rollups.','Failure: ingestion spike → Kafka buffers / backpressure; idempotent writes give exactly-once aggregation.']}
   ]},
+  {id:'mock-topk',title:'Top-K trending topics',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a Top-K trending topics service.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['ingest topic mentions / hashtag events','return top K topics by window, region, and language','support dashboards and drill-down']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['very high write volume','near-real-time results','bounded memory per window','eventual consistency is acceptable']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>mention_events(event_id, topic, user, ts, region)</code>, <code>window_counts(topic, window, count)</code>, <code>topk_snapshots(window, region, list)</code>','<code>POST /events</code> or stream ingest from Kafka','<code>GET /trending?window=5m&amp;region=US&amp;k=20</code>','Optional drill-down reads exact counts for one topic/window']},
+   {t:'mcq',q:'Why not sort every topic on every dashboard request?',o:['sorting is always inaccurate','reads would scan all topics; precompute top-K per window','Kafka cannot store topics','dashboards should be stale forever'],a:1,why:'The hot read is "give me the current top 20"; scan-and-sort over millions of topics per request is wasteful. Maintain rolling top-K snapshots as events arrive.'},
+   {t:'htmlviz',h:'Top-K — shard counts, then merge winners',
+    html:`<style>
+.topkv{display:grid;gap:10px}
+.topkv-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.topkv-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:96px}
+.topkv-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.topkv-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.topkv-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.topkv-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.topkv-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
+.topkv-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.topkv-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.topkv-cap b{color:var(--color-text-primary)}
+</style>
+<div class="topkv">
+  <div class="topkv-flow"><div class="topkv-node"><div class="topkv-t">Mentions</div><div class="topkv-s">topic events</div></div><div class="topkv-arr">→</div><div class="topkv-node hot"><div class="topkv-t">Kafka</div><div class="topkv-s">partitioned stream</div></div><div class="topkv-arr">→</div><div class="topkv-node info"><div class="topkv-t">Shard counters</div><div class="topkv-s">per window</div></div><div class="topkv-arr">→</div><div class="topkv-node good"><div class="topkv-t">Merge Top-K</div><div class="topkv-s">heap snapshots</div></div></div>
+  <div class="topkv-cap"><b>Do local heavy-hitter work first.</b> Each partition keeps bounded counters/heaps for active windows, emits its local winners, then a reducer merges the small candidate lists into global Top-K snapshots.</div>
+</div>`},
+   {t:'build',q:'4 · High-level components.',options:['Kafka ingest stream','Windowed stream processor','Per-partition counters / heavy-hitter sketches','Reducer that merges local top-K lists','Snapshot store + cache for reads','Sort all topics on every request'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:805,h:320,cap:'Events flow through Kafka into a windowed stream processor. Workers keep per-partition counts or approximate heavy-hitter sketches, emit local Top-K candidates, and a reducer merges them into snapshot rows keyed by (window, region, k). Dashboards read cached snapshots, not raw events.',nodes:[{x:18,y:132,w:120,t:'Clients',s:'mention events',c:'gray'},{x:165,y:132,w:135,t:'Kafka',s:'partition stream',c:'amber'},{x:335,y:40,w:175,t:'Window workers',s:'counts / sketches',c:'purple'},{x:335,y:224,w:175,t:'Exact store',s:'optional drill-down',c:'gray'},{x:545,y:40,w:145,t:'Top-K merge',s:'heap',c:'blue'},{x:545,y:224,w:220,t:'Snapshot cache',s:'GET /trending',c:'green'}],edges:[[0,1],[1,2],[2,4],[4,5],[2,3],[5,3]]});}},
+   {t:'mcq',q:'5 · Bottleneck?',o:['dashboard reads','hot topics and high-cardinality counters in active windows','old snapshots','JSON formatting'],a:1,why:'A globally hot topic can hammer one counter; high cardinality can blow up memory. Shard counters, use sketches for candidates, and expire window state aggressively.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Use tumbling/sliding event-time windows; maintain per-partition counts or Count-Min/Space-Saving candidates; merge local top-K lists with a heap into cached snapshots.','Approximate path is fast for candidates; exact count store or batch correction can reconcile dashboard detail.','Failure: late/out-of-order events → watermark + allowed lateness; hot topic counter → shard by (topic, salt), then merge.']}
+  ]},
+  {id:'mock-adclick-agg',title:'Ad-click aggregation',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design an ad-click aggregation system.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['ingest impressions/clicks/conversions','deduplicate click events','show near-real-time campaign metrics','support late events and fraud signals']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['high ingest rate','low-latency aggregate reads','idempotent processing','auditable raw data']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Events: <code>click_id</code>, campaign_id, ad_id, user/device hash, ts, cost, attribution fields','Aggregates keyed by <code>(campaign_id, ad_id, window)</code>: clicks, unique clicks, spend, conversions','<code>POST /click</code> or pixel redirect emits to Kafka','<code>GET /campaigns/{id}/stats?from=&amp;to=&amp;granularity=1m</code>']},
+   {t:'mcq',q:'Where should aggregation happen?',o:['synchronously in the click redirect','async stream processor after durable ingest','only in a nightly cron','inside the browser'],a:1,why:'The click path should be tiny and durable: validate/lightweight redirect, enqueue the event, then aggregate asynchronously so reporting cannot slow down clicks.'},
+   {t:'htmlviz',h:'Ad clicks — raw log plus materialized rollups',
+    html:`<style>
+.adagg{display:grid;gap:10px}
+.adagg-flow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center}
+.adagg-node{border:2px solid var(--color-border-primary);border-radius:14px;background:var(--color-background-secondary);padding:9px 11px;text-align:center;min-width:96px}
+.adagg-node.hot{background:var(--color-background-warning);border-color:var(--color-border-warning);color:var(--color-text-warning)}
+.adagg-node.good{background:var(--color-background-success);border-color:var(--color-border-success);color:var(--color-text-success)}
+.adagg-node.info{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.adagg-t{font-size:12.5px;font-weight:900;color:var(--color-text-primary)}
+.adagg-s{font-size:10.5px;font-weight:800;line-height:1.35;margin-top:3px}
+.adagg-arr{font-size:18px;font-weight:900;color:var(--color-text-tertiary)}
+.adagg-cap{font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
+.adagg-cap b{color:var(--color-text-primary)}
+</style>
+<div class="adagg">
+  <div class="adagg-flow"><div class="adagg-node"><div class="adagg-t">Click pixel</div><div class="adagg-s">click_id</div></div><div class="adagg-arr">→</div><div class="adagg-node hot"><div class="adagg-t">Kafka</div><div class="adagg-s">durable raw log</div></div><div class="adagg-arr">→</div><div class="adagg-node info"><div class="adagg-t">Dedup + windows</div><div class="adagg-s">event time</div></div><div class="adagg-arr">→</div><div class="adagg-node good"><div class="adagg-t">Rollups</div><div class="adagg-s">campaign stats</div></div></div>
+  <div class="adagg-cap"><b>Keep two truths:</b> immutable raw events for audit/replay, and materialized rollups for dashboards. Dedup by click_id before incrementing, and keep a correction path for late conversions.</div>
+</div>`},
+   {t:'build',q:'4 · High-level components.',options:['Tiny click collector / redirect','Kafka raw event log','Dedup store keyed by click_id','Stream aggregation by event-time window','OLAP/TSDB rollup store','Synchronous dashboard write in the redirect'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:820,h:320,cap:'The collector records the click with a click_id and immediately emits to Kafka. Stream workers dedupe, aggregate by campaign/ad/window, and write rollups to an OLAP store for dashboard queries. Raw events land in object storage for audit and replay; fraud/anomaly jobs read the same stream.',nodes:[{x:18,y:132,w:125,t:'Click collector',s:'fast path',c:'blue'},{x:170,y:132,w:130,t:'Kafka',s:'raw log',c:'amber'},{x:335,y:40,w:155,t:'Dedup store',s:'click_id TTL',c:'red'},{x:335,y:224,w:175,t:'Object store',s:'raw audit',c:'gray'},{x:530,y:40,w:155,t:'Stream agg',s:'event windows',c:'purple'},{x:530,y:224,w:155,t:'Fraud jobs',s:'signals',c:'gray'},{x:705,y:132,w:95,t:'OLAP',s:'rollups',c:'green'}],edges:[[0,1],[1,2],[2,4],[1,3],[1,5],[4,6]]});}},
+   {t:'mcq',q:'5 · Bottleneck / risk?',o:['campaign names','duplicate and late events corrupting aggregates','dashboard CSS','object storage reads'],a:1,why:'Retries and pixels can emit duplicates; mobile/offline paths can arrive late. Without dedup and event-time windows, reporting drifts.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Collector stays off the reporting path: emit durable raw events, redirect quickly, aggregate asynchronously.','Dedup by click_id with a TTL store; aggregate by event time with watermarks; write rollups keyed by (campaign, ad, window).','Failure: processor bug or fraud-rule change → replay raw Kafka/object-store events to rebuild aggregates; late conversions issue correction updates.']}
+  ]},
   {id:'mock-8',title:'Payment / order system',steps:[
    {t:'teach',h:'1 · Requirements',body:[
      {k:'tldr',t:'Design checkout across order, payment & inventory services.'},
@@ -4747,10 +4981,31 @@ const UNITS=[
    {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:800,h:306,cap:'Keystrokes hit an in-memory serving tier (CDN/edge) backed by a precomputed prefix→top-k index (trie). A streaming frequency pipeline rebuilds the index for trending; a safe-suggestion filter strips unsafe results.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:185,t:'Serving tier',s:'in-mem + CDN',c:'green'},{x:400,y:40,w:185,t:'Prefix → top-k',s:'trie index',c:'blue'},{x:400,y:224,w:185,t:'Freq pipeline',s:'stream',c:'purple'},{x:625,y:40,w:160,t:'Safe filter',s:'block unsafe',c:'red'}],edges:[[0,1],[1,2],[3,2],[2,4]]});}},
    {t:'mcq',q:'5 · Bottleneck?',o:['index rebuild','per-keystroke read latency at scale','storage','the filter'],a:1,why:'Every keystroke is a query; serve from memory/edge and debounce on the client. Rebuilds happen offline.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Stream-count queries → periodically rebuild prefix→top-k (trie) → push to in-memory/edge serving; debounce client input.','Trending: decay old counts so fresh terms surface; filter unsafe suggestions before publish.','Failure: rebuild job fails → keep serving the last good index (stale but available); bad index → fast rollback to previous version.']}
+  ]},
+  {id:'mock-13',title:'Distributed job scheduler',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a distributed job scheduler.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['enqueue immediate and delayed jobs','workers claim, heartbeat, complete, or fail jobs','support retries, priority, cancellation, and dead-letter handling']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['durable jobs','high worker throughput','at-least-once delivery with exactly-once effect','no two workers successfully complete the same leased job']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Entity: <code>jobs(id,type,payload,status,run_at,priority,attempts,max_attempts,lease_token,locked_until,idempotency_key)</code>','<code>POST /jobs</code> with an idempotency key → enqueue delayed/priority job','<code>POST /workers/{id}:claim</code> → due jobs + lease token','<code>POST /jobs/{id}:heartbeat|complete|fail|cancel</code> with the lease token']},
+   {t:'mcq',q:'What is the correct guarantee to promise?',o:['exactly-once execution','at-least-once delivery + idempotent handler = exactly-once effect','best-effort fire-and-forget','a global lock around every job'],a:1,why:'A worker can crash after doing the external effect but before acking. You cannot guarantee exactly-once execution; you design idempotent effects with keys/results so redelivery is safe.'},
+   {t:'build',q:'4 · High-level components.',options:['Job API with idempotency keys','Durable job store indexed by (status, run_at, priority)','Worker pool with leases + heartbeats','Retry/backoff scheduler + DLQ','Outbox/effect idempotency table','One long DB transaction per running job'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:820,h:330,cap:'Clients enqueue durable jobs with idempotency keys. Workers claim due jobs ordered by priority, receive a short lease token, heartbeat while running, and complete/fail only if the token still matches. Failed jobs move back to the due queue with backoff; poison jobs land in a DLQ. Effects are idempotent because execution is at-least-once.',nodes:[{x:18,y:132,w:120,t:'Client',c:'gray'},{x:165,y:132,w:140,t:'Job API',s:'idempotent enqueue',c:'blue'},{x:345,y:40,w:180,t:'Job store',s:'run_at + priority',c:'gray'},{x:345,y:224,w:180,t:'Retry scheduler',s:'backoff + jitter',c:'amber'},{x:560,y:40,w:230,t:'Worker pool',s:'claim + lease + heartbeat',c:'green'},{x:560,y:224,w:105,t:'DLQ',s:'poison jobs',c:'red'},{x:685,y:224,w:105,t:'Effect store',s:'dedupe keys',c:'purple'}],edges:[[0,1],[1,2],[2,4],[4,2],[4,3],[3,2],[3,5],[4,6]]});}},
+   {t:'mcq',q:'A worker lease expires, another worker reclaims the job, then the old worker tries to complete. What prevents corruption?',o:['hope the old worker exits','complete with a matching lease token / fencing check','a longer timeout only','turn off retries'],a:1,why:'Completion must be conditional: UPDATE ... WHERE id=? AND lease_token=? AND locked_until>now(). The stale worker no longer has the valid fencing token.'},
+   {t:'mcq',q:'How should retries be scheduled?',o:['retry instantly forever','retry with exponential backoff + jitter, then DLQ after max_attempts','drop failed jobs','block the whole queue'],a:1,why:'Backoff avoids retry storms; jitter spreads load; max_attempts + DLQ isolate poison jobs for inspection/replay.'},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Claim query: due queued jobs ordered by priority/run_at, using <code>FOR UPDATE SKIP LOCKED</code> or an equivalent atomic claim; set <code>lease_token</code> and <code>locked_until</code>.','Complete/fail is fenced by the lease token. Expired leases become claimable again, so handlers must be idempotent.','Exactly-once effect: unique effect key / result table / downstream idempotency key prevents duplicate emails, charges, exports, etc.','Failure: poison job retries with backoff + jitter, then DLQ; stuck worker stops heartbeating and another worker reclaims after timeout.']}
   ]}
  ],
  boss:{title:'Mock Designs Boss',time:110,q:[
    {q:'URL shortener: short codes via…',o:['hash + truncate','base62 of a counter/ID','UUID v4','random retry'],a:1},
+   {q:'Distributed cache node changes: avoid massive key churn with…',o:['hash(key) % N','consistent hashing / fixed slots + virtual nodes','round-robin','one primary node'],a:1},
+   {q:'News aggregator hard part:',o:['only storing HTML','deduping/clustering fresh stories and ranking quality','drawing the logo','one daily cron'],a:1},
+   {q:'Online chess authority:',o:['both clients','the server-side game service','spectators','the CDN'],a:1},
+   {q:'Image uploads should go…',o:['through app servers','direct to object storage via presigned URL','into SQL rows','over chat WebSockets'],a:1},
+   {q:'LLM serving bottleneck:',o:['GPU inference capacity / memory','button styling','one SQL join','DNS only'],a:0},
    {q:'Twitter feed for normal users:',o:['fanout-on-read','fanout-on-write','nightly batch','no cache'],a:1},
    {q:'Twitter celebrity post:',o:['fanout-on-write to all','fanout-on-read / hybrid','block posting','shard harder'],a:1},
    {q:'Chat real-time delivery:',o:['polling','WebSocket + pub/sub','email','cron'],a:1},
@@ -4759,7 +5014,11 @@ const UNITS=[
    {q:'Large video upload:',o:['through app servers','presigned URL to S3','into the DB','base64'],a:1},
    {q:'Order system cross-service atomicity:',o:['2PC','saga + compensations','global lock','none'],a:1},
    {q:'Metrics storage partitioning:',o:['by user','by (series, time bucket)','random','one table'],a:1},
+   {q:'Top-K trending reads should hit…',o:['all raw events','cached top-K snapshots per window','one global SQL sort','each client browser'],a:1},
+   {q:'Ad-click aggregation belongs…',o:['inside the redirect transaction','async after durable event ingest','only in frontend localStorage','in a graph database'],a:1},
    {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1},
+   {q:'Job scheduler workers should claim jobs with…',o:['a long transaction','a lease token / visibility timeout','a local mutex only','no state'],a:1},
+   {q:'Job scheduler exactly-once means…',o:['exactly-once execution','at-least-once delivery + idempotent effect','no retries','one worker total'],a:1},
    {q:'LLM mock judge should primarily…',o:['solve first','grade your answer and ask follow-ups','write frontend code','ignore tradeoffs'],a:1}
  ]}
 }
@@ -4792,6 +5051,11 @@ const TOOLS=[
     setup:function(root){
       var prompts=[
         'Design a collaborative document editor like Google Docs. Focus on real-time collaboration, conflict handling, document storage, permissions, and offline/reconnect behavior.',
+        'Design a distributed cache like Redis or Memcached. Support get/set/delete, TTLs, horizontal scaling, node failures, hot keys, eviction, and cache stampede protection.',
+        'Design a news aggregator like Google News. Support ingesting publisher content, deduplicating related articles, clustering stories, ranking feeds, search, personalization, and freshness.',
+        'Design an online chess platform. Support matchmaking, real-time games over WebSockets, legal move validation, clocks, reconnects, spectators, and durable game history.',
+        'Design an image upload and delivery service for a social app. Support direct uploads, thumbnails, moderation, metadata, CDN delivery, deletion, and retry-safe clients.',
+        'Design an LLM serving platform. Support chat/completion APIs, token streaming, GPU scheduling, batching, model routing, context limits, quotas, observability, and safe model rollout.',
         'Design a notification system for a large social app. Support push, email, in-app inbox, preferences, deduplication, and delivery tracking.',
         'Design search autocomplete for a global shopping app. Support low latency prefix suggestions, personalization, trending terms, and safe rollout of new indexes.',
         'Design a Dropbox/Google Drive style file storage system. Support large uploads, sync across devices, sharing permissions, version history, and conflict resolution.',
@@ -4804,6 +5068,8 @@ const TOOLS=[
       ];
       var judge='You are a strict system design interviewer. Grade the candidate answer as interview performance, not as a polished architecture doc. Score 1-4 for: requirements/scope, API and data model, architecture, scale and bottlenecks, consistency/reliability, tradeoffs, and communication. Return: overall level (weak/borderline/hireable/strong), a score table, the 5 highest-leverage gaps, 3 realistic follow-up questions, and a concise improved outline. Do not redesign from scratch; judge the candidate answer.';
       var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
+      try{a.value=localStorage.getItem('sdp_mock_answer_interview')||'';}catch(e){}
+      a.addEventListener('input',function(){try{localStorage.setItem('sdp_mock_answer_interview',a.value);}catch(e){}});
       function render(){p.textContent=prompts[i];}
       function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
       function packet(){return judge+'\n\nPROMPT:\n'+prompts[i]+'\n\nCANDIDATE ANSWER:\n'+(a.value.trim()||'[Paste candidate answer here]');}
@@ -4855,6 +5121,8 @@ const TOOLS=[
       ];
       var judge='You are a strict system design interviewer grading an API and data-model artifact. Score 1-4 for: API contract; data model; keys and indexes; consistency and transactions; idempotency and retries; scale and hot spots; evolution and operations. Say which required access patterns are fully supported, partially supported, or unsupported. Return the 5 highest-leverage fixes and 3 interviewer follow-up questions. Do not redesign from scratch; judge the submitted artifact with concrete corrections.';
       var i=0,p=root.querySelector('[data-prompt]'),a=root.querySelector('[data-answer]'),s=root.querySelector('[data-status]');
+      try{a.value=localStorage.getItem('sdp_mock_answer_schema')||'';}catch(e){}
+      a.addEventListener('input',function(){try{localStorage.setItem('sdp_mock_answer_schema',a.value);}catch(e){}});
       function text(d){return d.title+'\n\n'+d.prompt+'\n\nAccess patterns:\n- '+d.access.join('\n- ');}
       function render(){p.textContent=text(drills[i]);}
       function status(t){s.textContent=t;clearTimeout(status.t);status.t=setTimeout(function(){s.textContent='';},1800);}
@@ -5233,8 +5501,10 @@ function renderReview(stage,step){
   else if(step.t==='order'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map((t,n)=>'<div><b>'+(n+1)+'.</b> '+t+'</div>').join('')+'</div>';}
   else if(step.t==='build'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.correct.map(i=>'<div>✓ '+step.options[i]+'</div>').join('')+'</div>';}
   else if(step.t==='cloze'){h+='<div class="q-title">'+(step.q||'')+'</div><div class="rev-fill">'+step.text.map(t=>typeof t==='string'?t:'<b>'+t.blank+'</b>').join('')+'</div>';}
-  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div><div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
+  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div>';let yours='';try{yours=localStorage.getItem('sdp_recall_'+sigOf(step))||'';}catch(e){}if(yours.trim())h+='<div style="background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:13px 15px;margin-top:12px"><h4 style="font-size:13px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Your answer</h4><div style="white-space:pre-wrap;font-weight:700;font-size:14px;line-height:1.5;color:var(--ink)">'+yours.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div></div>';h+='<div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
   stage.innerHTML=h;
+  // reviewing an already-answered step → don't re-lock spoilers; show the content
+  stage.querySelectorAll('.v2-spoiler').forEach(function(s){s.classList.add('revealed');});
   footBtn('Next →',nextStep);
 }
 
@@ -5655,9 +5925,13 @@ function stBuild(stage,step){
 
 /* ---------- step: recall (output / explain) ---------- */
 function stRecall(stage,step){
+  const rkey='sdp_recall_'+sigOf(step);
   let h='<div class="q-sub">🗣️ Explain it (out loud!)</div><div class="q-title">'+step.q+'</div>'
     +'<div class="recall"><textarea id="ra" placeholder="Optional: jot your answer or say it aloud, then reveal."></textarea></div>';
   stage.innerHTML=h;
+  const ra=document.getElementById('ra');
+  try{ra.value=localStorage.getItem(rkey)||'';}catch(e){}
+  ra.addEventListener('input',function(){try{localStorage.setItem(rkey,ra.value);}catch(e){}});
   footBtn('Reveal model answer',()=>{
     stopTimer(); // self-graded from here — stop the clock while you read + judge
     const tEl=document.querySelector('.timer');if(tEl)tEl.classList.add('paused');
