@@ -3381,6 +3381,19 @@ each step independently deployable &amp; rollback-safe</div>
       </div>
     </div>
 
+    <div class="exercise" id="ex-autocomplete-recognition">
+      <span class="ex-tag">Recognition</span>
+      <div class="ex-prompt"><strong>Design search autocomplete (typeahead)</strong> — as the user types, suggest the most likely completions ranked by popularity, returning in under ~100ms per keystroke.</div>
+      <div class="ex-tests">Name the primary archetype and what it composes with.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
+      <div class="ex-solution">
+        <p><strong>Primary: Search &amp; geo</strong> (prefix / text search) — composes with <strong>Time-series &amp; analytics</strong> to rank by query popularity / trending, served from a precomputed KV/cache lookup.</p>
+        <p class="ap"><strong>Playbook:</strong> precompute <code>prefix &rarr; top-k suggestions</code> (a trie or prefix table) from query-frequency counts; serve it from memory/edge so each keystroke is ~O(1); debounce input on the client; rebuild the structure offline / from a stream.</p>
+        <p class="ap"><strong>Trending half:</strong> decay old counts so fresh terms surface; run a safe-suggestion filter before publishing the index.</p>
+        <div class="note warn"><strong>Trap:</strong> <code>SQL LIKE '%prefix%'</code> per keystroke, or ranking at query time — typeahead must be near-O(1) reads from a precomputed structure, not a live search. (This is the read-serving cousin of the full <strong>search engine</strong> mock, which builds the inverted index.)</div>
+      </div>
+    </div>
+
     <div class="section-footer">
       <button class="ask-btn" onclick="sendQ('Give me a random system design prompt, then ask me to name which of these 8 archetypes it maps to and recall the core decisions: time-series/analytics, feed/fan-out, transactional/booking, realtime messaging, search/geo, blob/media, KV lookup at scale, async pipelines/workflows. Tell me if I am right.')">Drill archetype recognition <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
@@ -4468,6 +4481,36 @@ service CacheService {
         <p><strong>Performance:</strong> GPUs are the bottleneck. Use continuous batching, KV-cache reuse within a request, admission control for long prompts, priority queues, and autoscaling by queue delay/GPU utilization.</p>
         <p><strong>Reliability:</strong> if a worker dies mid-stream, return a clear retryable error or resume only if the product stores deterministic request state. Log prompts/responses according to privacy policy and redact sensitive data from observability.</p>
         <div class="note warn"><strong>Trap:</strong> treating inference like a normal stateless HTTP handler. The design is mostly GPU scheduling, batching, backpressure, model rollout, and cost control.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-web-crawler">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Web crawler.</strong> Design a crawler that feeds a search engine's index: start from seed URLs, fetch pages, extract and follow links, store content, respect robots.txt, and re-crawl for freshness — at the scale of billions of pages.</div>
+      <div class="ex-tests">Tests: URL frontier (priority + politeness), dedup, robots/politeness, crawler traps, distributed scaling and freshness.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> seeds &rarr; fetch &rarr; parse/extract links &rarr; enqueue new URLs (a BFS of the web) &rarr; store raw HTML + metadata for downstream indexing. Respect <code>robots.txt</code>, dedupe URLs and content, and re-crawl pages by how often they change. Indexing/ranking is downstream and out of scope.</p>
+        <p><strong>Architecture:</strong> URL frontier &rarr; fetchers (DNS resolve, HTTP GET) &rarr; parser/link extractor &rarr; seen-URL filter + content-hash dedupe &rarr; raw-page object store + metadata DB; extracted links loop back into the frontier. A robots.txt cache gates fetching.</p>
+        <p><strong>The URL frontier is the core.</strong> It balances two goals: <em>priority</em> (front queues by page importance/freshness) and <em>politeness</em> (back queues with one host per queue, gated by a per-host <code>crawl_delay</code> so only one request per domain is in flight). Forgetting politeness gets the crawler IP-banned.</p>
+        <p><strong>Data model:</strong> pages(url, content_hash, status, fetched_at, next_crawl_at), a Bloom filter / set of seen URL fingerprints, robots_cache(domain, rules, crawl_delay). Raw HTML in object storage; metadata in a KV/relational store.</p>
+        <p><strong>Deep dives:</strong> dedup in two layers — a Bloom filter answers "seen this URL?" cheaply, a content hash/SimHash catches duplicate or near-duplicate bodies (syndicated articles). Crawler traps (infinite calendars, session-id URLs) need depth limits, per-domain URL budgets, and URL normalization. Shard the frontier by host hash; cache DNS (a hidden bottleneck); schedule re-crawls by observed change rate.</p>
+        <div class="note warn"><strong>Trap:</strong> crawling as fast as the network allows. Politeness is per-host (one in-flight request per domain), and a naive BFS pours its whole budget into the first crawler trap it hits.</div>
+      </div>
+    </div>
+
+    <div class="exercise" id="ex-search-engine">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Search engine (indexing + serving).</strong> Design the search layer that answers full-text queries over a crawled corpus of billions of documents: index the documents, return ranked results in under 200ms, paginate, and keep new pages searchable.</div>
+      <div class="ex-tests">Tests: inverted index, document vs term partitioning, scatter-gather + tail latency, ranking (BM25), index freshness.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> this is the layer <em>after</em> the crawler. Accept a query, return ranked document results with pagination, and make newly-crawled docs searchable. Crawling/ingestion is upstream; deep ML ranking is mostly out of scope beyond a solid baseline.</p>
+        <p><strong>The inverted index is the core.</strong> A search engine never scans documents at query time — it stores <code>term &rarr; sorted posting list of doc ids</code> (each posting carrying term frequency + positions). A query <em>intersects</em> (AND) or merges (OR) those posting lists, doing work proportional to matching docs, not corpus size.</p>
+        <p><strong>Architecture:</strong> an indexer tokenizes/normalizes each doc (lowercase, stem, drop stopwords) and appends it to each term's postings, written as immutable segments that merge in the background. A query coordinator <em>scatters</em> the query to every index shard; each shard returns a local top-k from its postings; the coordinator <em>gathers</em>, merges, and re-ranks (BM25) before hydrating title/url/snippet. A result cache absorbs hot queries.</p>
+        <p><strong>Data model:</strong> documents(doc_id, url, title, body, lang, fetched_at); the inverted index term &rarr; [(doc_id, tf, positions)] stored as immutable segments; a per-shard doc store for hydration.</p>
+        <p><strong>Deep dives:</strong> partition by <em>document</em> (each shard indexes a slice; every query scatter-gathers) rather than by term — the default, since term partitioning makes multi-term queries join across hot shards. Scatter-gather makes the slowest shard your latency, so replicate shards and use hedged requests, per-shard timeouts, and partial results. Freshness comes from a small in-memory segment that's immediately searchable, merged later. Rank with BM25 (tf, idf, doc-length), optionally re-ranking just the top-k with a learned model.</p>
+        <div class="note warn"><strong>Trap:</strong> scanning documents (or a SQL <code>LIKE '%q%'</code>) instead of an inverted index, a single un-sharded index, or forgetting that scatter-gather means your p99 is the slowest shard.</div>
       </div>
     </div>
 

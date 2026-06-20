@@ -1726,7 +1726,59 @@ const UNITS=[
      {k:'note',t:'The same routing happens <b>twice</b>: first pick the <b>shard</b> (partition the key), then within a replicated shard pick the <b>leader</b> for writes or a <b>follower</b> for reads. Its sibling problem is <b>service discovery</b> — finding healthy <i>instances</i> rather than data — via DNS, Consul, Eureka, or Kubernetes Services.'}
    ]},
    {t:'mcq',q:'Your nodes re-shard often and you have apps in 5 languages. Where should routing live?',o:['A smart client library in each app','A proxy tier the apps point at','hash(key) % node_count in each app','One large node, no routing'],a:1,why:'A proxy centralizes routing + failover, so membership changes happen in one place and the thin clients stay language-agnostic — you avoid shipping and redeploying a smart client across 5 stacks. The price is an extra network hop and a proxy tier you must keep highly available.'},
-   {t:'recall',q:'How does a client find the right node for a key — and where does the topology come from?',model:['<b>Where routing runs:</b> a smart client library (one hop, but every app needs the client), a proxy tier (extra hop, but clients stay dumb and routing/failover is centralized), or any-node redirect (forward / <code>MOVED</code>).','<b>Where topology lives:</b> a coordination/config service (ZooKeeper / etcd / Consul) that clients or the proxy watch, or gossip between nodes. Static config is the rigid simple option.','Same idea applies twice: pick the shard (partition the key), then within a replicated shard pick the leader (writes) or a follower (reads).']}
+   {t:'teach',h:'Server-side routing & the hybrid',body:[
+     {k:'tldr',t:'Routing doesn’t have to live in the client or a proxy — the <b>cluster itself</b> can route. A client hits <i>any</i> node, which either <b>redirects</b> or <b>forwards</b>.'},
+     {k:'point',i:'↩️',t:'<b>Redirect</b> — the node replies "not me, go to N3"; the client reconnects and retries. The server stays <b>off the data path</b> (cheap for it) but you pay an <b>extra round trip</b>. Redis Cluster <code>MOVED</code>, HTTP 302, DNS-based load balancing, the HDFS NameNode handing back DataNode addresses.'},
+     {k:'point',i:'➡️',t:'<b>Forward / coordinate</b> — the receiving node relays to the owner and returns the result (it acts as a <b>coordinator</b>). <b>One client hop</b>, but the coordinator sits <b>in the data path</b> and bears the relay cost. Cassandra / Dynamo coordinator nodes; a proxy load balancer.'},
+     {k:'callout',c:'mem',t:'<b>Same split as load balancing:</b> redirect = "go there yourself" (DNS / 302 / <code>MOVED</code>, off the data path); forward = "I’ll relay it" (proxy LB / coordinator, in the data path).'},
+     {k:'point',i:'🔀',t:'<b>The common hybrid:</b> the cluster <b>hands out the map</b>, a smart client <b>caches it and routes directly</b>, and a stale-map error bounces it to refresh. Best of both — no proxy tier, no per-request redirect tax. Kafka (fetch partition→leader metadata, then connect direct; <code>NOT_LEADER</code> → refetch) and Redis Cluster smart clients.'}
+   ]},
+   {t:'htmlviz',h:'Routing: server-side (redirect vs forward)',html:`<style>
+.srv-cap{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.srv-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<svg viewBox="0 0 680 258" style="width:100%;height:auto;display:block;max-width:660px;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="srvt srvd">
+<title id="srvt">Server-side routing: redirect vs forward</title>
+<desc id="srvd">Redirect: the client asks any node, gets bounced to the owner, and retries there — the first node stays off the data path. Forward: any node acts as coordinator, relays to the owner, and returns the result in one client hop.</desc>
+<defs><marker id="srv-ar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5F5E5A"/></marker></defs>
+<text x="150" y="20" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Redirect — client retries</text>
+<text x="510" y="20" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Forward — node coordinates</text>
+<line x1="340" y1="30" x2="340" y2="226" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<rect x="16" y="34" width="60" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="46" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">client</text>
+<rect x="110" y="34" width="80" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="150" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">any node</text>
+<rect x="224" y="34" width="60" height="24" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="254" y="50" text-anchor="middle" font-size="11" fill="#173404">owner</text>
+<line x1="46" y1="58" x2="46" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="150" y1="58" x2="150" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="254" y1="58" x2="254" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="98" y="76" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 · get key</text>
+<path d="M46,80 L148,80" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="98" y="106" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">2 · MOVED → owner</text>
+<path d="M150,110 L48,110" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#srv-ar)"/>
+<text x="150" y="136" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">3 · retry</text>
+<path d="M46,140 L252,140" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="150" y="166" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">4 · value</text>
+<path d="M254,170 L48,170" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="150" y="212" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">server off the data path · +1 round trip</text>
+<rect x="376" y="34" width="60" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="406" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">client</text>
+<rect x="468" y="34" width="84" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="510" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">coordinator</text>
+<rect x="584" y="34" width="60" height="24" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="614" y="50" text-anchor="middle" font-size="11" fill="#173404">owner</text>
+<line x1="406" y1="58" x2="406" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="510" y1="58" x2="510" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="614" y1="58" x2="614" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="458" y="76" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 · get key</text>
+<path d="M406,80 L508,80" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="562" y="106" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">2 · forward</text>
+<path d="M510,110 L612,110" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="562" y="136" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">3 · value</text>
+<path d="M614,140 L512,140" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="458" y="166" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">4 · value</text>
+<path d="M510,170 L408,170" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar)"/>
+<text x="510" y="212" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 client hop · coordinator in the data path</text>
+<text x="340" y="242" text-anchor="middle" font-size="11.5" fill="#444441">Hybrid: the cluster hands out the map; a smart client caches it and routes directly (Kafka, Redis Cluster).</text>
+</svg>
+<div class="srv-cap"><b>Redirect</b> (Redis <code>MOVED</code>, DNS LB, HTTP 302) — any node bounces you to the owner; you retry. The server never touches the data, but it costs a round trip. <b>Forward / coordinate</b> (Cassandra coordinator, proxy LB) — any node relays to the owner and returns the result: one client hop, but the coordinator sits in the data path. <b>Hybrid</b> — the cluster publishes the map and a smart client routes directly, refreshing on a stale-map error.</div>`},
+   {t:'mcq',q:'Redis Cluster MOVED vs a Cassandra coordinator — the key difference?',o:['MOVED is always faster','Redirect keeps the server off the data path (client retries); a coordinator forwards and is in the data path','They’re identical','Coordinators can’t replicate'],a:1,why:'Redirect (MOVED) bounces the client to the owner and the first node never touches the data — so it costs an extra round trip. A coordinator forwards to the owner and relays the response, so it’s one client hop but the coordinator sits in the data path.'},
+   {t:'recall',q:'Name the ways a request can reach the right node for a key.',model:['<b>Client library</b> — smart client holds the map, talks direct (1 hop; every app/language needs the client).','<b>Proxy tier</b> — a middle tier routes (extra hop; thin clients, centralized routing/failover, connection fan-in).','<b>Server-side redirect</b> — any node bounces you to the owner; client retries (server off the data path; +1 round trip; Redis <code>MOVED</code>).','<b>Server-side forward / coordinate</b> — any node relays to the owner (1 client hop; coordinator in the data path; Cassandra).','<b>Hybrid</b> — the cluster hands out the map, a smart client caches + routes directly, refreshing on a stale-map error (Kafka, Redis Cluster).','Topology source either way: a config service (ZooKeeper/etcd) that’s watched, or gossip.']}
   ]}
  ],
  boss:{title:'Partitioning Boss',time:65,q:[
@@ -4586,6 +4638,50 @@ const UNITS=[
 <rect x="430" y="292" width="13" height="13" rx="3" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="449" y="303" font-size="11" fill="var(--color-text-primary)">cache node</text>
 </svg>
 <div class="clp-cap">Same blue <b>routing logic</b>, different home. <b>Client library</b> — the slot map lives in every app: one hop, but you ship and redeploy the smart client everywhere. <b>Proxy</b> — the map lives in one shared tier: thin, language-agnostic clients, but an extra hop and a tier to keep available. Either way, live membership comes from a config service (etcd / ZooKeeper) or gossip.</div>`},
+   {t:'htmlviz',h:'Routing: server-side (redirect vs forward)',html:`<style>
+.srv-cap{margin-top:10px;font-size:12.5px;color:var(--color-text-secondary);line-height:1.55;padding:10px 13px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)}
+.srv-cap b{color:var(--color-text-primary);font-weight:800}
+</style>
+<svg viewBox="0 0 680 258" style="width:100%;height:auto;display:block;max-width:660px;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="srvt2 srvd2">
+<title id="srvt2">Server-side routing: redirect vs forward</title>
+<desc id="srvd2">Redirect: the client asks any node, gets bounced to the owner, and retries there. Forward: any node acts as coordinator, relays to the owner, and returns the result in one client hop.</desc>
+<defs><marker id="srv-ar2" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5F5E5A"/></marker></defs>
+<text x="150" y="20" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Redirect — client retries</text>
+<text x="510" y="20" text-anchor="middle" font-size="13" font-weight="500" fill="var(--color-text-primary)">Forward — node coordinates</text>
+<line x1="340" y1="30" x2="340" y2="226" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<rect x="16" y="34" width="60" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="46" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">client</text>
+<rect x="110" y="34" width="80" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="150" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">any node</text>
+<rect x="224" y="34" width="60" height="24" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="254" y="50" text-anchor="middle" font-size="11" fill="#173404">owner</text>
+<line x1="46" y1="58" x2="46" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="150" y1="58" x2="150" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="254" y1="58" x2="254" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="98" y="76" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 · get key</text>
+<path d="M46,80 L148,80" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="98" y="106" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">2 · MOVED → owner</text>
+<path d="M150,110 L48,110" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#srv-ar2)"/>
+<text x="150" y="136" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">3 · retry</text>
+<path d="M46,140 L252,140" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="150" y="166" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">4 · value</text>
+<path d="M254,170 L48,170" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="150" y="212" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">server off the data path · +1 round trip</text>
+<rect x="376" y="34" width="60" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="406" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">client</text>
+<rect x="468" y="34" width="84" height="24" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1.2"/><text x="510" y="50" text-anchor="middle" font-size="11" fill="var(--color-text-primary)">coordinator</text>
+<rect x="584" y="34" width="60" height="24" rx="6" fill="#C0DD97" stroke="#3B6D11" stroke-width="1.2"/><text x="614" y="50" text-anchor="middle" font-size="11" fill="#173404">owner</text>
+<line x1="406" y1="58" x2="406" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="510" y1="58" x2="510" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="614" y1="58" x2="614" y2="194" stroke="#D3D1C7" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="458" y="76" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 · get key</text>
+<path d="M406,80 L508,80" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="562" y="106" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">2 · forward</text>
+<path d="M510,110 L612,110" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="562" y="136" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">3 · value</text>
+<path d="M614,140 L512,140" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="458" y="166" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">4 · value</text>
+<path d="M510,170 L408,170" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#srv-ar2)"/>
+<text x="510" y="212" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">1 client hop · coordinator in the data path</text>
+<text x="340" y="242" text-anchor="middle" font-size="11.5" fill="#444441">Hybrid: the cluster hands out the map; a smart client caches it and routes directly (Kafka, Redis Cluster).</text>
+</svg>
+<div class="srv-cap"><b>Redirect</b> (Redis <code>MOVED</code>, DNS LB, HTTP 302) — any node bounces you to the owner; you retry. The server never touches the data, but it costs a round trip. <b>Forward / coordinate</b> (Cassandra coordinator, proxy LB) — any node relays to the owner and returns the result: one client hop, but the coordinator sits in the data path. <b>Hybrid</b> — the cluster publishes the map and a smart client routes directly, refreshing on a stale-map error.</div>`},
    {t:'mcq',q:'5 · Main bottleneck / failure mode?',o:['the cache stores too little data','hot keys and stampedes overload one cache node or the origin DB','the API has too few verbs','consistent hashing is too slow'],a:1,why:'Distributed cache interviews usually probe skew and failure: one viral key can overload one node, and a popular key expiring can send every request to the origin. Add hot-key replication/local caching, single-flight, stale-while-revalidate, and jittered TTLs.'},
    {t:'mcq',q:'On a product write, the safest cache-aside move is…',o:['update the DB, then delete/invalidate the cache key','update the cache only','update the cache first, then maybe the DB','keep the stale cache until TTL always'],a:0,why:'The database is the source of truth. Write the DB, then invalidate the cache so the next read repopulates. Updating the cache directly can race and leave stale values cached.'},
    {t:'recall',q:'6 · Deep dive + failures.',model:['Routing: consistent hashing / fixed slots with virtual nodes; membership changes move only a fraction of keys. The routing logic lives in a <b>client library or a proxy</b>; the slot map comes from a <b>config service</b> (ZooKeeper/etcd) or <b>gossip</b>.','Memory: TTL + LRU/LFU eviction bound memory. <b>How the cache meets a backing store depends on the problem</b> — cache-aside (read origin on miss, invalidate on write), read-through / write-through / write-back, or <b>no origin at all</b> if the cache is the primary store. The cache engine itself is mode-agnostic; don’t assume a DB read.','<b>Failure — node down:</b> its keys miss and refill from the source, or a replica is promoted if the shard is replicated. Consistent hashing limits the blast radius to that node’s slice, not the whole keyspace.','<b>Failure — hot key:</b> one viral key overloads a single node. Replicate that key across nodes or add a small client-side / local cache so reads spread out.','<b>Failure — stampede (a hot key expires):</b> every request misses at once and stampedes the origin. Coalesce with <b>single-flight</b> (one rebuild, others wait), serve <b>stale-while-revalidate</b>, and <b>jitter TTLs</b> so keys don’t expire together. For a cold cache (nothing to coalesce) or a known spike, <b>cache-warm</b> hot keys ahead of time.']}
@@ -4997,6 +5093,112 @@ const UNITS=[
    {t:'mcq',q:'A worker lease expires, another worker reclaims the job, then the old worker tries to complete. What prevents corruption?',o:['hope the old worker exits','complete with a matching lease token / fencing check','a longer timeout only','turn off retries'],a:1,why:'Completion must be conditional: UPDATE ... WHERE id=? AND lease_token=? AND locked_until>now(). The stale worker no longer has the valid fencing token.'},
    {t:'mcq',q:'How should retries be scheduled?',o:['retry instantly forever','retry with exponential backoff + jitter, then DLQ after max_attempts','drop failed jobs','block the whole queue'],a:1,why:'Backoff avoids retry storms; jitter spreads load; max_attempts + DLQ isolate poison jobs for inspection/replay.'},
    {t:'recall',q:'6 · Deep dive + failure.',model:['Claim query: due queued jobs ordered by priority/run_at, using <code>FOR UPDATE SKIP LOCKED</code> or an equivalent atomic claim; set <code>lease_token</code> and <code>locked_until</code>.','Complete/fail is fenced by the lease token. Expired leases become claimable again, so handlers must be idempotent.','Exactly-once effect: unique effect key / result table / downstream idempotency key prevents duplicate emails, charges, exports, etc.','Failure: poison job retries with backoff + jitter, then DLQ; stuck worker stops heartbeating and another worker reclaims after timeout.']}
+  ]},
+  {id:'mock-crawler',title:'Web crawler',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a web crawler that feeds a search engine’s index.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['start from seed URLs, fetch pages, extract links, follow them (a BFS of the web)','parse + store page content for downstream indexing','respect <code>robots.txt</code>','re-crawl pages to keep the index fresh']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['scale to <b>billions</b> of pages','<b>politeness</b> — never hammer one domain','crawl each URL/page roughly <b>once</b> (dedupe)','fault-tolerant + <b>resumable</b>; extensible to images/PDFs later']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · the core interfaces. Say them out loud.',model:['Entity: <code>pages(url PK, content_hash, status, fetched_at, next_crawl_at)</code>','<code>seen</code> — a Bloom filter / set of URL fingerprints (was this URL ever enqueued?)','<code>robots_cache(domain, rules, crawl_delay, fetched_at)</code>','Frontier ops: <code>frontier.add(url, priority)</code> and <code>url = frontier.next()</code> → a URL that is polite to fetch right now']},
+   {t:'teach',h:'The URL frontier is the whole design',body:[
+     {k:'tldr',t:'The frontier is the queue of URLs still to crawl. It must serve two competing goals at once: crawl important pages first (priority) and never overload a single host (politeness).'},
+     {k:'point',i:'⭐',t:'<b>Priority</b>: a prioritizer scores each URL (page rank, freshness, depth) and drops it into one of several <b>front queues</b> by priority band. High-value pages get pulled more often.'},
+     {k:'point',i:'🤝',t:'<b>Politeness</b>: a router pins each host to exactly <b>one back queue</b>, so all of a domain’s URLs sit together and only one worker pulls it — one in-flight request per host. A heap keyed by each queue’s <b>next-allowed-fetch time</b> enforces the per-host <code>crawl_delay</code>.'},
+     {k:'callout',c:'warn',t:'Front queues = <b>what to crawl next</b>; back queues = <b>when it’s polite to</b>. Forgetting politeness is the classic way to get your crawler IP-banned.'}
+   ]},
+   {t:'htmlviz',h:'URL frontier — priority meets politeness',
+    html:`<style>
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr .col{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+.fr .col.f{border-color:var(--blue)}.fr .col.b{border-color:var(--green)}
+.fr h4{font-size:15px;font-weight:900;margin:0;color:var(--ink)}
+.fr .tag{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-top:-4px}
+.fr .q{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;background:var(--panel);border-radius:9px;padding:6px 9px;color:var(--ink);display:flex;justify-content:space-between;gap:8px}
+.fr ul{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.fr li{font-size:12.5px;font-weight:700;line-height:1.35;color:var(--ink);display:flex;gap:6px}
+.fr li::before{content:'›';color:var(--muted);font-weight:900}
+.fr-cap{font-size:13px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.fr-cap b{color:var(--ink)}
+@media(max-width:560px){.fr{grid-template-columns:1fr}}
+</style>
+<div class="fr">
+  <div class="col f">
+    <h4>Front queues</h4><div class="tag">priority — what next</div>
+    <div class="q"><span>F1 · high</span><span>news, homepages</span></div>
+    <div class="q"><span>F2 · med</span><span>normal pages</span></div>
+    <div class="q"><span>F3 · low</span><span>deep / stale</span></div>
+    <ul><li>Prioritizer scores each URL (rank, freshness, depth)</li><li>Pulled more often from higher bands</li></ul>
+  </div>
+  <div class="col b">
+    <h4>Back queues</h4><div class="tag">politeness — when</div>
+    <div class="q"><span>B1 → a.com</span><span>next: 0.0s</span></div>
+    <div class="q"><span>B2 → b.org</span><span>next: 1.2s</span></div>
+    <div class="q"><span>B3 → c.net</span><span>next: 0.4s</span></div>
+    <ul><li>One host per queue → 1 request in flight per host</li><li>Heap by next-fetch time enforces crawl_delay</li></ul>
+  </div>
+</div>
+<div class="fr-cap"><b>Two queues, two jobs.</b> A URL flows prioritizer → front queue (by importance) → router → back queue (by host). A worker always pulls the back queue whose next-fetch time is due, fetches one URL, then pushes that host’s next-allowed time forward. Priority decides <b>order</b>; back queues guarantee <b>politeness</b>.</div>`},
+   {t:'mcq',q:'How do you stop the crawler from overloading any single website?',o:['crawl as fast as the network allows','route each host to one back queue + gate it by a per-host crawl_delay','add more fetcher machines','retry failed fetches faster'],a:1,why:'Politeness is per-host, not global. Pin each domain to a single back queue so only one request to it is in flight, and gate each queue by a next-fetch time that respects robots.txt crawl_delay. More machines without politeness just gets you banned faster.'},
+   {t:'build',q:'4 · Pick the high-level components.',options:['URL frontier (priority + politeness queues)','Fetchers (DNS resolve → HTTP GET)','Parser / link extractor','Seen-URL filter (Bloom) + content-hash dedupe','robots.txt cache','Raw-page object store + metadata DB','A relational join across every page'],correct:[0,1,2,3,4,5]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:860,h:360,cap:'Seeds prime the <b>frontier</b>. Fetchers pull polite URLs (consulting the <b>robots.txt cache</b>), download pages, and hand them to the <b>parser</b>, which stores raw HTML + metadata and extracts new links. Each new link passes the <b>seen filter</b> (Bloom + content hash); if fresh, it loops back into the frontier. The fetch → parse → enqueue loop <em>is</em> the crawler.',nodes:[{x:18,y:152,w:115,t:'Seed URLs',c:'gray'},{x:160,y:152,w:150,t:'URL frontier',s:'priority + politeness',c:'blue'},{x:345,y:48,w:155,t:'Fetchers',s:'DNS → HTTP GET',c:'green'},{x:345,y:256,w:155,t:'robots.txt cache',s:'rules + crawl_delay',c:'purple'},{x:535,y:48,w:160,t:'Parser / extractor',s:'pull links + text',c:'blue'},{x:535,y:256,w:160,t:'Seen filter',s:'Bloom + content hash',c:'amber'},{x:720,y:48,w:130,t:'Page store',s:'raw HTML + meta',c:'gray'}],edges:[[0,1],[1,2],[3,2],[2,4],[4,6],[4,5],[5,1]]});}},
+   {t:'mcq',q:'Two different URLs return byte-identical content (a syndicated article). What catches that, and what catches a re-seen URL?',o:['both caught by the same URL set','content hash catches duplicate bodies; a Bloom filter of URL fingerprints catches re-seen URLs','only re-crawl scheduling','a relational UNIQUE constraint on the URL'],a:1,why:'Two layers. A Bloom filter over URL fingerprints answers “have I enqueued this URL?” cheaply at huge scale (rare false positives just skip a page — acceptable). A content hash (or SimHash for near-duplicates) answers “have I already stored this body?”, so syndicated/mirrored pages don’t bloat the index.'},
+   {t:'teach',h:'Failure mode: crawler traps',body:[
+     {k:'tldr',t:'Some sites generate infinite URL spaces — a calendar with a “next month” link forever, session ids in the query string, faceted-search permutations. A naive BFS pours its whole budget into one trap.'},
+     {k:'point',i:'📏',t:'<b>Bound the crawl</b>: a max depth per page, plus a per-domain URL budget so no single host monopolizes the frontier.'},
+     {k:'point',i:'🧹',t:'<b>URL normalization</b>: strip session ids / tracking params, lowercase the host, resolve <code>.</code> and <code>..</code> — so trivially-different URLs collapse to one fingerprint.'},
+     {k:'point',i:'🐢',t:'<b>DNS is a hidden bottleneck</b>: a fresh lookup per fetch is slow — cache DNS aggressively.'}
+   ]},
+   {t:'mcq',q:'A site’s calendar has an endless chain of “next month” links and your crawler is stuck on it forever. Fix?',o:['add more fetchers','depth limit + per-domain URL budget + URL normalization','crawl it faster to get it over with','blocklist the whole domain'],a:1,why:'This is a crawler trap — an infinite URL space. Cap depth, cap how many URLs you take from one domain, and normalize URLs so trap variations collapse to one fingerprint. You cannot out-fetch infinity.'},
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Frontier = front queues (priority) + back queues (one host each, gated by next-fetch time) — the core of the design.','Dedupe in two layers: Bloom filter of URL fingerprints (seen URL?) + content hash / SimHash (seen body?).','Scale: shard the frontier by host hash across crawler nodes; cache DNS and robots.txt; store raw HTML in object storage, metadata in a KV/DB.','Freshness: schedule re-crawls by observed change rate — news hourly, static pages rarely.','Failure: crawler traps / infinite spaces → depth + per-domain budget + normalization; a dead fetcher just means its in-flight URLs time out and return to the frontier (resumable).']}
+  ]},
+  {id:'mock-search',title:'Search engine (indexing + serving)',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design the search engine that serves queries over a crawled corpus — the layer <b>after</b> the crawler.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['full-text query → <b>ranked</b> documents','pagination','newly-crawled docs become searchable (freshness)']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low latency (<b>&lt;200ms</b>)','<b>billions</b> of documents','high read QPS','near-real-time index updates']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API. Say them out loud.',model:['Entity: <code>documents(doc_id PK, url, title, body, lang, fetched_at)</code>','The <b>inverted index</b>: <code>term → posting list [(doc_id, term_freq, positions)]</code>','<code>GET /search?q=…&page=…</code> → ranked <code>doc_id</code>s → hydrate title/url/snippet','Indexer ingests crawled docs and appends to each term’s posting list']},
+   {t:'teach',h:'The inverted index is the core',body:[
+     {k:'tldr',t:'A search engine never scans documents at query time. It flips the data around: instead of <i>doc → words</i>, it stores <b>word → docs</b>.'},
+     {k:'point',i:'🔁',t:'<b>Inverted index</b>: each term maps to a sorted <b>posting list</b> of doc ids. A query <b>intersects</b> (AND) or merges (OR) those lists — work proportional to <i>matching</i> docs, never the whole corpus.'},
+     {k:'point',i:'🔨',t:'<b>Build</b>: tokenize + normalize each doc (lowercase, stem, drop stopwords), then append its <code>doc_id</code> to every term it contains. Postings also carry term frequency + positions → ranking and phrase matching.'},
+     {k:'point',i:'🧱',t:'<b>Immutable segments</b>: indexes are written as read-only segments and merged in the background (Lucene-style). New docs land in a small fresh segment → searchable in minutes.'},
+     {k:'callout',c:'warn',t:'Scanning every document for the query string is the trap. The inverted index turns search into a posting-list lookup + merge.'}
+   ]},
+   {t:'htmlviz',h:'Inverted index — word → docs',
+    html:`<style>
+.invx{display:flex;flex-direction:column;gap:8px}
+.invx .row{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center}
+.invx .term{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:900;color:var(--ink);background:var(--panel);border-radius:9px;padding:7px 10px;text-align:center}
+.invx .post{display:flex;gap:6px;flex-wrap:wrap}
+.invx .doc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:800;border:2px solid var(--line);border-radius:8px;padding:4px 9px;color:var(--muted)}
+.invx .doc.hit{border-color:var(--green);color:var(--green-d)}
+.invx-cap{font-size:13px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.invx-cap b{color:var(--ink)}
+</style>
+<div class="invx">
+  <div class="row"><div class="term">"search"</div><div class="post"><span class="doc">d1</span><span class="doc hit">d4</span><span class="doc hit">d9</span><span class="doc">d23</span></div></div>
+  <div class="row"><div class="term">"engine"</div><div class="post"><span class="doc hit">d4</span><span class="doc hit">d9</span><span class="doc">d12</span></div></div>
+  <div class="row"><div class="term">"cache"</div><div class="post"><span class="doc">d2</span><span class="doc">d7</span><span class="doc">d18</span></div></div>
+</div>
+<div class="invx-cap"><b>The index is flipped.</b> Store <b>word → docs</b> (a sorted posting list per term), not doc → words. The query <code>"search engine"</code> intersects both lists → <b>d4, d9</b> — touching only matching docs, never the corpus. Each posting carries term frequency + positions, which feed ranking (BM25) and phrase matching.</div>`},
+   {t:'mcq',q:'Why an inverted index instead of scanning documents for the query terms?',o:['it uses less disk','a query becomes a posting-list lookup + merge — work scales with matches, not corpus size','it makes writes faster','it removes the need to rank'],a:1,why:'Scanning billions of docs per query is hopeless. The inverted index maps term → sorted doc-id postings, so a query intersects/merges a few lists and touches only matching documents. Ranking still runs, but only over that candidate set.'},
+   {t:'build',q:'4 · Pick the high-level components.',options:['Indexer (tokenize → postings, build segments)','Sharded inverted index','Query coordinator (scatter-gather)','Ranker (BM25 over candidates)','Result / query cache','A single SQL table with LIKE %q%'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:780,h:330,cap:'A query hits the <b>coordinator</b>, which <b>scatters</b> it to every index shard; each shard returns its local top-k from its posting lists, and the coordinator <b>gathers</b>, merges, and re-ranks (BM25) before hydrating doc metadata. Separately, the <b>indexer</b> tokenizes crawled docs into postings and writes immutable segments to the shards. Query path and index-build path are independent.',nodes:[{x:18,y:142,w:110,t:'Client',s:'GET /search',c:'gray'},{x:150,y:142,w:170,t:'Coordinator',s:'scatter-gather + BM25',c:'blue'},{x:360,y:48,w:160,t:'Index shard 1',s:'⅓ of docs',c:'green'},{x:360,y:218,w:160,t:'Index shard N',s:'…',c:'green'},{x:560,y:48,w:175,t:'Indexer',s:'tokenize → postings',c:'purple'},{x:560,y:218,w:175,t:'Crawled corpus',s:'from the crawler',c:'gray'}],edges:[[0,1],[1,2],[1,3],[5,4],[4,2],[4,3]]});}},
+   {t:'mcq',q:'5 · How do you shard a billion-document index?',o:['by term — each shard owns a slice of the vocabulary','by document — each shard holds a subset of docs; every query scatter-gathers across all shards','one giant index, no sharding','by user'],a:1,why:'Document partitioning is the default: each shard indexes a slice of the corpus, every query fans out to all shards, and each returns a local top-k that the coordinator merges. It balances load and parallelizes ranking. Term partitioning (a shard per vocabulary slice) avoids fan-out but makes multi-term queries hit and join across specific hot shards — usually worse.'},
+   {t:'teach',h:'Deep dive: ranking, freshness, tail latency',body:[
+     {k:'tldr',t:'Three things separate a toy from a real search engine: relevance, freshness, and the tail.'},
+     {k:'point',i:'🏅',t:'<b>Ranking</b>: score candidates with <b>BM25</b> (term frequency, inverse document frequency, doc-length normalization) — sturdier than raw TF-IDF. Optionally re-rank just the top-k with a learned model.'},
+     {k:'point',i:'🌿',t:'<b>Freshness</b>: new docs go into a small in-memory segment that’s immediately searchable, then merged into larger segments in the background — near-real-time without rebuilding everything.'},
+     {k:'point',i:'⏱️',t:'<b>Tail latency</b>: scatter-gather makes the <b>slowest shard</b> your query latency. Replicate shards and use hedged requests, per-shard timeouts, and partial results so one slow node can’t stall the whole query.'}
+   ]},
+   {t:'mcq',q:'Your p50 search latency is great but p99 is terrible. Most likely cause and fix?',o:['the inverted index is too small','scatter-gather: the slowest shard gates every query — add shard replicas + hedged requests + timeouts','BM25 is too slow — drop ranking','clients aren’t caching'],a:1,why:'A query is only done when its slowest shard replies, so tail latency tracks the worst shard, not the average. Replicate shards and hedge (send to two replicas, take the first), cap per-shard time, and return partial results rather than waiting forever.'},
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Inverted index (term → posting list) is the core; queries intersect/merge postings, never scan docs.','Shard by document; the coordinator scatter-gathers, each shard returns a local top-k, coordinator merges + ranks (BM25).','Freshness: new docs → small fresh segment (searchable now) → background-merged into larger immutable segments.','Tail latency: shard replicas + hedged requests + per-shard timeouts + partial results.','Failure: a shard (or replica) is down → serve from its replica, or return partial results and flag degraded recall rather than failing the whole query.']}
   ]}
  ],
  boss:{title:'Mock Designs Boss',time:110,q:[
@@ -5019,6 +5221,10 @@ const UNITS=[
    {q:'Avoid ML train/serve skew:',o:['retrain often','a feature store','bigger model','more data'],a:1},
    {q:'Job scheduler workers should claim jobs with…',o:['a long transaction','a lease token / visibility timeout','a local mutex only','no state'],a:1},
    {q:'Job scheduler exactly-once means…',o:['exactly-once execution','at-least-once delivery + idempotent effect','no retries','one worker total'],a:1},
+   {q:'Web crawler politeness comes from…',o:['crawling as fast as the network allows','one back queue per host gated by crawl_delay','more fetcher machines','faster retries'],a:1},
+   {q:'Web crawler dedupes URLs with…',o:['a SQL UNIQUE constraint','a Bloom filter of URL fingerprints (+ content hash for bodies)','re-crawl scheduling','a graph database'],a:1},
+   {q:'A search engine answers queries with…',o:['a full scan of every document','an inverted index (term → posting list) intersected per query','a graph traversal','one big SQL LIKE'],a:1},
+   {q:'Search index sharded by document means each query…',o:['hits one shard only','scatter-gathers across all shards, each returns a local top-k','rebuilds the index','locks the corpus'],a:1},
    {q:'LLM mock judge should primarily…',o:['solve first','grade your answer and ask follow-ups','write frontend code','ignore tradeoffs'],a:1}
  ]}
 }
@@ -5501,7 +5707,7 @@ function renderReview(stage,step){
   else if(step.t==='order'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map((t,n)=>'<div><b>'+(n+1)+'.</b> '+t+'</div>').join('')+'</div>';}
   else if(step.t==='build'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.correct.map(i=>'<div>✓ '+step.options[i]+'</div>').join('')+'</div>';}
   else if(step.t==='cloze'){h+='<div class="q-title">'+(step.q||'')+'</div><div class="rev-fill">'+step.text.map(t=>typeof t==='string'?t:'<b>'+t.blank+'</b>').join('')+'</div>';}
-  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div>';let yours='';try{yours=localStorage.getItem('sdp_recall_'+sigOf(step))||'';}catch(e){}if(yours.trim())h+='<div style="background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:13px 15px;margin-top:12px"><h4 style="font-size:13px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Your answer</h4><div style="white-space:pre-wrap;font-weight:700;font-size:14px;line-height:1.5;color:var(--ink)">'+yours.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div></div>';h+='<div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
+  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div>';let yours='';try{yours=localStorage.getItem(recallKey(step))||'';}catch(e){}if(yours.trim())h+='<div style="background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:13px 15px;margin-top:12px"><h4 style="font-size:13px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Your answer</h4><div style="white-space:pre-wrap;font-weight:700;font-size:14px;line-height:1.5;color:var(--ink)">'+yours.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div></div>';h+='<div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
   stage.innerHTML=h;
   // reviewing an already-answered step → don't re-lock spoilers; show the content
   stage.querySelectorAll('.v2-spoiler').forEach(function(s){s.classList.add('revealed');});
@@ -5612,7 +5818,12 @@ function grade(ok,gain){
 }
 
 /* mistake bank — records graded steps you miss, removes them once mastered */
+function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36);}
 function sigOf(step){return step.q?(step.t+'|'+step.q):(step.t+'|'+JSON.stringify(step.text||step.items||step.pairs||step.options||''));}
+// recall steps reuse generic titles ("2 · Entities + 3 · API.") across mocks, so the saved-answer storage key
+// folds in the (distinct) model answer to stay unique per step. Kept SEPARATE from sigOf so answered/mistake
+// tracking (and its revisit dots) is unaffected.
+function recallKey(step){return 'sdp_recall_'+(step.q||'')+'|'+hashStr((step.model||[]).join('~'));}
 function finishGraded(step,perfect){
   const sig=sigOf(step);
   S.answered[sig]=1;  // you've now actually answered this question → clears any revisit dot
@@ -5925,7 +6136,7 @@ function stBuild(stage,step){
 
 /* ---------- step: recall (output / explain) ---------- */
 function stRecall(stage,step){
-  const rkey='sdp_recall_'+sigOf(step);
+  const rkey=recallKey(step);
   let h='<div class="q-sub">🗣️ Explain it (out loud!)</div><div class="q-title">'+step.q+'</div>'
     +'<div class="recall"><textarea id="ra" placeholder="Optional: jot your answer or say it aloud, then reveal."></textarea></div>';
   stage.innerHTML=h;
