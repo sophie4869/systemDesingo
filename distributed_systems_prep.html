@@ -2084,6 +2084,71 @@ Spreads expiration across a window &rarr; no simultaneous mass expiry</div>
           <p>A Bloom filter is a probabilistic set membership structure — a bit array with k hash functions. It only gives you two answers: "definitely not present" or "maybe present." No false negatives, but tunable false positives. You can't delete from it (use a counting Bloom filter if you need deletes).</p>
           <div class="code">add(x):  set bits at h1(x), h2(x), ... hk(x) = 1
 has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely not</div>
+          <style>
+          .bfv { padding: 4px 0 6px; }
+          .bfv-cap { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 13px; line-height: 1.6; }
+          .bfv-cap b { color: var(--color-text-secondary); font-weight: 600; }
+          .bfv-bits { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 15px; }
+          .bfv-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+          .bfv-box { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 13px; border-radius: var(--border-radius-sm); background: var(--color-background-primary); border: 1px solid var(--color-border-tertiary); color: var(--color-text-tertiary); transition: background .25s, border-color .25s, box-shadow .15s, color .25s; }
+          .bfv-box.set { background: var(--color-background-info); border-color: var(--color-border-info); color: var(--color-text-info); font-weight: 700; }
+          .bfv-box.hit { box-shadow: 0 0 0 2px var(--color-border-success); }
+          .bfv-box.miss { background: var(--color-background-danger); border-color: var(--color-text-danger); color: var(--color-text-danger); font-weight: 700; box-shadow: 0 0 0 2px var(--color-text-danger); }
+          .bfv-idx { font-size: 9px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+          .bfv-sec { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 9px 0; }
+          .bfv-lbl { font-size: 11px; font-weight: 600; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .04em; min-width: 46px; }
+          .bfv-chip { font-family: var(--font-mono); font-size: 12.5px; padding: 5px 12px; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-tertiary); background: var(--color-background-primary); color: var(--color-text-secondary); cursor: pointer; font-weight: 500; }
+          .bfv-chip.add { border-color: var(--color-border-info); color: var(--color-text-info); background: var(--color-background-info); }
+          .bfv-chip:hover { filter: brightness(.97); }
+          .bfv-chip:disabled { opacity: .5; cursor: default; }
+          .bfv-out { margin-top: 13px; font-size: 12.5px; font-family: var(--font-mono); color: var(--color-text-secondary); background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 9px 12px; line-height: 1.6; }
+          .bfv-out b { color: var(--color-text-primary); font-weight: 600; }
+          .bfv-out .ok { color: var(--color-text-success); font-weight: 600; }
+          .bfv-out .no { color: var(--color-text-danger); font-weight: 600; }
+          .bfv-out .fp { color: var(--color-text-warning); font-weight: 600; }
+          </style>
+          <div class="bfv" id="bfv" onclick="event.stopPropagation()">
+            <div class="bfv-cap">A 16-bit array, <b>k = 3</b> hash functions. <b>Add</b> items to set their bits to 1, then <b>query</b> membership. Add all three items first, then query <b>cow</b> — it was never added, yet all its bits happen to be set.</div>
+            <div class="bfv-bits" id="bfvBits"></div>
+            <div class="bfv-sec"><span class="bfv-lbl">Add</span><button class="bfv-chip add" data-item="cat">cat</button><button class="bfv-chip add" data-item="dog">dog</button><button class="bfv-chip add" data-item="fish">fish</button></div>
+            <div class="bfv-sec"><span class="bfv-lbl">Query</span><button class="bfv-chip q" data-item="dog">dog</button><button class="bfv-chip q" data-item="bird">bird</button><button class="bfv-chip q" data-item="cow">cow</button></div>
+            <div class="bfv-out" id="bfvOut">Add an item, then query one.</div>
+          </div>
+          <script>(function(){
+            var POS = {cat:[1,5,11], dog:[3,5,14], fish:[2,8,11], bird:[4,9,12], cow:[1,8,14]};
+            var N = 16, bits = [], added = {}, i;
+            for(i=0;i<N;i++) bits.push(0);
+            var root = document.getElementById('bfv'); if(!root) return;
+            var bitsEl = document.getElementById('bfvBits'), outEl = document.getElementById('bfvOut');
+            function render(chk){
+              var html = '';
+              for(var i=0;i<N;i++){
+                var c = 'bfv-box' + (bits[i] ? ' set' : '');
+                if(chk && chk.indexOf(i) > -1) c += bits[i] ? ' hit' : ' miss';
+                html += '<div class="bfv-cell"><div class="'+c+'">'+bits[i]+'</div><div class="bfv-idx">'+i+'</div></div>';
+              }
+              bitsEl.innerHTML = html;
+            }
+            render();
+            root.querySelectorAll('.bfv-chip.add').forEach(function(b){
+              b.addEventListener('click', function(){
+                var it = b.getAttribute('data-item'), p = POS[it];
+                p.forEach(function(i){ bits[i] = 1; }); added[it] = 1; b.disabled = true;
+                render();
+                outEl.innerHTML = 'add(' + it + '): set bits <b>' + p.join(', ') + '</b> &rarr; 1';
+              });
+            });
+            root.querySelectorAll('.bfv-chip.q').forEach(function(b){
+              b.addEventListener('click', function(){
+                var it = b.getAttribute('data-item'), p = POS[it];
+                render(p);
+                var allSet = p.every(function(i){ return bits[i] === 1; });
+                if(allSet && added[it]) outEl.innerHTML = 'has(' + it + '): bits <b>' + p.join(', ') + '</b> all = 1 &rarr; <span class="ok">maybe present</span> &mdash; ' + it + ' was added (a true hit).';
+                else if(allSet) outEl.innerHTML = 'has(' + it + '): bits <b>' + p.join(', ') + '</b> all = 1 &rarr; <span class="fp">maybe present</span> &mdash; but ' + it + ' was never added. <span class="fp">&#9888; false positive.</span>';
+                else { var z = p.filter(function(i){ return bits[i] === 0; })[0]; outEl.innerHTML = 'has(' + it + '): bit <b>' + z + '</b> = 0 &rarr; <span class="no">definitely NOT present</span> (no false negatives).'; }
+              });
+            });
+          })();</script>
           <p>The reason this matters: use it to guard an expensive lookup. Before hitting disk or querying a remote store, check the Bloom filter — if it says "definitely not there," skip the I/O entirely. That's exactly why LSM-tree storage engines put Bloom filters on every SSTable — so they can skip SSTables that definitely don't contain the key they're looking for.</p>
           <p>Other real uses: CDNs avoiding caching one-hit-wonders, Chrome's malicious-URL check, dedup pipelines. The trade-off: you can shrink memory usage by accepting a higher false-positive rate — more unnecessary "maybe" lookups.</p>
           <div class="tag-row"><span class="tag">LSM SSTable skip</span><span class="tag">no false negatives</span><span class="tag">~10 bits/key for ~1%</span></div>
