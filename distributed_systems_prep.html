@@ -4615,6 +4615,21 @@ service CacheService {
       </div>
     </div>
 
+    <div class="exercise" id="ex-leaderboard">
+      <span class="ex-tag">Mock</span>
+      <div class="ex-prompt"><strong>Gaming leaderboard.</strong> Design a leaderboard for millions of players: update scores, show the top N, return a specific player's exact rank and the players around them, with per-region and per-season boards.</div>
+      <div class="ex-tests">Tests: sorted set (ZSET) / rank queries, rank-of-arbitrary-player at scale, score-range sharding, hot top-of-board reads, durability.</div>
+      <button class="ex-btn" onclick="toggleSol(this)">Show interview outline</button>
+      <div class="ex-solution">
+        <p><strong>Scope:</strong> update a player's score, get the top N, get a <em>specific</em> player's rank, and get the window of players around them (±k). Per-region and per-season boards. The easy part is top-N; the design is really about the rank query.</p>
+        <p><strong>The hard part is "rank of an arbitrary player."</strong> "Top N" is just a heap. The crux is answering "what's player X's rank among 50M?" and "show me ±5 around my rank" — that needs an ordered structure with rank queries, not a scan. <code>SELECT COUNT(*) WHERE score &gt; mine</code> per request is O(n) and dies at scale.</p>
+        <p><strong>Architecture:</strong> a <strong>Redis sorted set (ZSET)</strong> = skip list + hash is the serving layer: <code>ZADD</code> updates a score O(log n), <code>ZREVRANK</code> returns a player's rank, <code>ZREVRANGE</code> gives top-N or the around-me window. A score-update service writes the ZSET (and a durable log); a query service reads rank/around-me from the ZSET and the hot top-N from a cached snapshot.</p>
+        <p><strong>Data model:</strong> the board is a sorted set <code>player_id &rarr; score</code> (mutable), keyed per region/season; a durable <code>score_events</code> log (DB or append log) as the source of truth to rebuild the ZSET; Redis replica/AOF for failover.</p>
+        <p><strong>Deep dives:</strong> a single ZSET can't hold 100M at high write rate — shard by <em>score range</em> so global rank = (counts in higher-score shards) + local rank (exact), or use an <em>approximate rank</em> from a score histogram when "about #1,240" is fine (usually it is). Cache the globally-hot top-100 snapshot. Per-season boards are separate keys with a TTL.</p>
+        <div class="note warn"><strong>Trap:</strong> a SQL <code>ORDER BY score</code> + <code>COUNT(*)</code> per rank read, or sharding by player id (per-shard ranks don't compose into a global rank), or treating the in-memory ZSET as the source of truth with no durable log to rebuild from.</div>
+      </div>
+    </div>
+
     <!-- Back-of-envelope drills -->
     <div class="ex-group-label">Back-of-envelope drills</div>
 
