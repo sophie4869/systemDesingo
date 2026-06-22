@@ -3175,6 +3175,8 @@ each step independently deployable &amp; rollback-safe</div>
           <p class="ap"><strong>Celebrity / hot-key handling</strong> — don't fan out 50M writes; flag high-follower accounts and merge their posts at read time.</p>
           <p class="ap"><strong>Feed storage &amp; ranking</strong> — per-user timeline in cache; recency vs scored ranking; cursor (keyset) pagination, never offset.</p>
           <p class="ap"><strong>Follow graph</strong> — adjacency with the index direction matching the read.</p>
+          <p class="ap"><strong>Fan out asynchronously</strong> — never write millions of timelines on the post's request path. Publish <code>{postId, creatorId}</code> to a queue; workers look up followers and prepend to each feed. One job for a 1M-follower creator is far heavier than one for 1K — uneven work units the queue absorbs.</p>
+          <p class="ap"><strong>Hot post → replicate, don't shard</strong> — a viral post's reads concentrate on the one shard holding it. Replicate that post across cache nodes so any node can serve it and a load balancer spreads the reads: N× throughput for a single hot key, no coordination.</p>
           <div class="ctv" onclick="event.stopPropagation()">
             <div class="ctv-flow">
               <div class="ctv-box good"><div class="ctv-t">Write post</div><div class="ctv-s">one event</div></div>
@@ -3188,6 +3190,7 @@ each step independently deployable &amp; rollback-safe</div>
           <div class="note warn"><strong>Classic trap:</strong> one fan-out strategy for everyone — pure write explodes on celebrities, pure read explodes for users following thousands. Pick by follower count.</div>
           <div class="tag-row"><span class="tag">composes: Fan-out</span><span class="tag">Notifications</span><span class="tag">Caching</span></div>
           <p><strong>Practice:</strong> <a class="ex-link" onclick="event.stopPropagation();goEx('ex-follow-graph')">Follow graph + tweets</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-newsfeed-api')">News feed API</a> · <a class="ex-link" onclick="event.stopPropagation();goEx('ex-counters')">Counters &amp; denormalization</a> · <a class="ex-link" onclick="event.stopPropagation();goSchemaDrill('News aggregator API/data')">News aggregator API/data (LLM drill)</a>.</p>
+          <p style="font-size:12.5px;color:var(--color-text-secondary)">Reference: <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/fb-news-feed" target="_blank" rel="noopener" style="color:var(--color-text-info);font-weight:700;text-decoration:none">Hello Interview · FB News Feed ↗</a></p>
         </div>
       </div>
 
@@ -3445,7 +3448,7 @@ each step independently deployable &amp; rollback-safe</div>
 
     <div class="exercise" id="ex-adclick-aggregation">
       <span class="ex-tag">Recognition</span>
-      <div class="ex-prompt"><strong>Design an ad-click aggregation system</strong> — collect click events, deduplicate retries, show near-real-time campaign stats, and handle late conversions.</div>
+      <div class="ex-prompt"><strong>Design an ad-click aggregation system</strong> — collect click events, deduplicate retries, show near-real-time campaign stats, and handle late/out-of-order clicks.</div>
       <div class="ex-tests">Name the primary archetype and what it composes with.</div>
       <button class="ex-btn" onclick="toggleSol(this)">Show archetype + playbook</button>
       <div class="ex-solution">
@@ -3454,7 +3457,7 @@ each step independently deployable &amp; rollback-safe</div>
         <p class="ap"><strong>Reliability half:</strong> keep raw events in object storage for audit and replay; late events and fraud corrections update rollups instead of mutating history in place.</p>
         <div class="ctv" onclick="event.stopPropagation()">
           <div class="ctv-flow">
-            <div class="ctv-box good"><div class="ctv-t">Click pixel</div><div class="ctv-s">click_id</div></div>
+            <div class="ctv-box good"><div class="ctv-t">Click collector</div><div class="ctv-s">click_id</div></div>
             <div class="ctv-arr">→</div>
             <div class="ctv-box info"><div class="ctv-t">Kafka raw log</div><div class="ctv-s">durable replay</div></div>
             <div class="ctv-arr">→</div>

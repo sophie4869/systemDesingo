@@ -4967,8 +4967,67 @@ const UNITS=[
        {k:'reqs',i:'📐',label:'NFRs',items:['very high write volume','near-real-time results','bounded memory per window','eventual consistency is acceptable']}
      ]}
    ]},
+   {t:'teach',h:'Put numbers on it',body:[
+     {k:'tldr',t:'A quick estimate grounds the design — take YouTube-scale views as the stress case.'},
+     {k:'point',i:'✍️',t:'<b>~70B views/day ≈ 700K events/sec.</b> That <b>write</b> rate, not the read rate, is the whole problem — trending queries are a trickle by comparison.'},
+     {k:'point',i:'💾',t:'<b>Exact counts are tiny:</b> ~4B videos × (8-byte id + 8-byte count) ≈ <b>64&nbsp;GB</b> — fits in memory. So storage isn\'t the issue; <b>absorbing 700K writes/sec</b> is.'},
+     {k:'point',i:'🪓',t:'<b>Writes need sharding:</b> a node takes ~10K writes/sec → ~<b>70 shards</b> raw. Let the stream processor (Flink) <b>pre-aggregate per window</b> before it writes and that collapses to ~<b>5–10</b>.'},
+     {k:'callout',c:'note',t:'A Count-Min sketch holds the same counts in <b>hundreds of MB</b> instead of 64&nbsp;GB — the trade is approximate counts (covered below).'}
+   ]},
    {t:'recall',q:'2 · Entities + 3 · API.',model:['Entities: <code>mention_events(event_id, topic, user, ts, region)</code>, <code>window_counts(topic, window, count)</code>, <code>topk_snapshots(window, region, list)</code>','<code>POST /events</code> or stream ingest from Kafka','<code>GET /trending?window=5m&amp;region=US&amp;k=20</code>','Optional drill-down reads exact counts for one topic/window']},
-   {t:'mcq',q:'Why not sort every topic on every dashboard request?',o:['sorting is always inaccurate','reads would scan all topics; precompute top-K per window','Kafka cannot store topics','dashboards should be stale forever'],a:1,why:'The hot read is "give me the current top 20"; scan-and-sort over millions of topics per request is wasteful. Maintain rolling top-K snapshots as events arrive.'},
+   {t:'teach',h:'Windowing — what does "trending" even mean?',body:[
+     {k:'tldr',t:'"Top K" is meaningless without a <b>time window</b>. All-time counts just surface the same evergreen topics forever; trending means <b>top K in the last few minutes</b>. So every counter is scoped to a window, and the first design choice is <b>what kind</b> of window.'},
+     {k:'point',i:'🧱',t:'<b>Tumbling window</b>: fixed-size, non-overlapping, back-to-back (e.g. a fresh 5-min bucket every 5 min). Each event belongs to <b>exactly one</b> window — cheapest state, simplest to reason about. Downside: a topic spiking right across a boundary gets split, and the count <b>resets to zero</b> at each boundary.'},
+     {k:'point',i:'🪟',t:'<b>Sliding (hopping) window</b>: a "last 5 min" window recomputed every short hop (e.g. every 1 min). Windows <b>overlap</b>, so each event counts in several — smoother "right now" trending with no boundary artifact, but more state and compute.'},
+     {k:'point',i:'⏱️',t:'Use <b>event time</b> (when the mention happened), not processing time (when it arrived), so results are correct even when events are delayed or replayed.'},
+     {k:'callout',c:'warn',t:'Name the trade-off out loud: tumbling = cheap but jumpy at boundaries; sliding = smooth but heavier. For a live "trending now" board, sliding (or time-decay) is usually the right call.'}
+   ]},
+   {t:'htmlviz',h:'Tumbling vs sliding windows',
+    html:`<style>
+.win{display:grid;gap:12px;font-size:13px}
+.win-top{text-align:center;font-weight:800;color:var(--ink)}
+.win-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.win-card{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:11px 12px;display:grid;gap:9px}
+.win-card h4{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);margin:0}
+.win-track{position:relative;height:64px;background:var(--panel);border-radius:9px;overflow:hidden}
+.win-bar{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:7px;color:#fff;font-weight:900;font-size:10.5px;font-family:ui-monospace,Menlo,monospace}
+.win-bar.tb{background:var(--blue);height:48px;top:8px}
+.win-bar.sb{background:var(--purple);height:15px}
+.win-mark{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--red);z-index:2}
+.win-dot{position:absolute;top:-1px;width:8px;height:8px;border-radius:50%;background:var(--red);transform:translateX(-5px);z-index:3}
+.win-cap{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.5}
+.win-cap b{color:var(--ink)}
+.win-foot{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.55;padding:10px 13px;background:var(--panel);border-radius:12px}
+.win-foot b{color:var(--ink)}
+@media(max-width:560px){.win-cols{grid-template-columns:1fr}}
+</style>
+<div class="win">
+  <div class="win-top">one event at <span style="color:var(--red);font-weight:900">t = 7</span> · how many windows count it?</div>
+  <div class="win-cols">
+    <div class="win-card">
+      <h4>Tumbling · size 4, hop 4</h4>
+      <div class="win-track">
+        <div class="win-bar tb" style="left:1%;width:31%">0–4</div>
+        <div class="win-bar tb" style="left:34%;width:31%">4–8</div>
+        <div class="win-bar tb" style="left:67%;width:31%">8–12</div>
+        <div class="win-mark" style="left:58.3%"></div><div class="win-dot" style="left:58.3%"></div>
+      </div>
+      <div class="win-cap"><b>1 window.</b> Each event in exactly one bucket. Cheapest, but counts reset at every boundary.</div>
+    </div>
+    <div class="win-card">
+      <h4>Sliding · size 6, hop 3</h4>
+      <div class="win-track">
+        <div class="win-bar sb" style="top:6px;left:1%;width:47%">0–6</div>
+        <div class="win-bar sb" style="top:25px;left:26%;width:47%">3–9</div>
+        <div class="win-bar sb" style="top:44px;left:51%;width:47%">6–12</div>
+        <div class="win-mark" style="left:58.3%"></div><div class="win-dot" style="left:58.3%"></div>
+      </div>
+      <div class="win-cap"><b>2 windows.</b> Overlapping coverage → smooth "last 6 min" trending, no boundary jump, but more state.</div>
+    </div>
+  </div>
+  <div class="win-foot"><b>Same instant, different answer.</b> The dashed line is one event: tumbling files it under a single bucket; sliding has it counted by every window still covering it. For "what's trending right now," overlap (sliding or time-decay) keeps a hot topic from dropping to zero the moment a bucket rolls over.</div>
+</div>`},
+   {t:'mcq',q:'Each dashboard read asks "give me the current top 20." Why not just sort all topics by count at read time?',o:['it would scan and sort millions of topics on every request','sorting always returns the wrong order','Kafka can\'t store topic counts','reads must always hit stale data'],a:0,why:'Sorting the full keyspace per request is O(N log N) over millions of topics — far too expensive for a hot read. Instead, keep a rolling top-K snapshot updated as events arrive, so the read is a cheap O(1) lookup of a precomputed list.'},
    {t:'htmlviz',h:'Top-K — shard counts, then merge winners',
     html:`<style>
 .topkv{display:grid;gap:10px}
@@ -4989,8 +5048,219 @@ const UNITS=[
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Kafka ingest stream','Windowed stream processor','Per-partition counters / heavy-hitter sketches','Reducer that merges local top-K lists','Snapshot store + cache for reads','Sort all topics on every request'],correct:[0,1,2,3,4]},
    {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:805,h:320,cap:'Events flow through Kafka into a windowed stream processor. Workers keep per-partition counts or approximate heavy-hitter sketches, emit local Top-K candidates, and a reducer merges them into snapshot rows keyed by (window, region, k). Dashboards read cached snapshots, not raw events.',nodes:[{x:18,y:132,w:120,t:'Clients',s:'mention events',c:'gray'},{x:165,y:132,w:135,t:'Kafka',s:'partition stream',c:'amber'},{x:335,y:40,w:175,t:'Window workers',s:'counts / sketches',c:'purple'},{x:335,y:224,w:175,t:'Exact store',s:'optional drill-down',c:'gray'},{x:545,y:40,w:145,t:'Top-K merge',s:'heap',c:'blue'},{x:545,y:224,w:220,t:'Snapshot cache',s:'GET /trending',c:'green'}],edges:[[0,1],[1,2],[2,4],[4,5],[2,3],[5,3]]});}},
+   {t:'htmlviz',h:'The aggregation funnel — rate shrinks at every hop',
+    html:`<style>
+.fun{display:grid;gap:11px;font-size:13px}
+.fun-top{text-align:center;font-weight:800;color:var(--ink)}
+.fun-stack{display:flex;flex-direction:column;align-items:center;gap:7px}
+.fun-bar{min-width:122px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:12px;line-height:1.1;text-align:center;padding:0 8px;box-shadow:0 3px 0 rgba(0,0,0,.13)}
+.fun-bar small{font-weight:800;font-size:9.5px;opacity:.92;font-family:ui-monospace,Menlo,monospace;margin-top:2px}
+.fun-cap{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.55;padding:10px 13px;background:var(--panel);border-radius:12px}
+.fun-cap b{color:var(--ink)}
+</style>
+<div class="fun">
+  <div class="fun-top">millions in → a trickle out</div>
+  <div class="fun-stack">
+    <div class="fun-bar" style="width:100%;background:var(--red)">API Gateway<small>~10M clicks/s · 1000s of hosts</small></div>
+    <div class="fun-bar" style="width:70%;background:var(--orange)">Pre-aggregate / host<small>hash table, flush every few s</small></div>
+    <div class="fun-bar" style="width:48%;background:#E6A800">Kafka<small>~1M compact msgs/s</small></div>
+    <div class="fun-bar" style="width:31%;background:var(--blue)">Fast Aggregator<small>merge sketches</small></div>
+    <div class="fun-bar" style="width:19%;background:var(--green)">Storage<small>~1000s · top-K/min</small></div>
+  </div>
+  <div class="fun-cap"><b>Each stage aggregates, so the next sees a fraction.</b> By the time data reaches storage you're handling a tiny slice of the original firehose — the reusable lesson for any stream-processing design. It works because the partial results <b>merge cheaply</b>: combining two count-min sketches is just summing their cells.</div>
+</div>`},
    {t:'mcq',q:'5 · Bottleneck?',o:['dashboard reads','hot topics and high-cardinality counters in active windows','old snapshots','JSON formatting'],a:1,why:'A globally hot topic can hammer one counter; high cardinality can blow up memory. Shard counters, use sketches for candidates, and expire window state aggressively.'},
-   {t:'recall',q:'6 · Deep dive + failure.',model:['Use tumbling/sliding event-time windows; maintain per-partition counts or Count-Min/Space-Saving candidates; merge local top-K lists with a heap into cached snapshots.','Approximate path is fast for candidates; exact count store or batch correction can reconcile dashboard detail.','Failure: late/out-of-order events → watermark + allowed lateness; hot topic counter → shard by (topic, salt), then merge.']}
+   {t:'teach',h:'Count-Min Sketch — count millions of topics in fixed memory',body:[
+     {k:'tldr',t:'A hash map of <code>topic → count</code> grows with the number of <b>distinct</b> topics — millions per window blow up memory. A <b>Count-Min Sketch</b> estimates frequencies in a <b>fixed-size</b> grid of counters, no matter how many distinct topics arrive.'},
+     {k:'point',i:'🧮',t:'It is a 2-D array of counters: <b>d rows</b> (each with its own hash function) × <b>w columns</b>. To <b>add</b> a topic, hash it once per row and <code>+1</code> the cell it lands in — d increments, fixed memory.'},
+     {k:'point',i:'⬇️',t:'To <b>estimate</b> a topic, hash it the same way, read its cell in every row, and take the <b>minimum</b>. Collisions only ever <b>inflate</b> a cell (other topics land there too), so each row over-counts — the min is the tightest bound and it <b>never under-counts</b>.'},
+     {k:'point',i:'🎯',t:'<b>Wider</b> (more columns) → fewer collisions → less error. <b>Deeper</b> (more rows) → higher confidence the min is tight. You trade exactness for <b>bounded, tunable</b> memory.'},
+     {k:'callout',c:'warn',t:'A sketch gives <b>counts</b>, not the ranking. Pair it with a small <b>heap of K candidates</b> (or use Space-Saving) to turn approximate frequencies into Top-K heavy hitters.'}
+   ]},
+   {t:'htmlviz',h:'Count-Min Sketch — hash into d rows, read the min',
+    html:`<style>
+.cms{display:grid;gap:12px;font-size:13px}
+.cms-top{font-weight:800;color:var(--ink);text-align:center}
+.cms-chip{display:inline-block;background:var(--blue-bg);color:var(--blue-d);border:2px solid var(--blue);border-radius:8px;padding:2px 9px;font-family:ui-monospace,Menlo,monospace;font-weight:900}
+.cms-wrap{display:grid;grid-template-columns:1.45fr .85fr;gap:14px;align-items:center}
+.cms-grid{display:grid;grid-template-columns:auto repeat(8,1fr);gap:5px}
+.cms-rl{display:flex;align-items:center;font-family:ui-monospace,Menlo,monospace;font-weight:900;color:var(--muted);font-size:12px;padding-right:5px}
+.cms-c{height:34px;display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:8px;background:var(--panel);color:var(--faint);font-weight:800;font-size:12px}
+.cms-c.hit{background:var(--blue-bg);border-color:var(--blue);color:var(--blue-d);font-size:15px;box-shadow:0 2px 0 var(--blue)}
+.cms-calc{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:11px 12px;display:grid;gap:6px}
+.cms-calc h4{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:0}
+.cms-read{display:flex;justify-content:space-between;font-family:ui-monospace,Menlo,monospace;font-weight:800;font-size:12.5px;color:var(--ink)}
+.cms-read .v{color:var(--blue-d);font-weight:900}
+.cms-read.over .v{color:var(--orange)}
+.cms-min{margin-top:3px;padding-top:7px;border-top:2px dashed var(--line);font-weight:900;color:var(--green-d);font-size:13px}
+.cms-note{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.5}
+.cms-cap{font-size:13px;color:var(--muted);font-weight:700;line-height:1.55;padding:10px 13px;background:var(--panel);border-radius:12px}
+.cms-cap b{color:var(--ink)}
+@media(max-width:560px){.cms-wrap{grid-template-columns:1fr}}
+</style>
+<div class="cms">
+  <div class="cms-top">add / estimate topic <span class="cms-chip">#cat</span> · true count = 9</div>
+  <div class="cms-wrap">
+    <div class="cms-grid">
+      <div class="cms-rl">h&#8321;</div><div class="cms-c">4</div><div class="cms-c">7</div><div class="cms-c hit">9</div><div class="cms-c">2</div><div class="cms-c">6</div><div class="cms-c">3</div><div class="cms-c">8</div><div class="cms-c">1</div>
+      <div class="cms-rl">h&#8322;</div><div class="cms-c">3</div><div class="cms-c">5</div><div class="cms-c">1</div><div class="cms-c">7</div><div class="cms-c">4</div><div class="cms-c hit">12</div><div class="cms-c">2</div><div class="cms-c">6</div>
+      <div class="cms-rl">h&#8323;</div><div class="cms-c hit">9</div><div class="cms-c">2</div><div class="cms-c">5</div><div class="cms-c">8</div><div class="cms-c">3</div><div class="cms-c">1</div><div class="cms-c">6</div><div class="cms-c">4</div>
+      <div class="cms-rl">h&#8324;</div><div class="cms-c">2</div><div class="cms-c">8</div><div class="cms-c">4</div><div class="cms-c">1</div><div class="cms-c">7</div><div class="cms-c">3</div><div class="cms-c hit">15</div><div class="cms-c">5</div>
+    </div>
+    <div class="cms-calc">
+      <h4>read each row</h4>
+      <div class="cms-read"><span>h&#8321; cell</span><span class="v">9</span></div>
+      <div class="cms-read over"><span>h&#8322; cell</span><span class="v">12</span></div>
+      <div class="cms-read"><span>h&#8323; cell</span><span class="v">9</span></div>
+      <div class="cms-read over"><span>h&#8324; cell</span><span class="v">15</span></div>
+      <div class="cms-min">estimate = min = 9 ✓</div>
+      <div class="cms-note">h&#8322;, h&#8324; over-count from collisions; the min ignores them. Never under-counts.</div>
+    </div>
+  </div>
+  <div class="cms-cap"><b>One topic → one cell per row.</b> Adding increments d cells; estimating reads those same d cells and takes the minimum. Memory is fixed at d×w counters regardless of how many distinct topics you track — the price is a small, tunable over-count, never an under-count.</div>
+</div>`},
+   {t:'teach',h:'The other core ideas',body:[
+     {k:'tldr',t:'Beyond windowing + sketches, four ideas separate a strong answer from a basic one: <b>decay</b>, <b>late events</b>, <b>approximate-now/exact-later</b>, and <b>many boards at once</b>.'},
+     {k:'point',i:'🌡️',t:'<b>Time decay</b> (smooth alternative to hard windows): each topic keeps a score that <b>decays exponentially</b> with age — on each mention, <code>score = score · e^(−λ·Δt) + 1</code>. Recent spikes rank high, stale topics fade gradually with no boundary reset. One number per topic, updated lazily on access.'},
+     {k:'point',i:'⏰',t:'<b>Late / out-of-order events</b>: mentions arrive delayed. A <b>watermark</b> says "I have probably seen everything up to time T"; an <b>allowed-lateness</b> grace period folds in stragglers before a window is sealed and its snapshot frozen. Trade: longer grace = more complete but less fresh.'},
+     {k:'point',i:'🧮',t:'<b>Approximate now, exact later</b> — this fast-path + slow-path split is the <b>Lambda Architecture</b>: serve the live board from the sketch + heap (fast, slightly fuzzy), and let a batch job (MapReduce/Spark) recompute <b>exact</b> counts from the durable event log for drill-down, billing, or backfill. Stitch the two at query time. Never promise exact ranks on the hot path.'},
+     {k:'point',i:'🌍',t:'<b>Many boards at once</b>: trending is per <code>(window × region × language)</code> plus global. Keep counters per dimension; the global board is a <b>merge</b> of the regional candidate lists. Snapshots fan out by key, each cached for O(1) reads.'},
+     {k:'callout',c:'warn',t:'<b>Hot-key skew</b>: a viral topic hammers one partition\'s counter. Shard the key as <code>(topic, salt)</code> to spread the writes, then <b>sum the salts</b> when merging candidates.'},
+     {k:'callout',c:'note',t:'<b>Trivia:</b> "Lambda Architecture" was coined by <b>Nathan Marz</b> (creator of Apache Storm) in his 2011 post <i>"How to beat the CAP theorem"</i>, then famously critiqued by <b>Jay Kreps</b> (co-creator of Apache Kafka) in 2014 — his gripe was <b>complexity</b> (two code paths to maintain). It has nothing to do with AWS Lambda. The simpler alternative — one streaming path, no batch layer — is the <b>Kappa Architecture</b>.'}
+   ]},
+   {t:'teach',h:'Serving reads in tens of ms — and the staff answer',body:[
+     {k:'tldr',t:'The hot path must never scan or sort at read time. Precompute on the write side, and at staff level, name the store that already does this for you.'},
+     {k:'point',i:'🗂️',t:'<b>One precomputed aggregate per window</b> (last-hour / last-day / last-month / all-time), each <b>indexed on the count column</b>. A top-K read becomes <code>ORDER BY count DESC LIMIT K</code> = O(K) — or just read the cached snapshot the cron already merged. Reads are O(K), never O(topics).'},
+     {k:'point',i:'🧊',t:'<b>Roll up coarsely:</b> store at hour grain and let a cron roll hour→day→month, so you keep four boards in sync without four independent write streams.'},
+     {k:'point',i:'🏛️',t:'<b>Staff-level: don\'t hand-roll this.</b> Purpose-built real-time OLAP / time-series stores already do sharded windowed top-K — name <b>Apache Druid, Apache Pinot, ClickHouse, or TimescaleDB</b>. Knowing the primitive (sharded counters + heap + cache) <em>and</em> the off-the-shelf option is the senior/staff signal.'}
+   ]},
+   {t:'mcq',q:'A trending query must return in tens of ms while ingest runs at 700K writes/sec. What serves the read?',o:['scan the event log and sort on each request','a precomputed per-window aggregate indexed on count (or a cached snapshot) → O(K)','ask every shard to re-sort all of its topics live','a full GROUP BY over the last hour on every request'],a:1,why:'Reads have to be O(K), so the count is materialized at write time into a per-window structure indexed by count — or a snapshot a cron already merged from the shards. Scanning or grouping per request can\'t hit tens of ms at this scale; the work belongs on the write side.'},
+   {t:'htmlviz',h:'Reference architecture',html:`<style>
+.refx2 .refimg{background:#fff;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:10px;overflow-x:auto}
+.refx2 .refimg img{display:block;width:100%;min-width:560px;height:auto}
+.refx2 .refcap{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.refx2 .refcap b{color:var(--ink)} .refx2 .refcap code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px} .refx2 .refcap a{color:var(--blue-d);font-weight:800;text-decoration:none}
+</style>
+<div class="refx2">
+  <div class="refimg"><img loading="lazy" alt="Hello Interview Top-K (Flink) architecture" src="https://files.hellointerview.com/build-assets/PRODUCTION/_next/static/media/CUk15xjkMDUD.160y~ykqqhcqy.svg" onerror="this.parentNode.style.display='none'"></div>
+  <div class="refcap"><b>Hello Interview's Top-K (YouTube views) design</b> — Kafka partitioned by id → Flink windowed aggregation with watermarks → per-window stores; a cron warms the top-K cache and the read path is served from cache. <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/top-k" target="_blank" rel="noopener">Full breakdown ↗</a></div>
+</div>`},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Use tumbling/sliding event-time windows; maintain per-partition counts or Count-Min/Space-Saving candidates; merge local top-K lists with a heap into cached snapshots.','Approximate path is fast for candidates; exact count store or batch correction can reconcile dashboard detail.','Failure: late/out-of-order events → watermark + allowed lateness; hot topic counter → shard by (topic, salt), then merge.']},
+   {t:'teach',h:'Zoom out: you just solved a whole class',body:[
+     {k:'tldr',t:'The real payoff: "heavy hitters" is <b>one pattern wearing many costumes</b>. Spot the disguise — a stream of events, you want the top K by frequency in a window — and this entire design transfers.'},
+     {k:'callout',c:'mem',t:'<b>Tiny embedded classics:</b> the per-shard step is LeetCode <b>"Top K Frequent Elements"</b> (a size-K min-heap → O(n log k), beating a full sort\'s O(n log n)); combining shard winners is <b>"Merge K Sorted Lists."</b> The system is those two coding problems, scaled out.'}
+   ]},
+   {t:'match',q:'Same problem, different costume — match each to why it is really Top-K heavy hitters.',pairs:[['"What\'s trending" (Twitter / YouTube)','top-K most-mentioned topics in a window'],['Most actively traded stocks','top-K tickers by trade count'],['DDoS / abuse defense','top-K IPs by request rate → block them'],['Homepage "popular products"','top-K items by views or purchases'],['Google "top searches"','top-K queries by frequency']]},
+   {t:'teach',h:'Sibling problem: distributed counters',body:[
+     {k:'tldr',t:'A view/like counter (count <b>every</b> entity, not just the winners) shares the same ingest pipeline — but dropping the <b>K-cap</b> changes everything downstream. Same funnel, opposite storage.'},
+     {k:'point',i:'🚫',t:'<b>No sketch.</b> CMS error is <code>ε·N</code> where N is the <b>whole stream\'s</b> volume — a noise floor independent of the key. A heavy hitter shrugs it off; a 12-view video drowns under a ±millions over-count. Counters must answer for the long tail, so they need <b>exact-ish per-key storage</b>, not a sketch.'},
+     {k:'point',i:'📖',t:'<b>Reads become the hard path.</b> A count is displayed everywhere (page, search, recs) → reads ≫ writes on popular keys. And the hot-key write fix bites back: a counter sharded into N sub-counters means one read must <b>scatter-gather and sum N shards</b>. Cache aggressively (counts tolerate staleness) + keep a denormalized total.'},
+     {k:'point',i:'🗄️',t:'<b>The tail you discarded is now the product.</b> Top-K beats high cardinality by <i>throwing the tail away</i>; counters must keep every key → <code>O(#entities)</code> in a durable KV / wide-column store (Bigtable/Cassandra), often time-bucketed with rollups + TTLs.'},
+     {k:'callout',c:'mem',t:'<b>The K-cap is the whole difference.</b> It lets Top-K be bounded + approximate + one ranked answer. Remove it → unbounded + exact + point-queryable. The shared half is the funnel: partition by key → pre-aggregate → merge, with <code>(key, salt)</code> sharding for hot keys.'}
+   ]},
+   {t:'htmlviz',h:'Top-K vs distributed counters',
+    html:`<style>
+.tkc{display:grid;gap:11px;font-size:13px}
+.tkc-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tkc-card{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:11px 12px;display:grid;gap:8px}
+.tkc-card.tk{border-color:var(--blue)}
+.tkc-card.dc{border-color:var(--purple)}
+.tkc-h{font-size:12.5px;font-weight:900;color:var(--ink);display:flex;align-items:center;gap:7px}
+.tkc-h .pill{font-size:9.5px;font-weight:900;text-transform:uppercase;letter-spacing:.3px;color:#fff;border-radius:6px;padding:2px 7px}
+.tkc-card.tk .pill{background:var(--blue)}
+.tkc-card.dc .pill{background:var(--purple)}
+.tkc-row{display:grid;gap:1px}
+.tkc-k{font-size:9.5px;font-weight:900;text-transform:uppercase;letter-spacing:.3px;color:var(--muted)}
+.tkc-v{font-size:11.5px;font-weight:700;color:var(--ink);line-height:1.4}
+.tkc-v code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--panel);padding:1px 4px;border-radius:4px}
+.tkc-foot{font-size:12px;color:var(--muted);font-weight:700;line-height:1.55;padding:9px 12px;background:var(--panel);border-radius:12px}
+.tkc-foot b{color:var(--ink)}
+@media(max-width:560px){.tkc-cols{grid-template-columns:1fr}}
+</style>
+<div class="tkc">
+  <div class="tkc-cols">
+    <div class="tkc-card tk">
+      <div class="tkc-h"><span class="pill">Top-K</span>heavy hitters</div>
+      <div class="tkc-row"><div class="tkc-k">Keep</div><div class="tkc-v">only K winners — <b>tail discarded</b></div></div>
+      <div class="tkc-row"><div class="tkc-k">Memory</div><div class="tkc-v"><code>O(K)</code> heap + fixed sketch</div></div>
+      <div class="tkc-row"><div class="tkc-k">Approximate?</div><div class="tkc-v">✅ CMS fine — error ∝ N, tiny vs a heavy hitter</div></div>
+      <div class="tkc-row"><div class="tkc-k">Read</div><div class="tkc-v">"<b>the</b> top 20" — one cached snapshot, <code>O(1)</code></div></div>
+      <div class="tkc-row"><div class="tkc-k">Hard part</div><div class="tkc-v">tail cardinality — beat it by dropping the tail</div></div>
+    </div>
+    <div class="tkc-card dc">
+      <div class="tkc-h"><span class="pill">Counters</span>per-key totals</div>
+      <div class="tkc-row"><div class="tkc-k">Keep</div><div class="tkc-v"><b>every</b> key — the tail is the point</div></div>
+      <div class="tkc-row"><div class="tkc-k">Memory</div><div class="tkc-v"><code>O(#keys)</code> → durable KV / wide-column</div></div>
+      <div class="tkc-row"><div class="tkc-k">Approximate?</div><div class="tkc-v">❌ need exact-ish — CMS noise floor buries cold keys</div></div>
+      <div class="tkc-row"><div class="tkc-k">Read</div><div class="tkc-v">"count of <b>key X</b>" — point lookup, scatter-gather over shards</div></div>
+      <div class="tkc-row"><div class="tkc-k">Hard part</div><div class="tkc-v">hot-key writes + read fanout</div></div>
+    </div>
+  </div>
+  <div class="tkc-foot"><b>Shared machinery:</b> events → partition by key → pre-aggregate (the funnel) → merge; hot keys split as <code>(key, salt)</code>, summed on read. <b>The split:</b> the K-cap lets Top-K throw the tail away — bounded, approximate, one ranked answer. Counters can't → unbounded, exact, point-queryable.</div>
+</div>`}
+  ]},
+  {id:'mock-leaderboard',title:'Gaming leaderboard',steps:[
+   {t:'teach',h:'1 · Requirements',body:[
+     {k:'tldr',t:'Design a leaderboard that ranks millions of players by score.'},
+     {k:'spoiler',items:[
+       {k:'reqs',i:'✅',label:'Functional',items:['update a player’s score','get the <b>top N</b>','get a <b>specific player’s rank</b>','get players <b>around me</b> (±k)','per-region / per-season boards']},
+       {k:'reqs',i:'📐',label:'NFRs',items:['low-latency rank reads','<b>millions</b> of players','frequent score updates','ranks fresh within seconds']}
+     ]}
+   ]},
+   {t:'recall',q:'2 · Entities + 3 · API. Say them out loud.',model:['The board is a <b>sorted set</b>: <code>player_id → score</code>, ordered by score (mutable).','<code>POST /score {player, score}</code> → update (upsert)','<code>GET /top?n=100</code> → the leaders','<code>GET /rank/{player}</code> → that player’s exact rank, and <code>GET /around/{player}?k=5</code> → the window of players near them','Durable <code>score_events</code> log so the board can be rebuilt']},
+   {t:'teach',h:'The real problem is “rank of an arbitrary player”',body:[
+     {k:'tldr',t:'“Top N” is the easy part — a heap does it. The crux of a leaderboard is answering <b>“what’s player X’s rank among 50M?”</b> and <b>“show me ±5 around my rank”</b>.'},
+     {k:'point',i:'🧮',t:'That needs an <b>ordered structure with rank queries</b>. A <b>Redis sorted set (ZSET)</b> = skip list + hash: <code>ZADD</code> updates a score in O(log n), <code>ZREVRANK</code> returns a player’s rank, <code>ZREVRANGE</code> gives top-N or the window around me — all O(log n), no scan.'},
+     {k:'point',i:'🐌',t:'The naive answer — <code>SELECT COUNT(*) WHERE score > mine</code> per request — is O(n) every rank read and dies at scale. That’s the trap.'},
+     {k:'callout',c:'warn',t:'Distinguish the two reads: <b>top-N</b> is a heap; <b>my exact rank among millions</b> is what forces a sorted set. State that and you’ve named the design.'}
+   ]},
+   {t:'htmlviz',h:'A sorted set: one structure, every query',
+    html:`<style>
+.lbv{display:grid;grid-template-columns:1.05fr .95fr;gap:12px}
+.lbv .board,.lbv .ops{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:11px 12px;display:flex;flex-direction:column;gap:6px}
+.lbv h4{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:0 0 2px}
+.lbv .rowi{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:center;font-weight:800;font-size:13px;color:var(--ink);padding:5px 9px;border-radius:9px;background:var(--panel)}
+.lbv .rowi .rk,.lbv .rowi .sc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);font-weight:900}
+.lbv .rowi.me{background:transparent;border:2px solid var(--blue)}
+.lbv .rowi.me,.lbv .rowi.me .rk,.lbv .rowi.me .sc{color:var(--blue-d)}
+.lbv .gap{text-align:center;color:var(--muted);font-weight:900;font-size:13px;line-height:1}
+.lbv .op{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--ink);background:var(--panel);border-radius:9px;padding:7px 9px;line-height:1.4}
+.lbv .op b{color:var(--blue-d)}
+.lbv-cap{font-size:13px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.lbv-cap b{color:var(--ink)}
+@media(max-width:560px){.lbv{grid-template-columns:1fr}}
+</style>
+<div class="lbv">
+  <div class="board">
+    <h4>Sorted by score</h4>
+    <div class="rowi"><span class="rk">#1</span><span>Mia</span><span class="sc">9820</span></div>
+    <div class="rowi"><span class="rk">#2</span><span>Kai</span><span class="sc">9610</span></div>
+    <div class="rowi"><span class="rk">#3</span><span>Ada</span><span class="sc">9355</span></div>
+    <div class="rowi me"><span class="rk">#4</span><span>You</span><span class="sc">9210</span></div>
+    <div class="rowi"><span class="rk">#5</span><span>Rey</span><span class="sc">9040</span></div>
+    <div class="gap">⋮</div>
+  </div>
+  <div class="ops">
+    <h4>Same ZSET answers all of it</h4>
+    <div class="op"><b>ZADD</b> board 9210 you<br>→ update score · O(log n)</div>
+    <div class="op"><b>ZREVRANK</b> board you<br>→ 3  (your rank = #4)</div>
+    <div class="op"><b>ZREVRANGE</b> board 0 2<br>→ top 3</div>
+    <div class="op"><b>ZREVRANGE</b> board 2 6<br>→ the ±window around you</div>
+  </div>
+</div>
+<div class="lbv-cap"><b>One structure, every query.</b> A sorted set keeps players ordered by score in a skip list, so updating a score and asking “what’s my rank?” are both O(log n) — never a scan. Top-N, my-rank, and around-me all fall out of the same ZSET.</div>`},
+   {t:'mcq',q:'Which structure answers “what is player X’s exact rank among millions?” cheaply?',o:['a max-heap of the top scores','a sorted set / skip list (ZSET) with rank queries','a hash map of player → score','SELECT COUNT(*) WHERE score > X per request'],a:1,why:'A heap gives you the top N but can’t tell you an arbitrary player’s rank. A hash map has the score but no order. The COUNT query is O(n) per read. A sorted set (skip list) keeps players ordered and supports O(log n) rank lookups — ZREVRANK — which is exactly the leaderboard’s hard query.'},
+   {t:'build',q:'4 · Pick the high-level components.',options:['Score-update service (ZADD)','Sorted set (ZSET / skip list) as the serving layer','Rank/query service (rank, top-N, around-me)','Top-N snapshot cache for the hot board','Durable score-event log to rebuild from','A SQL ORDER BY + COUNT(*) per rank read'],correct:[0,1,2,3,4]},
+   {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:790,h:330,cap:'Writes go through the <b>score service</b> — ZADD into the Redis <b>sorted set</b>, plus an append to a <b>durable store</b> so the board can be rebuilt after a crash. Reads go through the <b>query service</b>: exact rank and around-me from the ZSET, and the globally-hot <b>top-N</b> from a cached snapshot. Per-region or per-season boards are just separate ZSET keys.',nodes:[{x:18,y:140,w:110,t:'Client',c:'gray'},{x:150,y:48,w:160,t:'Score service',s:'ZADD update',c:'blue'},{x:150,y:232,w:160,t:'Query service',s:'rank · top-N · around',c:'blue'},{x:360,y:140,w:180,t:'Sorted set (ZSET)',s:'Redis skip list',c:'green'},{x:580,y:48,w:175,t:'Top-N cache',s:'hot board snapshot',c:'teal'},{x:580,y:232,w:175,t:'Durable store',s:'score log → rebuild',c:'gray'}],edges:[[0,1],[0,2],[1,3],[1,5],[2,3],[2,4]]});}},
+   {t:'mcq',q:'5 · A single ZSET can’t hold 100M players at your write rate. How do you keep <b>exact</b> global rank when you shard?',o:['shard by player id (hash) — each shard ranks its own players','shard by <b>score range</b> — global rank = (counts in higher-score shards) + local rank','give up on rank, only show top-N','one giant ZSET, scale vertically forever'],a:1,why:'Sharding by player id gives per-shard ranks that don’t compose into a global rank. Sharding by score range does: each shard owns a score band, so a player’s global rank is the total count of players in all higher bands plus their rank within their own band. (When exact isn’t needed, a score histogram gives approximate rank even more cheaply — fine for most games.)'},
+   {t:'teach',h:'Deep dive: scale, hot reads, durability',body:[
+     {k:'tldr',t:'Three things to say beyond “use a ZSET”: how rank scales, the hot top of the board, and not losing the leaderboard.'},
+     {k:'point',i:'🪜',t:'<b>Scale rank</b>: score-range shards for exact global rank, or an <b>approximate rank</b> from a score histogram/bucketing when “about #1,240” is good enough — usually it is.'},
+     {k:'point',i:'🔥',t:'<b>Hot reads</b>: everyone fetches the top 100. Serve it from a cached snapshot refreshed every few seconds instead of hammering the ZSET on every request.'},
+     {k:'point',i:'💾',t:'<b>Durability</b>: the ZSET is an in-memory serving layer. Append score changes to a durable log (and use Redis replicas/AOF) so you can rebuild the board after a node dies. Per-season boards are separate keys with a TTL.'}
+   ]},
+   {t:'mcq',q:'Your Redis ZSET node dies. How do you not lose the leaderboard?',o:['accept the loss — scores aren’t important','score writes also go to a durable log (and a replica/AOF) → rebuild the ZSET from it','take the board offline permanently','recompute from client devices'],a:1,why:'A ZSET in memory is the fast serving layer, not the source of truth. Persist every score change to a durable store and run a replica (or AOF), so a dead node means failover or a rebuild — not a lost leaderboard.'},
+   {t:'recall',q:'6 · Deep dive + a failure mode.',model:['Core: a sorted set (ZSET / skip list) — ZADD update, ZREVRANK for a player’s rank, ZREVRANGE for top-N and around-me, all O(log n).','The hard query is an arbitrary player’s exact rank — that’s what rules out a heap or a plain table scan.','Scale rank: shard by score range (global rank = higher-band counts + local rank), or approximate rank via a score histogram.','Hot reads: cache the top-N snapshot; per-region/per-season boards are separate keys (TTL on seasons).','Failure: ZSET node dies → rebuild from the durable score log / promote a replica; the board is in-memory serving, not the source of truth.']}
   ]},
   {id:'mock-adclick-agg',title:'Ad-click aggregation',steps:[
    {t:'teach',h:'1 · Requirements',body:[
@@ -5000,7 +5270,7 @@ const UNITS=[
        {k:'reqs',i:'📐',label:'NFRs',items:['high ingest rate','low-latency aggregate reads','idempotent processing','auditable raw data']}
      ]}
    ]},
-   {t:'recall',q:'2 · Entities + 3 · API.',model:['Events: <code>click_id</code>, campaign_id, ad_id, user/device hash, ts, cost, attribution fields','Aggregates keyed by <code>(campaign_id, ad_id, window)</code>: clicks, unique clicks, spend, conversions','<code>POST /click</code> or pixel redirect emits to Kafka','<code>GET /campaigns/{id}/stats?from=&amp;to=&amp;granularity=1m</code>']},
+   {t:'recall',q:'2 · Entities + 3 · API.',model:['Events: <code>click_id</code>, campaign_id, ad_id, user/device hash, ts, cost, attribution fields','Aggregates keyed by <code>(campaign_id, ad_id, window)</code>: clicks, unique clicks, spend, conversions','<code>POST /click</code> or click redirect emits to Kafka','<code>GET /campaigns/{id}/stats?from=&amp;to=&amp;granularity=1m</code>']},
    {t:'mcq',q:'Where should aggregation happen?',o:['synchronously in the click redirect','async stream processor after durable ingest','only in a nightly cron','inside the browser'],a:1,why:'The click path should be tiny and durable: validate/lightweight redirect, enqueue the event, then aggregate asynchronously so reporting cannot slow down clicks.'},
    {t:'htmlviz',h:'Ad clicks — raw log plus materialized rollups',
     html:`<style>
@@ -5017,13 +5287,29 @@ const UNITS=[
 .adagg-cap b{color:var(--color-text-primary)}
 </style>
 <div class="adagg">
-  <div class="adagg-flow"><div class="adagg-node"><div class="adagg-t">Click pixel</div><div class="adagg-s">click_id</div></div><div class="adagg-arr">→</div><div class="adagg-node hot"><div class="adagg-t">Kafka</div><div class="adagg-s">durable raw log</div></div><div class="adagg-arr">→</div><div class="adagg-node info"><div class="adagg-t">Dedup + windows</div><div class="adagg-s">event time</div></div><div class="adagg-arr">→</div><div class="adagg-node good"><div class="adagg-t">Rollups</div><div class="adagg-s">campaign stats</div></div></div>
-  <div class="adagg-cap"><b>Keep two truths:</b> immutable raw events for audit/replay, and materialized rollups for dashboards. Dedup by click_id before incrementing, and keep a correction path for late conversions.</div>
+  <div class="adagg-flow"><div class="adagg-node"><div class="adagg-t">Click collector</div><div class="adagg-s">click_id</div></div><div class="adagg-arr">→</div><div class="adagg-node hot"><div class="adagg-t">Kafka</div><div class="adagg-s">durable raw log</div></div><div class="adagg-arr">→</div><div class="adagg-node info"><div class="adagg-t">Dedup + windows</div><div class="adagg-s">event time</div></div><div class="adagg-arr">→</div><div class="adagg-node good"><div class="adagg-t">Rollups</div><div class="adagg-s">campaign stats</div></div></div>
+  <div class="adagg-cap"><b>Keep two truths:</b> immutable raw events for audit/replay, and materialized rollups for dashboards. Dedup by click_id before incrementing, and keep a correction path for late/out-of-order clicks.</div>
 </div>`},
    {t:'build',q:'4 · High-level components.',options:['Tiny click collector / redirect','Kafka raw event log','Dedup store keyed by click_id','Stream aggregation by event-time window','OLAP/TSDB rollup store','Synchronous dashboard write in the redirect'],correct:[0,1,2,3,4]},
    {t:'htmlviz',h:'4 · Architecture',html:'',setup:function(root){root.innerHTML=archDiagram({w:820,h:320,cap:'The collector records the click with a click_id and immediately emits to Kafka. Stream workers dedupe, aggregate by campaign/ad/window, and write rollups to an OLAP store for dashboard queries. Raw events land in object storage for audit and replay; fraud/anomaly jobs read the same stream.',nodes:[{x:18,y:132,w:125,t:'Click collector',s:'fast path',c:'blue'},{x:170,y:132,w:130,t:'Kafka',s:'raw log',c:'amber'},{x:335,y:40,w:155,t:'Dedup store',s:'click_id TTL',c:'red'},{x:335,y:224,w:175,t:'Object store',s:'raw audit',c:'gray'},{x:530,y:40,w:155,t:'Stream agg',s:'event windows',c:'purple'},{x:530,y:224,w:155,t:'Fraud jobs',s:'signals',c:'gray'},{x:705,y:132,w:95,t:'OLAP',s:'rollups',c:'green'}],edges:[[0,1],[1,2],[2,4],[1,3],[1,5],[4,6]]});}},
-   {t:'mcq',q:'5 · Bottleneck / risk?',o:['campaign names','duplicate and late events corrupting aggregates','dashboard CSS','object storage reads'],a:1,why:'Retries and pixels can emit duplicates; mobile/offline paths can arrive late. Without dedup and event-time windows, reporting drifts.'},
-   {t:'recall',q:'6 · Deep dive + failure.',model:['Collector stays off the reporting path: emit durable raw events, redirect quickly, aggregate asynchronously.','Dedup by click_id with a TTL store; aggregate by event time with watermarks; write rollups keyed by (campaign, ad, window).','Failure: processor bug or fraud-rule change → replay raw Kafka/object-store events to rebuild aggregates; late conversions issue correction updates.']}
+   {t:'mcq',q:'5 · Bottleneck / risk?',o:['campaign names','duplicate and late events corrupting aggregates','dashboard CSS','object storage reads'],a:1,why:'Retries and redirects can emit duplicates; mobile/offline paths can arrive late. Without dedup and event-time windows, reporting drifts.'},
+   {t:'teach',h:'Trust the click: signed impression IDs',body:[
+     {k:'tldr',t:'Dedup by click_id only catches accidental retries. To stop <b>forged or replayed</b> clicks, the id itself has to be unforgeable.'},
+     {k:'point',i:'✍️',t:'When the ad renders, the Ad service mints a unique <b>impression id and HMAC-signs it</b> with a server secret before handing it to the browser. The Click Processor <b>verifies the signature</b> before counting — a fabricated click id fails the check and is dropped.'},
+     {k:'point',i:'🚫',t:'<b>Dedup the verified id</b> against a short-TTL Redis set so a replayed-but-validly-signed click still counts once. Signature (unforgeable) + dedup (exactly-once-ish) together give clean, auditable counts.'}
+   ]},
+   {t:'mcq',q:'A viral ad sends all its clicks to one partition and that aggregator falls behind. Fix?',o:['add more dashboards','salt the key — partition by (adId, randomSuffix), and strip the suffix before the rollup SUM','drop the excess clicks','switch to a nightly batch job'],a:1,why:'A single hot adId is a hot partition — the same problem as a hot DynamoDB key. Append a small random suffix so writes spread across N partitions; the stream processor strips the suffix before the OLAP upsert so SUM still rolls up per real adId. More dashboards or dropping clicks don\'t address the skew.'},
+   {t:'htmlviz',h:'Reference architecture',html:`<style>
+.refx3 .refimg{background:#fff;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:10px;overflow-x:auto}
+.refx3 .refimg img{display:block;width:100%;min-width:560px;height:auto}
+.refx3 .refcap{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.refx3 .refcap b{color:var(--ink)} .refx3 .refcap a{color:var(--blue-d);font-weight:800;text-decoration:none}
+</style>
+<div class="refx3">
+  <div class="refimg"><img loading="lazy" alt="Hello Interview Ad Click Aggregator architecture" src="https://files.hellointerview.com/build-assets/PRODUCTION/_next/static/media/iUeYMlmDFGRa.17wjuc3kkoxq0.svg" onerror="this.parentNode.style.display='none'"></div>
+  <div class="refcap"><b>Hello Interview's Ad Click Aggregator</b> — the click stream feeds a fast path (Flink → OLAP) and, in parallel, raw events land in a lake where a periodic <b>Spark batch</b> recomputes exact counts as ground truth and reconciles the OLAP store. <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/ad-click-aggregator" target="_blank" rel="noopener">Full breakdown ↗</a></div>
+</div>`},
+   {t:'recall',q:'6 · Deep dive + failure.',model:['Collector stays off the reporting path: emit durable raw events, redirect quickly, aggregate asynchronously.','Dedup by click_id with a TTL store; aggregate by event time with watermarks; write rollups keyed by (campaign, ad, window).','Failure: processor bug or fraud-rule change → replay raw Kafka/object-store events to rebuild aggregates; late/out-of-order clicks issue correction updates.']}
   ]},
   {id:'mock-8',title:'Payment / order system',steps:[
    {t:'teach',h:'1 · Requirements',body:[
