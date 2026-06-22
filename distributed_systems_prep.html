@@ -318,6 +318,20 @@ a{color:var(--accent);text-decoration:none}
 .ex-link:hover{text-decoration-style:solid}
 .ex-flash{animation:exFlash 1.8s ease-out}
 @keyframes exFlash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
+/* sidebar content search */
+.navsearch{padding:.75rem 1.25rem .25rem;position:relative}
+.navsearch input{width:100%;box-sizing:border-box;background:#1E293B;border:1px solid #334155;border-radius:8px;color:#E2E8F0;font-size:13px;padding:.5rem .7rem;outline:none}
+.navsearch input::placeholder{color:#64748B}
+.navsearch input:focus{border-color:var(--accent)}
+.search-results{display:none;position:absolute;left:1.25rem;right:1.25rem;top:100%;margin-top:4px;background:#0F172A;border:1px solid #334155;border-radius:8px;max-height:62vh;overflow-y:auto;z-index:70;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+.search-results.show{display:block}
+.sr-item{padding:.5rem .7rem;cursor:pointer;border-bottom:1px solid #1E293B}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover,.sr-item.active{background:#1E293B}
+.sr-title{font-size:12.5px;color:#E2E8F0;font-weight:500;line-height:1.35}
+.sr-title mark,.sr-sec mark{background:rgba(37,99,235,.4);color:#fff;border-radius:2px;padding:0 1px}
+.sr-sec{font-size:10.5px;color:#64748B;margin-top:2px}
+.sr-empty{padding:.65rem .7rem;font-size:12px;color:#64748B}
 .ex-tests{font-size:12px;color:var(--text-faint);margin-bottom:.85rem;font-style:italic}
 .ex-btn{font-size:12px;font-weight:500;padding:7px 14px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;transition:background .15s}
 .ex-btn:hover{background:var(--accent-dark)}
@@ -378,6 +392,11 @@ a{color:var(--accent);text-decoration:none}
     <div class="brand-label">Interview prep</div>
     <div class="brand-title">Distributed Systems</div>
     <button class="navtoggle" onclick="toggleNav()" title="Collapse sidebar" aria-label="Collapse sidebar">«</button>
+  </div>
+  <div class="navsearch">
+    <input id="searchInput" type="search" placeholder="Search cards…" autocomplete="off"
+           oninput="runSearch(this.value)" onkeydown="searchKey(event)" aria-label="Search content">
+    <div id="searchResults" class="search-results" role="listbox"></div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Theory &amp; data</div>
@@ -5442,6 +5461,81 @@ function sendQ(q){
   const url='https://claude.ai/new?q='+encodeURIComponent(q);
   window.open(url,'_blank');
 }
+
+// ---- Content search: jump to the page/card containing a keyword ----
+var SEARCH_INDEX=null, searchHits=[], searchActiveIdx=-1;
+function buildSearchIndex(){
+  if(SEARCH_INDEX)return SEARCH_INDEX;
+  SEARCH_INDEX=[];
+  document.querySelectorAll('.section').forEach(function(sec){
+    var sid=sec.id.replace(/^section-/,'');
+    var h=sec.querySelector('.section-intro h2');
+    var secName=h?h.textContent.trim():sid;
+    sec.querySelectorAll('.card').forEach(function(card){
+      var t=card.querySelector('.card-title'), s=card.querySelector('.card-sub');
+      var title=t?t.textContent.trim():'';
+      var sub=s?s.textContent.trim():'';
+      if(!title)title=(card.textContent||'').trim().replace(/\s+/g,' ').slice(0,60);
+      SEARCH_INDEX.push({sid:sid,sec:secName,title:title,sub:sub,
+        text:((title+' '+sub+' '+(card.textContent||'')).toLowerCase().replace(/\s+/g,' ')),el:card});
+    });
+  });
+  return SEARCH_INDEX;
+}
+function searchEscape(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function searchHl(s,terms){s=searchEscape(s);terms.forEach(function(t){if(!t)return;var re=new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');s=s.replace(re,'<mark>$1</mark>');});return s;}
+function runSearch(q){
+  var box=document.getElementById('searchResults');
+  q=(q||'').trim().toLowerCase();
+  searchActiveIdx=-1;
+  if(q.length<2){box.className='search-results';box.innerHTML='';searchHits=[];return;}
+  var terms=q.split(/\s+/);
+  var scored=[];
+  buildSearchIndex().forEach(function(e){
+    if(!terms.every(function(t){return e.text.indexOf(t)>=0;}))return;
+    var score=0,tl=e.title.toLowerCase(),sl=e.sub.toLowerCase();
+    terms.forEach(function(t){score+= tl.indexOf(t)>=0?10 : (sl.indexOf(t)>=0?5:1);});
+    scored.push({e:e,score:score});
+  });
+  scored.sort(function(a,b){return b.score-a.score;});
+  searchHits=scored.slice(0,12).map(function(x){return x.e;});
+  if(!searchHits.length){box.className='search-results show';box.innerHTML='<div class="sr-empty">No matches</div>';return;}
+  box.innerHTML=searchHits.map(function(e,i){
+    return '<div class="sr-item" role="option" data-i="'+i+'" onmousedown="event.preventDefault()" onclick="goSearch('+i+')">'+
+      '<div class="sr-title">'+searchHl(e.title,terms)+'</div>'+
+      '<div class="sr-sec">'+searchEscape(e.sec)+(e.sub?' · '+searchHl(e.sub,terms):'')+'</div></div>';
+  }).join('');
+  box.className='search-results show';
+}
+function goSearch(i){
+  var e=searchHits[i];if(!e)return;
+  document.getElementById('searchResults').className='search-results';
+  showSection(e.sid);
+  setTimeout(function(){
+    e.el.classList.add('expanded');
+    e.el.scrollIntoView({block:'center'});
+    e.el.classList.remove('ex-flash');void e.el.offsetWidth;e.el.classList.add('ex-flash');
+    setTimeout(function(){e.el.classList.remove('ex-flash');},1800);
+  },60);
+}
+function searchKey(ev){
+  var box=document.getElementById('searchResults');
+  var items=box.querySelectorAll('.sr-item');
+  if(ev.key==='Enter'){if(searchHits.length)goSearch(searchActiveIdx>=0?searchActiveIdx:0);ev.preventDefault();return;}
+  if(ev.key==='Escape'){box.className='search-results';ev.target.value='';searchHits=[];return;}
+  if((ev.key==='ArrowDown'||ev.key==='ArrowUp')&&items.length){
+    ev.preventDefault();
+    searchActiveIdx+= ev.key==='ArrowDown'?1:-1;
+    if(searchActiveIdx<0)searchActiveIdx=items.length-1;
+    if(searchActiveIdx>=items.length)searchActiveIdx=0;
+    items.forEach(function(it,j){it.classList.toggle('active',j===searchActiveIdx);});
+    items[searchActiveIdx].scrollIntoView({block:'nearest'});
+  }
+}
+document.addEventListener('click',function(ev){
+  var ns=document.querySelector('.navsearch');
+  if(ns&&!ns.contains(ev.target)){var b=document.getElementById('searchResults');if(b)b.className='search-results';}
+});
 
 // Quiz
 const Qs=[
