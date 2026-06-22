@@ -2858,6 +2858,9 @@ each step independently deployable &amp; rollback-safe</div>
         <div class="card-body">
           <p>Never route gigabytes through your app servers. Instead, the server issues a temporary, scoped <strong>presigned URL</strong> and the client uploads <em>directly</em> to blob storage (S3). Downloads go through a <strong>CDN</strong> with signed URLs for access control.</p>
           <p>This removes your servers as the bottleneck and enables resumable uploads and progress tracking. <strong>Main challenge:</strong> keeping DB metadata in sync with storage — use storage <em>event notifications</em> to confirm uploads and reconcile state.</p>
+          <p><strong>Chunk on the client.</strong> Split big files into 5–10&nbsp;MB chunks <em>on the device</em> before uploading: each chunk uploads independently, so a dropped connection resumes from the last committed chunk instead of byte zero, and you dodge the ~10&nbsp;MB request-body cap most API gateways impose. Chunking server-side defeats the purpose — the client already had to send the whole file once.</p>
+          <p><strong>Content-defined chunking &amp; dedup.</strong> Split on a rolling-hash boundary rather than fixed offsets, so a small edit re-uploads only the few chunks around the change instead of shifting every boundary after it. Hash each chunk (e.g. SHA-256) to a content fingerprint: skip chunks already present (resumable) and share identical bytes across users (cross-user dedup) — the fingerprint identifies <em>content</em>, not a record, so two users still get distinct file IDs.</p>
+          <p><strong>Trust but verify.</strong> Don't mark an upload complete because the client said so — confirm the parts actually landed via the multipart <code>ListParts</code> / ETags first. And if you compress to save bandwidth, compress <em>before</em> encrypting (ciphertext won't compress) and skip it for already-compressed media.</p>
           <div class="vidv" onclick="event.stopPropagation()">
 <style>
 .vidv{display:grid;gap:10px;margin:.75rem 0}
@@ -2876,7 +2879,8 @@ each step independently deployable &amp; rollback-safe</div>
             <div class="vidv-flow"><div class="vidv-node good"><div class="vidv-t">Storage event</div><div class="vidv-s">upload complete</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Queue</div><div class="vidv-s">async jobs</div></div><div class="vidv-arr">→</div><div class="vidv-node hot"><div class="vidv-t">Transcoders</div><div class="vidv-s">240p..4K renditions</div></div><div class="vidv-arr">→</div><div class="vidv-node info"><div class="vidv-t">CDN</div><div class="vidv-s">serve segments</div></div></div>
             <div class="vidv-cap"><b>The app tier never carries video bytes.</b> It issues upload permission and stores metadata; object events drive long-running transcode work, and the CDN carries playback <b>egress</b> — the bytes streamed out to viewers.</div>
           </div>
-          <div class="tag-row"><span class="tag">presigned URLs</span><span class="tag">direct-to-S3 + CDN</span><span class="tag">storage events</span></div>
+          <div class="tag-row"><span class="tag">presigned URLs</span><span class="tag">direct-to-S3 + CDN</span><span class="tag">storage events</span><span class="tag">client-side chunking</span><span class="tag">content dedup</span></div>
+          <p style="font-size:12.5px;color:var(--color-text-secondary);margin-top:6px">Reference: <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/dropbox" target="_blank" rel="noopener" style="color:var(--color-text-info);font-weight:700;text-decoration:none">Hello Interview · Dropbox ↗</a></p>
         </div>
       </div>
 
