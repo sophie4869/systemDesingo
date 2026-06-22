@@ -3433,6 +3433,54 @@ const UNITS=[
         <div class="obsf-foot">CPUs, disks, queues</div>
       </div>
     </div>`},
+   {t:'htmlviz',h:'Observability stack — Google internal vs open-source',
+    html:`<style>
+.gsys{display:grid;gap:8px;font-family:inherit;margin:2px 0}
+.gsys-row{display:grid;grid-template-columns:1.1fr 1.5fr 1.3fr;gap:10px;align-items:stretch}
+.gsys-hd>div{font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--color-text-tertiary);padding:0 4px}
+.gsys-cell{padding:10px 12px;border-radius:11px;border:1.5px solid var(--color-border-primary);background:var(--color-background-secondary);font-size:12.5px;font-weight:600;color:var(--color-text-secondary);line-height:1.45;display:flex;align-items:center;flex-wrap:wrap}
+.gsys-need{font-weight:800;color:var(--color-text-primary)}
+.gsys-g{background:var(--color-background-info);border-color:var(--color-border-info);color:var(--color-text-info)}
+.gsys-cell b{color:var(--color-text-primary)}
+.gsys-g b{color:var(--color-text-info)}
+.gsys-lbl{display:none}
+.gsys-foot{font-size:11.5px;color:var(--color-text-tertiary);margin-top:5px;line-height:1.5}
+@media(max-width:640px){
+  .gsys-row{grid-template-columns:1fr;gap:4px;padding:9px 11px;border-radius:12px;border:1.5px solid var(--color-border-primary)}
+  .gsys-hd{display:none}
+  .gsys-cell{border:none;background:transparent;padding:1px 0}
+  .gsys-g{background:transparent}
+  .gsys-lbl{display:inline;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--color-text-tertiary);margin-right:5px}
+}
+</style>
+<div class="gsys">
+  <div class="gsys-row gsys-hd"><div>Need</div><div>Google internal</div><div>Open-source equivalent</div></div>
+  <div class="gsys-row">
+    <div class="gsys-cell gsys-need">Real-time metrics / monitoring / alerting</div>
+    <div class="gsys-cell gsys-g"><span class="gsys-lbl">Google</span><b>Monarch</b> — in-memory time-series DB (successor to Borgmon)</div>
+    <div class="gsys-cell"><span class="gsys-lbl">OSS</span>Prometheus + Grafana</div>
+  </div>
+  <div class="gsys-row">
+    <div class="gsys-cell gsys-need">Distributed tracing</div>
+    <div class="gsys-cell gsys-g"><span class="gsys-lbl">Google</span><b>Dapper</b></div>
+    <div class="gsys-cell"><span class="gsys-lbl">OSS</span>Jaeger / Zipkin (OpenTelemetry)</div>
+  </div>
+  <div class="gsys-row">
+    <div class="gsys-cell gsys-need">Log collection / transport</div>
+    <div class="gsys-cell gsys-g"><span class="gsys-lbl">Google</span>log pipelines → <b>Colossus / Bigtable</b></div>
+    <div class="gsys-cell"><span class="gsys-lbl">OSS</span>Kafka (transport) + ELK / Elasticsearch (store + search)</div>
+  </div>
+  <div class="gsys-row">
+    <div class="gsys-cell gsys-need">Ad-hoc analytics over logs</div>
+    <div class="gsys-cell gsys-g"><span class="gsys-lbl">Google</span><b>Dremel</b> (= BigQuery externally)</div>
+    <div class="gsys-cell"><span class="gsys-lbl">OSS</span>Presto / Trino</div>
+  </div>
+</div>
+<div class="gsys-foot">Same pillars (metrics · traces · logs) plus ad-hoc query — just different names. Knowing the mapping lets you speak Google-internal or open-source fluently in an interview.</div>`},
+   {t:'teach',h:'Metrics vs events — why two stores',body:[
+     {k:'vs',a:{h:'Metrics → TSDB (Monarch/Prometheus)',t:'Pre-aggregated numbers per (series, time). Cheap, fast aggregate-over-time queries. <b>Low / bounded cardinality</b> — each label-value combo is its own series.'},b:{h:'Events/logs → OLAP (Dremel/BigQuery)',t:'Raw individual events, queried ad-hoc with group-by/filter on <b>any</b> field, including high-cardinality ones (user_id, trace_id). Flexible, but scans more.'}}
+   ]},
+   {t:'mcq',q:'Putting <code>user_id</code> as a label on a Prometheus / TSDB metric quietly takes the system down. Why — and where do per-user questions belong?',o:['the disk fills up — shard the metric','cardinality explosion (each label-value combo is a separate series); per-entity slicing belongs in logs/traces/OLAP','too many dashboards — cache them','the scrape interval is too short — slow it down'],a:1,why:'TSDB cost scales with the number of series = the product of label-value counts, so a high-cardinality label like user_id spawns millions of series. Keep metric labels low-cardinality (status, region, service); answer per-user / per-request questions from raw events in an OLAP store (BigQuery/Dremel) or from traces.'},
    {t:'match',q:'Observability — what is it?',pairs:[['Aggregate trends, dashboards & alerts','Metrics'],['Discrete events for debugging','Logs'],['One request across services','Traces'],['Rate · Errors · Duration (services)','RED'],['Utilization · Saturation · Errors (resources)','USE']]},
    {t:'mcq',q:'A bulkhead protects you by…',o:['retrying faster','isolating resource pools so one dependency can’t starve the rest','adding caches','sharding data'],a:1,why:'Separate pools per dependency contain failures — a hung dependency exhausts only its own pool.'},
    {t:'mcq',q:'Under overload, load shedding means…',o:['retry everything','drop/reject low-priority work to protect the core','scale to zero','ignore errors'],a:1,why:'Serving a subset cleanly beats collapsing under everything; shed early and by priority.'},
