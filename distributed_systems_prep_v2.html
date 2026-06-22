@@ -324,7 +324,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .model{background:var(--green-bg);border-radius:14px;padding:13px 15px;margin-top:12px}
 .model h4{font-size:13px;font-weight:900;color:#3a6b13;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
 .model li{font-size:15px;font-weight:700;margin:0 0 6px 18px;color:#2f5a10}
-.model code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:5px}
+.model code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere;word-break:break-word}
 .exarch svg{width:100%;height:auto;display:block}
 .exarch text{font-family:'Comic Sans MS','Comic Sans','Chalkboard SE','Segoe Print','Bradley Hand',cursive}
 .exarch-cap{font-size:13px;color:var(--color-text-secondary);line-height:1.6;margin-top:8px;padding:10px 13px;background:var(--color-background-secondary);border-radius:12px}
@@ -407,6 +407,7 @@ if(!S.mistakes)S.mistakes={};
 if(!S.perfect)S.perfect={};
 if(!S.best)S.best={};
 if(!S.answered)S.answered={};  // sigs of graded questions you've actually answered (for the revisit dot)
+if(!S.picks)S.picks={};        // sig -> the ORIGINAL option index you chose on an mcq (so review can show your pick vs the correct answer)
 
 /* streak update on open */
 (function(){
@@ -5548,12 +5549,21 @@ var R=null; // active run state
 function isQuizStep(t){return t==='mcq'||t==='sort'||t==='match'||t==='order'||t==='build'||t==='cloze'||t==='recall';}
 /* mock "Requirements" stage: a teach step with a masked spoiler — it's a timed recall, so the clock should tick on it */
 function isMockReqStep(step){return step&&step.t==='teach'&&Array.isArray(step.body)&&step.body.some(b=>b.k==='spoiler');}
+function stepBudget(s,base){
+  // time allotted to one step. Multi-item steps (sort/match/order) require placing
+  // each item one at a time, so they get time PER ITEM, not one flat question's worth.
+  if(!isQuizStep(s.t)) return 0;
+  const per=Math.max(8,Math.round(base*0.45));
+  if(s.t==='sort'||s.t==='order') return Math.max(base,(s.items?s.items.length:1)*per);
+  if(s.t==='match') return Math.max(base,(s.pairs?s.pairs.length:1)*per);
+  if(s.t==='cloze') return Math.max(base,(Array.isArray(s.text)?s.text.filter(x=>x&&x.blank).length:1)*Math.max(10,Math.round(base*0.6)));
+  return base; // mcq / build / recall — a single submit
+}
 function startLesson(id){
   const {u,l}=lessonById(id);
   const isMock=(u.id==='mock');
-  const quizN=l.steps.filter(s=>isQuizStep(s.t)).length;
   const stageTime=300; // mock designs: a generous ~5 min budget per "explain it" stage, reset at each stage
-  const t=isMock?stageTime:Math.max(60,quizN*25); // non-mock: clock ticks ~25s/quiz step
+  const t=isMock?stageTime:Math.max(60,l.steps.reduce((a,s)=>a+stepBudget(s,25),0)); // non-mock: ~25s/question, but multi-item sort/match/order steps get time per item
   R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t,isMock:isMock,stageTime:stageTime,_stageIdx:-1};
   renderStep(); // renderStep starts/pauses the timer per step
 }
@@ -5581,7 +5591,7 @@ function startRandomMix(n){
   const pool=units.flatMap(u=>u.lessons.flatMap(l=>l.steps)).filter(s=>isQuizStep(s.t)&&s.t!=='recall');
   if(pool.length<3){toast(sel?'Not enough questions in the chosen chapters — pick more.':'Not enough questions to mix yet.');return;}
   const steps=shuffle(pool).slice(0,Math.min(n,pool.length));
-  const time=steps.length*12; // ~12s/question, pooled across the whole run
+  const time=steps.reduce((a,s)=>a+stepBudget(s,12),0); // ~12s/question, more for multi-item sort/match/order, pooled across the run
   R={mode:'speed',source:'mix',unit:{id:'speed'},steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time,timeLeft:time};
   renderStep(); // manageTimer() starts the clock (speed mode keeps it active)
 }
@@ -5636,6 +5646,8 @@ function startTimer(){
   },1000);
 }
 function stopTimer(){if(timerH){clearInterval(timerH);timerH=null;}}
+/* Revealing the requirements answer = you're done recalling → stop the clock (mirrors the recall step's Reveal). */
+function toggleSpoiler(el){el.classList.toggle('revealed');if(el.classList.contains('revealed')){stopTimer();const t=document.querySelector('.timer');if(t)t.classList.add('paused');}}
 
 function topbarHTML(){
   const pct=Math.round(R.idx/R.steps.length*100);
@@ -5699,16 +5711,20 @@ function skipStep(){
 function renderReview(stage,step){
   if(step.t==='vecviz'){stVecViz(stage,step);return;}
   if(step.t==='htmlviz'){stHtmlViz(stage,step);return;}
+  const ws=(R&&R.isMock&&isMockReqStep(step));
   let h='<div class="q-sub">↩ Review (already answered)</div>';
-  if(step.t==='teach'){h+='<div class="q-title">'+step.h+'</div>';step.body.forEach(b=>h+=blockHTML(b));}
-  else if(step.t==='mcq'){h+='<div class="q-title">'+step.q+'</div><div class="opts">';step.o.forEach((o,i)=>{h+='<div class="opt '+(i===step.a?'correct':'dim')+'">'+o+'</div>';});h+='</div>';if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
+  if(step.t==='teach'){h+='<div class="q-title">'+step.h+'</div>';step.body.forEach(b=>h+=blockHTML(b));if(ws)h+=mockWorksheetHTML();}
+  else if(step.t==='mcq'){const pick=S.picks?S.picks[sigOf(step)]:undefined;const gotWrong=(pick!=null&&pick!==step.a);h+='<div class="q-title">'+step.q+'</div><div class="opts">';step.o.forEach((o,i)=>{let cls='dim';if(i===step.a)cls='correct';else if(i===pick)cls='wrong';h+='<div class="opt '+cls+'">'+o+'</div>';});h+='</div>';if(gotWrong)h+='<div class="rev-note">❌ You picked the red option. ✅ '+(step.why||'The green option is correct.')+'</div>';else if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
   else if(step.t==='sort'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map(it=>'<div>'+it.text+' → <b>'+step.buckets[it.b]+'</b></div>').join('')+'</div>';}
   else if(step.t==='match'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.pairs.map(p=>'<div>'+p[0]+' &nbsp;↔&nbsp; <b>'+p[1]+'</b></div>').join('')+'</div>';}
   else if(step.t==='order'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.items.map((t,n)=>'<div><b>'+(n+1)+'.</b> '+t+'</div>').join('')+'</div>';}
-  else if(step.t==='build'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.correct.map(i=>'<div>✓ '+step.options[i]+'</div>').join('')+'</div>';}
+  else if(step.t==='build'){h+='<div class="q-title">'+step.q+'</div><div class="rev-list">'+step.correct.map(i=>'<div>✓ '+step.options[i]+'</div>').join('')+'</div>';if(step.why)h+='<div class="rev-note">✅ '+step.why+'</div>';}
   else if(step.t==='cloze'){h+='<div class="q-title">'+(step.q||'')+'</div><div class="rev-fill">'+step.text.map(t=>typeof t==='string'?t:'<b>'+t.blank+'</b>').join('')+'</div>';}
-  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div>';let yours='';try{yours=localStorage.getItem(recallKey(step))||'';}catch(e){}if(yours.trim())h+='<div style="background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:13px 15px;margin-top:12px"><h4 style="font-size:13px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Your answer</h4><div style="white-space:pre-wrap;font-weight:700;font-size:14px;line-height:1.5;color:var(--ink)">'+yours.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div></div>';h+='<div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
+  else if(step.t==='recall'){h+='<div class="q-title">'+step.q+'</div>';h+='<div style="margin-top:12px"><h4 style="font-size:13px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Your answer (editable)</h4><div class="recall"><textarea id="raReview" placeholder="Jot your answer or say it aloud — edits save automatically."></textarea></div></div>';h+='<div class="model"><h4>Model answer</h4><ul>'+step.model.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>';}
   stage.innerHTML=h;
+  if(ws)wireWorksheet(); // keep the requirements input visible + restore what you wrote when stepping back
+  // recall review → make "Your answer" editable, restoring + auto-saving to the same key as the live step
+  if(step.t==='recall'){const raR=document.getElementById('raReview');if(raR){const rk=recallKey(step);try{raR.value=localStorage.getItem(rk)||'';}catch(e){}raR.addEventListener('input',function(){try{localStorage.setItem(rk,raR.value);}catch(e){}});}}
   // reviewing an already-answered step → don't re-lock spoilers; show the content
   stage.querySelectorAll('.v2-spoiler').forEach(function(s){s.classList.add('revealed');});
   footBtn('Next →',nextStep);
@@ -5844,7 +5860,7 @@ function blockHTML(b){
   if(b.k==='note')return '<div class="callout note"><span>💡</span><span>'+b.t+'</span></div>';
   if(b.k==='mnemonic')return '<div class="callout mem"><span>🧠</span><span>'+b.t+'</span></div>';
   if(b.k==='html')return b.h;
-  if(b.k==='spoiler')return '<div class="v2-spoiler" onclick="this.classList.toggle(\'revealed\')">'+(b.items||[]).map(function(x){return blockHTML(x);}).join('')+'</div>';
+  if(b.k==='spoiler')return '<div class="v2-spoiler" onclick="toggleSpoiler(this)">'+(b.items||[]).map(function(x){return blockHTML(x);}).join('')+'</div>';
   return '';
 }
 /* Excalidraw-style architecture diagram from a {nodes,edges,cap} spec. Nodes: {x,y,w,h?,t,s?,c}. Edges: [fromIdx,toIdx]. */
@@ -5880,7 +5896,9 @@ function stTeach(stage,step){
   if(ws)h+=mockWorksheetHTML();
   stage.innerHTML=h;
   if(ws)wireWorksheet();
-  footBtn('Got it',()=>nextStep());
+  // mock requirements worksheet is the timed "your turn" stage — stop the clock the moment you're done
+  // (the next stage refills + restarts its own timer via renderStep → manageTimer)
+  footBtn('Got it',()=>{if(ws)stopTimer();nextStep();});
 }
 /* mock design worksheet — a place to write your own requirements before revealing (self-graded, persisted locally) */
 function wsKey(f){return 'sdp_ws_'+((R&&R.lesson)?R.lesson.id:'x')+'_'+f;}
@@ -6026,6 +6044,7 @@ function stMcq(stage,step){
     const i=+b.dataset.i, ok=i===aIdx;
     stage.querySelectorAll('.opt').forEach((x,j)=>{x.classList.add('dim');if(j===aIdx)x.classList.add('correct');});
     b.classList.remove('dim');b.classList.add(ok?'correct':'wrong');
+    S.picks[sigOf(step)]=order[i];  // remember which option you chose (original index), for the back/review view
     grade(ok,10);finishGraded(step,ok);
     if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),650);return;}
     if(step.boss){setTimeout(()=>nextStep(),ok?550:900);}
@@ -6130,7 +6149,8 @@ function stBuild(stage,step){
     bg.querySelectorAll('.bopt').forEach((b,i)=>{b.disabled=true;b.classList.remove('on');if(correct.has(i))b.classList.add('good');else if(sel.has(i))b.classList.add('miss');});
     grade(ok,16);finishGraded(step,ok);clearFoot();
     if(R.hearts<=0&&!ok){setTimeout(()=>finishRun(false),700);return;}
-    feedback(ok,ok?'Exactly the right set!':'Green = correct picks.',nextStep);
+    const base=ok?'Exactly the right set!':'Green = correct picks.';
+    feedback(ok,step.why?base+'<br><br>'+step.why:base,nextStep);
   });
 }
 
