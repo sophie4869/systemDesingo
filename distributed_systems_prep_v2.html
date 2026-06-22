@@ -3044,6 +3044,27 @@ const UNITS=[
      'Per-instance counters give an effective limit of ',{blank:'N×R',alt:['NxR','N*R']},'. Use a shared ',
      {blank:'Redis',alt:['redis']},' counter or per-node ',{blank:'quota'},', and return ',{blank:'429'},' with Retry-After.'
    ]},
+   {t:'teach',h:'Make the check atomic',body:[
+     {k:'tldr',t:'Even with a shared Redis counter, a naive read-modify-write <b>races</b>: two requests both read "1 token left", both decide they\'re allowed, both spend it — you served 2 on a limit of 1.'},
+     {k:'point',i:'⚛️',t:'<b>Do the whole check in one atomic step.</b> Wrap read-refill-deduct-writeback in a single <b>Redis Lua script</b> (it runs server-side as one indivisible command), or use atomic <code>INCR</code> + TTL. No distributed lock needed — the store does the serialization.'}
+   ]},
+   {t:'mcq',q:'Two requests hit a shared limiter at the same instant with 1 token left and both are allowed. Why, and the fix?',o:['Redis is too slow — add replicas','read-modify-write race — do the check in one atomic Lua script','the TTL expired — make it longer','clock skew — sync the clocks'],a:1,why:'Both read the same count before either writes back — a classic check-then-act race. Collapsing read-refill-deduct-writeback into one atomic Lua script (or INCR) makes the decision indivisible, so the second request sees the first\'s deduction.'},
+   {t:'teach',h:'When the limiter itself fails',body:[
+     {k:'tldr',t:'The rate limiter sits in front of every request, so you must decide — before it happens — what occurs when its store (Redis) is unreachable.'},
+     {k:'point',i:'🚪',t:'<b>Fail open</b> (allow everything) keeps the product up but removes all protection — a bad bet during the traffic spike that probably took Redis down in the first place.'},
+     {k:'point',i:'🔒',t:'<b>Fail closed</b> (reject, or fall back to a conservative local limit) protects the backend from a cascade at the cost of rejecting some legitimate traffic. For abuse / overload protection, fail closed is usually right.'},
+     {k:'callout',c:'note',t:'Either way, reject with <code>429 Too Many Requests</code> + <code>Retry-After</code>, and run the limiter at the <b>edge / API gateway</b> so rejected traffic never reaches expensive backends.'}
+   ]},
+   {t:'htmlviz',h:'Reference architecture',html:`<style>
+.refx6 .refimg{background:#fff;border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:10px;overflow-x:auto}
+.refx6 .refimg img{display:block;width:100%;min-width:560px;height:auto}
+.refx6 .refcap{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.55;margin-top:10px;padding:10px 13px;background:var(--panel);border-radius:12px}
+.refx6 .refcap b{color:var(--ink)} .refx6 .refcap code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px} .refx6 .refcap a{color:var(--blue-d);font-weight:800;text-decoration:none}
+</style>
+<div class="refx6">
+  <div class="refimg"><img loading="lazy" alt="Hello Interview distributed rate limiter architecture" src="https://files.hellointerview.com/build-assets/PRODUCTION/_next/static/media/zBf1Mj2EGOz7.0itofk2oc~rny.svg" onerror="this.parentNode.style.display='none'"></div>
+  <div class="refcap"><b>Hello Interview's distributed rate limiter</b> — API gateways check a <b>sharded Redis</b> (consistent-hashed by client id, each shard with a replica) via an atomic script; <b>ZooKeeper/etcd</b> distributes rule changes; over-limit requests get a <code>429</code>. <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/distributed-rate-limiter" target="_blank" rel="noopener">Full breakdown ↗</a></div>
+</div>`},
    {t:'recall',q:'Per-instance counters fail for a global limit — give three fixes.',model:['Per-instance: each of N nodes allows R → ≈ N×R total, not R.','Centralized counter (Redis): accurate but a hotspot/SPOF. Quota distribution: slice the budget per node — approximate, resilient. Sticky routing: pin a key to one node so its count is authoritative (local again).','Always signal 429 + Retry-After and rate-limit at the edge.']}
   ]}
  ],

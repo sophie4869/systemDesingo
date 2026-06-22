@@ -2404,6 +2404,16 @@ has(x):  all those bits = 1? &rarr; maybe   |   any bit = 0? &rarr; definitely n
         </div>
       </div>
 
+      <div class="card" onclick="toggle(this)">
+        <div class="card-header"><div class="card-meta"><div class="card-title">Atomicity &amp; failure</div><div class="card-sub">The race, and when the limiter is down</div></div><span class="badge badge-red">Gotcha</span></div>
+        <div class="card-body">
+          <p><strong>Make the check atomic.</strong> Even with a shared Redis counter, a naive read-modify-write <em>races</em>: two requests both read "1 token left", both allow, both spend it — you served 2 on a limit of 1. Collapse read-refill-deduct-writeback into a single <strong>Lua script</strong> (runs server-side as one indivisible command) or atomic <code>INCR</code> + TTL. The store serializes it — no distributed lock needed.</p>
+          <p><strong>Fail open vs fail closed.</strong> The limiter fronts every request, so decide up front what happens when Redis is unreachable. <em>Fail open</em> (allow all) keeps the product up but drops all protection — risky during the very spike that took Redis down. <em>Fail closed</em> (reject, or fall back to a conservative local limit) protects the backend from a cascade at the cost of some legitimate traffic. For abuse / overload protection, fail closed is usually right.</p>
+          <div class="tag-row"><span class="tag">atomic Lua / INCR</span><span class="tag">fail-open vs fail-closed</span></div>
+          <p style="font-size:12.5px;color:var(--color-text-secondary)">Reference: <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/distributed-rate-limiter" target="_blank" rel="noopener" style="color:var(--color-text-info);font-weight:700;text-decoration:none">Hello Interview · Distributed Rate Limiter ↗</a></p>
+        </div>
+      </div>
+
     </div>
     <div class="section-footer">
       <button class="ask-btn" onclick="sendQ('Design a distributed rate limiter for a public API — 10k requests/sec, per-user limits, multi-region')">Design a rate limiter <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
