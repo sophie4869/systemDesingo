@@ -2,3 +2,5 @@
 .codex/
 .DS_Store
 .worktrees/
+.env
+node_modules/
