@@ -68,7 +68,9 @@ query time from `streak` + `last_day` against the current UTC date (same
 ```sql
 -- effective_streak: the streak only "counts" if the last active day is today
 -- or yesterday (UTC); otherwise it has lapsed and ranks as 0.
-CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
+-- Use an explicit UTC-day expression — NOT CURRENT_DATE, which is session-TZ
+-- based and can drift from the client's toISOString().slice(0,10) UTC day.
+CASE WHEN last_day >= (now() AT TIME ZONE 'UTC')::date - 1
      THEN streak ELSE 0 END
 ```
 
@@ -83,16 +85,17 @@ dense/shared) — so "your rank" is always a single integer.
 
 Leaderboard query (top 100):
 ```sql
-WITH ranked AS (
-  SELECT username, xp, items_done,
-         (CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
-               THEN streak ELSE 0 END) AS effective_streak,
-         ROW_NUMBER() OVER (
-           ORDER BY xp DESC, items_done DESC,
-                    (CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
-                          THEN streak ELSE 0 END) DESC,
-                    updated_at ASC, user_id ASC) AS rank
+WITH base AS (
+  SELECT username, xp, items_done, updated_at, user_id,
+         (CASE WHEN last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+               THEN streak ELSE 0 END) AS effective_streak
   FROM scores
+), ranked AS (
+  SELECT username, xp, items_done, effective_streak,
+         ROW_NUMBER() OVER (
+           ORDER BY xp DESC, items_done DESC, effective_streak DESC,
+                    updated_at ASC, user_id ASC) AS rank
+  FROM base
 )
 SELECT * FROM ranked ORDER BY rank LIMIT 100;
 ```
