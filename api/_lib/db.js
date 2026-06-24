@@ -10,7 +10,11 @@ export function sql() {
   return _sql;
 }
 
+// Cached across warm invocations so we don't pay 2 DDL round-trips per request;
+// resets on cold start, where the IF NOT EXISTS DDL runs once harmlessly.
+let _schemaReady = false;
 export async function ensureSchema() {
+  if (_schemaReady) return;
   const q = sql();
   await q`CREATE TABLE IF NOT EXISTS scores (
     user_id    text PRIMARY KEY,
@@ -23,6 +27,7 @@ export async function ensureSchema() {
     updated_at timestamptz NOT NULL DEFAULT now()
   )`;
   await q`CREATE INDEX IF NOT EXISTS scores_rank_idx ON scores (xp DESC, items_done DESC)`;
+  _schemaReady = true;
 }
 
 export async function getRow(userId) {
