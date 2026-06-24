@@ -46,34 +46,61 @@ One row per user in a `scores` table:
 | `username`   | text        | display name from JWT, shown on board     |
 | `xp`         | int         | rank key 1 (denormalized from `state`)    |
 | `items_done` | int         | rank key 2 (count of completed items)     |
-| `streak`     | int         | rank key 3                                |
+| `streak`     | int         | raw streak (denormalized); ranked via `effective_streak` |
+| `last_day`   | date        | denormalized `state.lastDay`; feeds `effective_streak` |
 | `state`      | jsonb       | the full `S` blob → cross-device sync      |
 | `updated_at` | timestamptz | last write                                |
 
-Index: `(xp DESC, items_done DESC, streak DESC, updated_at ASC, user_id ASC)`
-for the board query. The three rank columns are recomputed server-side from
-`state` on every write, so the board and saved progress never drift. `username`
-is refreshed from the JWT on every `PUT` so the board reflects display-name
-changes made in s0phi3, **truncated to 32 chars** on store (see Security).
+The denormalized columns (`xp`, `items_done`, `streak`, `last_day`) are
+recomputed server-side from `state` on every write, so the board and saved
+progress never drift. `username` is refreshed from the JWT on every `PUT` so the
+board reflects display-name changes made in s0phi3, **truncated to 32 chars** on
+store (see Security).
+
+**`streak` must not be ranked raw — it goes stale.** The app only resets a
+lapsed streak when the user *opens the page* (`distributed_systems_prep_v2.html:415`),
+so a user who stops visiting would keep an old high `streak` in the board
+forever. The board therefore ranks on an **`effective_streak`** computed at
+query time from `streak` + `last_day` against the current UTC date (same
+`toISOString().slice(0,10)` convention the client uses):
+
+```sql
+-- effective_streak: the streak only "counts" if the last active day is today
+-- or yesterday (UTC); otherwise it has lapsed and ranks as 0.
+CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
+     THEN streak ELSE 0 END
+```
+
+This means rank reflects reality without a daily job; the next write also
+re-denormalizes the real reset value. (A daily refresh job is a possible future
+optimization but is **not** required — query-time evaluation is correct.)
 
 **Deterministic ranking.** Ordering is fully deterministic via tie-breakers:
-`xp DESC, items_done DESC, streak DESC, updated_at ASC, user_id ASC` (earlier
-achiever, then stable id, win ties). Each user gets a **unique** rank via
-`ROW_NUMBER()` over that ordering (not dense/shared rank) — so "your rank" is
-always a single integer.
+`xp DESC, items_done DESC, effective_streak DESC, updated_at ASC, user_id ASC`.
+Each user gets a **unique** rank via `ROW_NUMBER()` over that ordering (not
+dense/shared) — so "your rank" is always a single integer.
 
 Leaderboard query (top 100):
 ```sql
-SELECT username, xp, items_done, streak,
-       ROW_NUMBER() OVER (ORDER BY xp DESC, items_done DESC, streak DESC,
-                                   updated_at ASC, user_id ASC) AS rank
-FROM scores
-ORDER BY rank
-LIMIT 100;
+WITH ranked AS (
+  SELECT username, xp, items_done,
+         (CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
+               THEN streak ELSE 0 END) AS effective_streak,
+         ROW_NUMBER() OVER (
+           ORDER BY xp DESC, items_done DESC,
+                    (CASE WHEN last_day >= (CURRENT_DATE AT TIME ZONE 'UTC') - INTERVAL '1 day'
+                          THEN streak ELSE 0 END) DESC,
+                    updated_at ASC, user_id ASC) AS rank
+  FROM scores
+)
+SELECT * FROM ranked ORDER BY rank LIMIT 100;
 ```
-The caller's own rank (when outside the top 100) is computed as
-`COUNT(*) of rows ordered strictly ahead of the caller + 1`, using the same
-ordering keys, so it matches the `ROW_NUMBER` the caller would have.
+The caller's own rank (when outside the top 100) is `COUNT(*) of rows ordered
+strictly ahead of the caller + 1`, using the same ordering keys (with the same
+`effective_streak` expression), so it matches the `ROW_NUMBER` they would have.
+Index `(xp DESC, items_done DESC)` covers the high-cardinality prefix; the
+`effective_streak` tie-break is evaluated per row (fine at the expected user
+scale — a functional index is optional, not required).
 
 ## Identity verification (no auth-repo changes)
 
@@ -169,7 +196,15 @@ there is **no meaningful "sum of all XP" ceiling**. We therefore validate
     behavior and out of scope to re-harden here.
 - **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`, `speedPickerOpen`,
   `reviewSkipRecall`): coerced to boolean.
-- **Date strings** (`lastDay`): must match `YYYY-MM-DD` or be `null`; else dropped.
+- **Date strings** (`lastDay`): security-critical because the merge rule lets the
+  later `lastDay` dominate, so a malformed/future date could poison sync and keep
+  a lapsed `effective_streak` alive. Must be `null` **or** a real UTC calendar
+  date in `YYYY-MM-DD` form (parse and round-trip via the client's
+  `toISOString().slice(0,10)` convention — reject `2026-02-30`, non-date strings,
+  wrong length). **Reject any date after today (UTC) + 1 day of clock-skew
+  slack.** On a rejected `lastDay`, drop the streak update for that write (keep
+  the stored `streak`/`last_day` rather than adopting a poisoned pair), since
+  `streak` and `lastDay` merge as a coupled unit.
 - **Array/enum-list fields** (`speedUnits`): must be `null` **or** an array of
   known unit IDs (unknown IDs dropped); any other shape → dropped. `speedN` is a
   small positive int within the app's allowed range.
