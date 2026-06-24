@@ -28,7 +28,7 @@ leaderboard. Anonymous use must keep working exactly as it does today.
 1. **Architecture A** — a new Neon Postgres backend lives in *this* repo;
    identity comes from the existing s0phi3 service. No changes to the auth repo.
 2. **Rank metric** — order by `xp DESC, items_done DESC, streak DESC`.
-3. Deploy at a `*.sophiebi.com` subdomain (proposed: `prep.sophiebi.com`) so the
+3. Deploy at a `*.sophiebi.com` subdomain (`systemdesign.sophiebi.com`) so the
    browser sends the s0phi3 SSO cookie to this app's own `/api/*`.
 4. Share `JWT_SECRET` with s0phi3 for **local** token verification (no network
    hop per request).
@@ -86,10 +86,12 @@ handling — it does **not** import from the auth repo:
 - `verifyToken(token)` — `jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'],
   issuer: 'auth.sophiebi.com' })`. Returns the decoded user or throws.
 
-**Canonical identity claim:** the `user_id` PK is taken from `decoded.userId`,
-falling back to `decoded.sub` only if `userId` is absent. Exactly one of these is
-chosen per request and used consistently, so the PK is stable across tokens. The
-display `username` comes from `decoded.username`.
+**Canonical identity claim:** the `user_id` PK is taken from `decoded.userId`
+(s0phi3 signs `userId: user._id` and `username: user.username` — `api/auth.js`
+login/check-auth, `api/user.js` refresh). s0phi3 does **not** set a `sub` claim,
+so `userId` is always the real source; a `decoded.sub` fallback may be kept
+defensively but never fires today. The display `username` comes from
+`decoded.username`.
 
 Sign-in, sign-up, email verification, and password reset all stay on
 `auth.sophiebi.com`. This app only *consumes* the token.
@@ -139,9 +141,11 @@ there is **no meaningful "sum of all XP" ceiling**. We therefore validate
 - **Rank fields are clamped to content reality:** `items_done` (derived) and
   `streak` clamped to plausible maxima (`streak ≤` days-since-launch + slack;
   `items_done ≤` total lesson/boss count).
-- **ID-keyed maps** (`done`, `best`, `perfect`): keys must be **known
-  lesson/boss IDs** (enumerated from the app content at build/runtime); unknown
-  IDs dropped. `best`/`perfect` values bounded (`best` 0–100; `perfect` boolean).
+- **ID-keyed maps** (`done`, `best`, `perfect`, `badges`): keys must be **known
+  IDs** (enumerated from the app content at build/runtime — lesson/`boss-…` IDs
+  for `done`/`best`/`perfect`; the fixed `BADGES` list `first, cap, repl, raft,
+  streak3, lvl5, recall, flawless, allbosses, lvl10` for `badges`); unknown IDs
+  dropped. Values bounded: `best` 0–100; `perfect`/`badges` boolean.
 - **Signature-keyed maps** (`answered`, `picks`, `mistakes`): keys are question
   signatures (`sigOf(step)`), not enumerable — validate by **shape + size only**
   (each map ≤ a generous cap, e.g. 5000 entries).
@@ -184,9 +188,11 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
 - **First sign-in merge** — merge local `S` with server `state` field-by-field
   so no local progress is lost, then `PUT`. **The same merge function runs on
   the server on every write** (see Server-side merge-on-write), so client and
-  server use one shared rule table. Complete `S` inventory (verified against
-  `distributed_systems_prep_v2.html` lines 405–410 and lazy-init/assignment
-  sites) and its merge rule:
+  server use one shared rule table. Complete `S` inventory (verified against the
+  `Object.assign` defaults at `distributed_systems_prep_v2.html:404`, the
+  lazy-init at 405–409, and the first-assignment sites deep in the scoring/UI
+  code for `flawless`/`speedN`/`speedUnits`/`speedPickerOpen`/`reviewSkipRecall`/
+  `answeredSeeded`) and its merge rule:
 
   | key | type | merge rule |
   |---|---|---|
@@ -194,7 +200,7 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   | `streak` + `lastDay` | int + date str | **coupled, latest-day-wins** — NOT independent `max`, see note |
   | `recallNailed` | int | `max` |
   | `done` | map(id→bool) | union (logical OR per key) |
-  | `badges` | map(id→bool) | union |
+  | `badges` | map(id→bool) | union (derived — see note) |
   | `answered` | map(sig→…) | union (keep both sides' entries) |
   | `picks` | map(sig→int) | union (keep both; on key clash keep existing/server) |
   | `best` | map(id→0–100) | per-key `max` |
@@ -212,6 +218,11 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   Note: `username` is **not** in this table — it is a JWT-derived column set
   server-side on each write, never merged from the client payload.
 
+  - **`badges` is derived, not authoritative.** `checkBadges()` recomputes it
+    from `done`/`streak`/`xp`/`recallNailed`/`flawless` on every scoring event,
+    so syncing it (union) is harmless but redundant — the client rebuilds badges
+    locally regardless. We still store/merge it so the leaderboard/profile can
+    show badges without recomputation, but it is never a source of truth.
   - **`streak` is NOT monotonic** and must be merged *coupled with* `lastDay`.
     The app resets `streak` to `1` on open when `lastDay` is not yesterday
     (`distributed_systems_prep_v2.html:416`), so a broken streak *decreases*.
@@ -315,7 +326,7 @@ commit + push the dotfiles repo.
 4. `secret set sd DATABASE_URL …`; propagate `JWT_SECRET` (no-rotate command).
 5. `secret pull sd` to populate local `.env`.
 6. Implement DB layer, API, client integration; create the table.
-7. Deploy; attach `prep.sophiebi.com`.
+7. Deploy; attach `systemdesign.sophiebi.com`.
 
 ## Testing
 
