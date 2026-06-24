@@ -44,3 +44,23 @@ test('speedUnits: null or known unit ids', () => {
   assert.deepEqual(validateState({ speedUnits: ['u1', 'bad'] }, { unitIds: new Set(['u1']) }).speedUnits, ['u1']);
   assert.equal('speedUnits' in validateState({ speedUnits: 'weird' }), false);
 });
+test('map keys absent from input are not emitted', () => {
+  const out = validateState({ xp: 5 });
+  assert.equal('done' in out, false);
+  assert.equal('best' in out, false);
+  assert.equal('perfect' in out, false);
+  assert.equal('badges' in out, false);
+  assert.equal('answered' in out, false);
+  assert.equal('picks' in out, false);
+  assert.equal('mistakes' in out, false);
+});
+test('present-but-empty mistakes is preserved', () => {
+  const out = validateState({ mistakes: {} });
+  assert.equal('mistakes' in out, true);
+  assert.deepEqual(out.mistakes, {});
+});
+test('present done map is still cleaned and returned', () => {
+  const out = validateState({ done: { 'kv-1': true } }, { doneIds: new Set(['kv-1']) });
+  assert.equal('done' in out, true);
+  assert.deepEqual(out.done, { 'kv-1': true });
+});

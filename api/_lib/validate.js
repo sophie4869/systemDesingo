@@ -63,17 +63,17 @@ export function validateState(raw, overrides = {}) {
   const streak = intIn(raw.streak, 0, STREAK_MAX); if (streak !== undefined) out.streak = streak;
   const recall = intIn(raw.recallNailed, 0, RECALL_MAX); if (recall !== undefined) out.recallNailed = recall;
 
-  out.done = cleanIdMap(raw.done, doneIds, v => v ? true : undefined);
-  out.best = cleanIdMap(raw.best, doneIds, v => intIn(v, 0, 100));
-  out.perfect = cleanIdMap(raw.perfect, doneIds, v => v ? true : undefined);
-  out.badges = cleanIdMap(raw.badges, badgeIds, v => v ? true : undefined);
+  if ('done' in raw) out.done = cleanIdMap(raw.done, doneIds, v => v ? true : undefined);
+  if ('best' in raw) out.best = cleanIdMap(raw.best, doneIds, v => intIn(v, 0, 100));
+  if ('perfect' in raw) out.perfect = cleanIdMap(raw.perfect, doneIds, v => v ? true : undefined);
+  if ('badges' in raw) out.badges = cleanIdMap(raw.badges, badgeIds, v => v ? true : undefined);
 
-  out.answered = cleanSigMap(raw.answered, v => (typeof v === 'number' ? Math.trunc(v) : 1));
-  out.picks = cleanSigMap(raw.picks, v => (typeof v === 'number' ? Math.trunc(v) : undefined));
-  out.mistakes = cleanSigMap(raw.mistakes, v => {
+  if ('answered' in raw) out.answered = cleanSigMap(raw.answered, v => (typeof v === 'number' ? Math.trunc(v) : 1));
+  if ('picks' in raw) out.picks = cleanSigMap(raw.picks, v => (typeof v === 'number' ? Math.trunc(v) : undefined));
+  if ('mistakes' in raw) out.mistakes = cleanSigMap(raw.mistakes, v => {
     if (!v || typeof v !== 'object') return undefined;
     let s; try { s = JSON.stringify(v); } catch { return undefined; }
-    if (s.length > MISTAKE_OBJ_MAX_BYTES) return undefined;
+    if (Buffer.byteLength(s, 'utf8') > MISTAKE_OBJ_MAX_BYTES) return undefined;
     return v;
   });
 
