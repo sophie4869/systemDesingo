@@ -97,13 +97,18 @@ Sign-in, sign-up, email verification, and password reset all stay on
 ## API (Vercel serverless functions, `@vercel/node`)
 
 - `GET /api/score` → the caller's saved `state` plus current rank.
-  `401` if not signed in.
+  `401` if not signed in. **No implicit writes:** a user with no row yet gets
+  `200 { state: null, rank: null }` (the row is created only by the first
+  `PUT`). The client treats `state: null` as "no server progress" and keeps
+  using its local `S`.
 - `PUT /api/score` → **validate → merge-on-write → upsert**. Client sends its
   `S`. Server validates the payload (below), **merges it server-side with the
   stored row** (below), recomputes the three rank columns from the merged state,
   upserts, and returns the canonical merged state. `400` on invalid payload.
-- `GET /api/leaderboard` → top 100 plus the caller's own row/rank.
-  **Signed-in only.**
+- `GET /api/leaderboard` → `{ top: [...100], currentUser: {...}|null }`.
+  **Signed-in only.** A caller with no row yet gets `currentUser: null`; the
+  client shows them as unranked ("complete a quiz to join the board") until their
+  first `PUT` creates the row. No phantom zero-XP rows are written on read.
 
 ### Server-side merge-on-write (conflict model)
 
@@ -137,9 +142,16 @@ there is **no meaningful "sum of all XP" ceiling**. We therefore validate
 - **ID-keyed maps** (`done`, `best`, `perfect`): keys must be **known
   lesson/boss IDs** (enumerated from the app content at build/runtime); unknown
   IDs dropped. `best`/`perfect` values bounded (`best` 0–100; `perfect` boolean).
-- **Hash-keyed maps** (`answered`, `picks`): keys are question signatures, not
-  enumerable — validate by **shape + size only** (each map ≤ a generous cap,
-  e.g. 5000 entries; values are small ints/strings).
+- **Signature-keyed maps** (`answered`, `picks`, `mistakes`): keys are question
+  signatures (`sigOf(step)`), not enumerable — validate by **shape + size only**
+  (each map ≤ a generous cap, e.g. 5000 entries).
+  - `answered` values are small ints; `picks` values are small ints.
+  - `mistakes` values are **step objects** (a copy of the question). These are
+    user-influenced and stored verbatim today, so **sanitize on store**: cap each
+    object's serialized size, keep only a known field whitelist (e.g.
+    `t, q, text, items, pairs, options, a, model` — the fields `sigOf`/review
+    actually use), and drop anything else. This bounds row size and prevents
+    arbitrary blobs riding in via `mistakes`.
 - **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`, `speedPickerOpen`,
   `reviewSkipRecall`): coerced to boolean.
 - **Date strings** (`lastDay`): must match `YYYY-MM-DD` or be `null`; else dropped.
@@ -179,7 +191,7 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   | `picks` | map(sig→int) | union (keep both; on key clash keep existing/server) |
   | `best` | map(id→0–100) | per-key `max` |
   | `perfect` | map(id→bool) | per-key OR |
-  | `mistakes` | map(id→…) | per-key merge (union; numeric→`max`) |
+  | `mistakes` | map(sig→step obj) | **last-write-wins (authoritative replace)** — NOT union, see note |
   | `unlockAll` | bool | OR |
   | `flawless` | bool | OR |
   | `answeredSeeded` | bool | OR |
@@ -192,13 +204,25 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   Note: `username` is **not** in this table — it is a JWT-derived column set
   server-side on each write, never merged from the client payload.
 
+  - **`mistakes` is NOT monotonic.** The app *deletes* a mistake once the user
+    masters that question (`distributed_systems_prep_v2.html:6460`:
+    `delete S.mistakes[sig]`), so union would resurrect cleared mistakes and they
+    could never clear server-side. There are no tombstones in the app. We
+    therefore treat the incoming `mistakes` map as **authoritative replace**
+    (last-write-wins): the active device's current mistake bank wins.
+    **Tradeoff (accepted):** a mistake recorded only on an idle other device can
+    be lost on the next write from this device. This is low-stakes — `mistakes`
+    is just the review-pool source (used at lines 6057, 6230) — and is preferred
+    over cleared mistakes reappearing forever.
   - **`picks` clash rule** is shared by client and server: on a key collision
     keep the existing/server value, so both sides converge to the identical
     result regardless of write order.
-  - **Any future `S` key not in this table** → conservative default: if it looks
-    monotonic (number→`max`, bool→OR, map→union) apply that; otherwise
-    last-write-wins. The plan re-confirms the inventory against the source before
-    coding, since the HTML is the single source of truth for `S`'s shape.
+  - **Adding a new `S` key is a coordinated change, not a runtime heuristic.**
+    The shared inventory (this merge table **and** the validation allow-list) is
+    the single authority. Unknown top-level keys are *dropped* at validation
+    (they never reach the merge step). When `S` gains a key in the HTML, the same
+    change updates both the validation allow-list and this merge table with an
+    explicit rule. There is no implicit/heuristic merge for unlisted keys.
 - After that, the existing `save()` also **debounce-pushes** (`PUT /api/score`)
   when signed in; localStorage stays as the offline cache and remains the source
   of truth when signed out.
