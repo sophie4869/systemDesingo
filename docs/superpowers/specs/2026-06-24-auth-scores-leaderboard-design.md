@@ -146,12 +146,20 @@ there is **no meaningful "sum of all XP" ceiling**. We therefore validate
   signatures (`sigOf(step)`), not enumerable — validate by **shape + size only**
   (each map ≤ a generous cap, e.g. 5000 entries).
   - `answered` values are small ints; `picks` values are small ints.
-  - `mistakes` values are **step objects** (a copy of the question). These are
-    user-influenced and stored verbatim today, so **sanitize on store**: cap each
-    object's serialized size, keep only a known field whitelist (e.g.
-    `t, q, text, items, pairs, options, a, model` — the fields `sigOf`/review
-    actually use), and drop anything else. This bounds row size and prevents
-    arbitrary blobs riding in via `mistakes`.
+  - `mistakes` values are **step objects** (a copy of the missed question). The
+    review renderer (`renderReview`, ~line 6331) reads **different fields per
+    `step.t`** — e.g. `mcq` needs `q,o,a,why`; `sort` needs `q,items,buckets`;
+    `build` needs `q,options,correct,why`; `match` → `q,pairs`; `order` →
+    `q,items`; `cloze` → `q,text`; `recall` → `q,model`. A naive field-strip
+    would break review rendering, so **do not field-strip**. Instead bound by
+    **size + count**: reject if any single mistake object serializes over **4 KB**
+    or the map exceeds **5000 entries** (oversize → drop that entry, keep the
+    rest). This bounds row size without losing render-critical fields.
+  - **Blast radius note:** unlike `username` (cross-user, must be escaped),
+    `mistakes` content is rendered **only to its own owner** in their review
+    pool, so a tampered local value is self-scoped. The owner-only review UI
+    still renders via `innerHTML`; this is unchanged from today's local-only
+    behavior and out of scope to re-harden here.
 - **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`, `speedPickerOpen`,
   `reviewSkipRecall`): coerced to boolean.
 - **Date strings** (`lastDay`): must match `YYYY-MM-DD` or be `null`; else dropped.
@@ -183,7 +191,7 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   | key | type | merge rule |
   |---|---|---|
   | `xp` | int | `max` (monotonic) |
-  | `streak` | int | `max` |
+  | `streak` + `lastDay` | int + date str | **coupled, latest-day-wins** — NOT independent `max`, see note |
   | `recallNailed` | int | `max` |
   | `done` | map(id→bool) | union (logical OR per key) |
   | `badges` | map(id→bool) | union |
@@ -195,7 +203,7 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   | `unlockAll` | bool | OR |
   | `flawless` | bool | OR |
   | `answeredSeeded` | bool | OR |
-  | `lastDay` | date str (`YYYY-MM-DD`) | latest (`max` lexicographically) |
+  | `lastDay` | date str (`YYYY-MM-DD`) | latest — merged **as a pair with `streak`** |
   | `speedN` | int pref | **last-write-wins** (device UI pref, not ranked) |
   | `speedUnits` | array of unit IDs **or `null`** (null = all chapters) | last-write-wins |
   | `speedPickerOpen` | bool pref | last-write-wins |
@@ -204,6 +212,15 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   Note: `username` is **not** in this table — it is a JWT-derived column set
   server-side on each write, never merged from the client payload.
 
+  - **`streak` is NOT monotonic** and must be merged *coupled with* `lastDay`.
+    The app resets `streak` to `1` on open when `lastDay` is not yesterday
+    (`distributed_systems_prep_v2.html:416`), so a broken streak *decreases*.
+    Merging `streak` by independent `max` would freeze a lapsed streak at its
+    all-time peak. Rule: **take the `(streak, lastDay)` pair with the later
+    `lastDay`**; if both sides share the same `lastDay`, take the larger
+    `streak`. The current streak therefore always reflects the most recent day
+    of activity, and the client's on-open recompute (which advances or resets it
+    against today's date) stays correct after a sync.
   - **`mistakes` is NOT monotonic.** The app *deletes* a mistake once the user
     masters that question (`distributed_systems_prep_v2.html:6460`:
     `delete S.mistakes[sig]`), so union would resurrect cleared mistakes and they
