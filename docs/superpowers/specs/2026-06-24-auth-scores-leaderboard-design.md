@@ -50,18 +50,30 @@ One row per user in a `scores` table:
 | `state`      | jsonb       | the full `S` blob → cross-device sync      |
 | `updated_at` | timestamptz | last write                                |
 
-Index: `(xp DESC, items_done DESC, streak DESC)` for the board query.
-The three rank columns are recomputed server-side from `state` on every write,
-so the board and saved progress never drift. `username` is refreshed from the
-JWT on every `PUT` so the board reflects display-name changes made in s0phi3.
+Index: `(xp DESC, items_done DESC, streak DESC, updated_at ASC, user_id ASC)`
+for the board query. The three rank columns are recomputed server-side from
+`state` on every write, so the board and saved progress never drift. `username`
+is refreshed from the JWT on every `PUT` so the board reflects display-name
+changes made in s0phi3, **truncated to 32 chars** on store (see Security).
 
-Leaderboard query:
+**Deterministic ranking.** Ordering is fully deterministic via tie-breakers:
+`xp DESC, items_done DESC, streak DESC, updated_at ASC, user_id ASC` (earlier
+achiever, then stable id, win ties). Each user gets a **unique** rank via
+`ROW_NUMBER()` over that ordering (not dense/shared rank) — so "your rank" is
+always a single integer.
+
+Leaderboard query (top 100):
 ```sql
-SELECT username, xp, items_done, streak
+SELECT username, xp, items_done, streak,
+       ROW_NUMBER() OVER (ORDER BY xp DESC, items_done DESC, streak DESC,
+                                   updated_at ASC, user_id ASC) AS rank
 FROM scores
-ORDER BY xp DESC, items_done DESC, streak DESC
+ORDER BY rank
 LIMIT 100;
 ```
+The caller's own rank (when outside the top 100) is computed as
+`COUNT(*) of rows ordered strictly ahead of the caller + 1`, using the same
+ordering keys, so it matches the `ROW_NUMBER` the caller would have.
 
 ## Identity verification (no auth-repo changes)
 
@@ -86,15 +98,52 @@ Sign-in, sign-up, email verification, and password reset all stay on
 
 - `GET /api/score` → the caller's saved `state` plus current rank.
   `401` if not signed in.
-- `PUT /api/score` → upsert. Client sends its `S`. Server validates, clamps
-  (`xp` bounded to `[0, MAX_POSSIBLE_XP]`), recomputes the three rank columns,
-  upserts the row, and returns the canonical stored state.
+- `PUT /api/score` → **validate → merge-on-write → upsert**. Client sends its
+  `S`. Server validates the payload (below), **merges it server-side with the
+  stored row** (below), recomputes the three rank columns from the merged state,
+  upserts, and returns the canonical merged state. `400` on invalid payload.
 - `GET /api/leaderboard` → top 100 plus the caller's own row/rank.
   **Signed-in only.**
 
-`MAX_POSSIBLE_XP` is derived from the app's content (sum of all awardable XP) as
-a basic anti-cheat clamp. Client-computed scores remain inherently spoofable;
-acceptable for a peer prep app and documented as such.
+### Server-side merge-on-write (conflict model)
+
+Writes are **last-write-wins for preferences, monotonic-merge for progress** —
+the server applies the same per-key rules as the client merge (see Client
+integration) to `incoming` vs `stored`, so a stale tab/device that `PUT`s an
+older blob **cannot regress** monotonic progress (`xp`, `streak`, `done`,
+`answered`, etc. only ever grow/union). This removes the need for ETags or
+optimistic-concurrency preconditions. Device UI prefs (`speedN`, `speedUnits`,
+`speedPickerOpen`, `reviewSkipRecall`) are genuinely last-write-wins and not
+ranked, so a stale write to those is harmless. `updated_at` is set to the server
+clock on every write.
+
+### Validation & anti-cheat
+
+XP is **repeatable** in this app (recall self-grades and run/flawless bonuses
+re-fire on replay — `distributed_systems_prep_v2.html` ~lines 6789, 6882), so
+there is **no meaningful "sum of all XP" ceiling**. We therefore validate
+*shape and bounds*, not a global XP cap:
+
+- **Payload size:** reject bodies over **64 KB** (`413`).
+- **Top-level keys:** only keys in the known `S` inventory (below) are accepted;
+  unknown keys are **dropped** (not stored).
+- **Numeric fields** (`xp`, `streak`, `recallNailed`): non-negative integers; reject
+  `NaN`/negative/non-integer. `xp` additionally clamped to a generous absolute
+  sanity bound (e.g. `1_000_000`) purely to stop absurd values, not as a real cap.
+- **Rank fields are clamped to content reality:** `items_done` (derived) and
+  `streak` clamped to plausible maxima (`streak ≤` days-since-launch + slack;
+  `items_done ≤` total lesson/boss count).
+- **ID-keyed maps** (`done`, `best`, `perfect`): keys must be **known
+  lesson/boss IDs** (enumerated from the app content at build/runtime); unknown
+  IDs dropped. `best`/`perfect` values bounded (`best` 0–100; `perfect` boolean).
+- **Hash-keyed maps** (`answered`, `picks`): keys are question signatures, not
+  enumerable — validate by **shape + size only** (each map ≤ a generous cap,
+  e.g. 5000 entries; values are small ints/strings).
+- **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`): coerced to boolean.
+
+Scores remain client-computed and thus inherently spoofable; the goal is to
+block accidental corruption and obvious tampering (XSS-via-state, giant
+payloads, impossible ranks), not to make cheating impossible. Documented as such.
 
 ## Client integration (in `distributed_systems_prep_v2.html`)
 
@@ -103,18 +152,37 @@ acceptable for a peer prep app and documented as such.
   `https://auth.sophiebi.com/index.html?redirect=<current url>`, returns
   signed-in (SSO cookie present).
 - **First sign-in merge** — merge local `S` with server `state` field-by-field
-  so no local progress is lost, then `PUT`:
-  - `xp`, `streak`, `recallNailed` → `max`
-  - `done`, `badges`, `unlockAll` → union (logical OR per key)
-  - `best`, `perfect`, `mistakes` → per-key `max`/merge
-  - `lastDay` → latest
-  - **Any `S` key not explicitly listed above** → default rule: take the local
-    value if the server value is absent, else keep the server value (server
-    wins). The plan must first enumerate the complete `S` key set from
-    `distributed_systems_prep_v2.html` (around the `S = Object.assign({...})`
-    initializer) and classify each key; the list above is the current known set
-    (`xp, done, badges, streak, lastDay, recallNailed, unlockAll, mistakes,
-    perfect, best`) but the plan confirms it against the source.
+  so no local progress is lost, then `PUT`. **The same merge function runs on
+  the server on every write** (see Server-side merge-on-write), so client and
+  server use one shared rule table. Complete `S` inventory (verified against
+  `distributed_systems_prep_v2.html` lines 405–410 and lazy-init/assignment
+  sites) and its merge rule:
+
+  | key | type | merge rule |
+  |---|---|---|
+  | `xp` | int | `max` (monotonic) |
+  | `streak` | int | `max` |
+  | `recallNailed` | int | `max` |
+  | `done` | map(id→bool) | union (logical OR per key) |
+  | `badges` | map(id→bool) | union |
+  | `answered` | map(sig→…) | union (keep both sides' entries) |
+  | `picks` | map(sig→int) | union (keep both; on key clash keep existing/server) |
+  | `best` | map(id→0–100) | per-key `max` |
+  | `perfect` | map(id→bool) | per-key OR |
+  | `mistakes` | map(id→…) | per-key merge (union; numeric→`max`) |
+  | `unlockAll` | bool | OR |
+  | `flawless` | bool | OR |
+  | `answeredSeeded` | bool | OR |
+  | `lastDay` | date str | latest (`max` lexicographically) |
+  | `speedN` | int pref | **last-write-wins** (device UI pref, not ranked) |
+  | `speedUnits` | pref | last-write-wins |
+  | `speedPickerOpen` | bool pref | last-write-wins |
+  | `reviewSkipRecall` | bool pref | last-write-wins |
+
+  - **Any future `S` key not in this table** → conservative default: if it looks
+    monotonic (number→`max`, bool→OR, map→union) apply that; otherwise
+    last-write-wins. The plan re-confirms the inventory against the source before
+    coding, since the HTML is the single source of truth for `S`'s shape.
 - After that, the existing `save()` also **debounce-pushes** (`PUT /api/score`)
   when signed in; localStorage stays as the offline cache and remains the source
   of truth when signed out.
@@ -133,10 +201,24 @@ acceptable for a peer prep app and documented as such.
 - **Access token expired (15m)** → `PUT`/`GET` returns `401`; client attempts a
   silent refresh via s0phi3 `/api/refresh-token` (credentials include), retries
   once, else treats the user as signed out (local mode).
-- **Payload validation** → reject oversized or malformed `state`; clamp `xp`.
+- **Payload validation** → concrete rules in API §"Validation & anti-cheat"
+  (64 KB cap, key allow-list, numeric bounds, ID/shape checks); invalid → `400`.
 - **CORS** — own `/api/*` is same-origin (no CORS needed). The cross-origin
   calls to `auth.sophiebi.com` (`logout`, `refresh-token`) are already allowed by
   s0phi3's wildcard `*.sophiebi.com` CORS policy.
+
+## Security
+
+- **Leaderboard rendering is XSS-safe.** `username` is attacker-influenced
+  (chosen in s0phi3) and this app renders pervasively via `innerHTML`, so the
+  leaderboard panel **must not** interpolate `username` into an HTML string.
+  Render names via `textContent` (or a strict HTML-escape of `< > & " '`) and
+  cap displayed length. The same applies to any other user-derived value shown.
+- **Username is bounded** to 32 chars on store (DB write) *and* defensively
+  re-truncated on render, so a long/crafted name can't bloat rows or the UI.
+- **No secrets in client code.** The HTML only ever talks to same-origin
+  `/api/*` and `auth.sophiebi.com`; `JWT_SECRET`/`DATABASE_URL` live only in
+  serverless env, never shipped to the browser.
 
 ## Secrets (via keyrotate `secret` tool)
 
