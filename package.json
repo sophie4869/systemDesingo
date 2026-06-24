@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test 'test/**/*.test.mjs'",
+    "test": "node --test",
     "extract-ids": "node scripts/extract-content-ids.mjs",
     "build": "echo \"No build step required\""
   },
