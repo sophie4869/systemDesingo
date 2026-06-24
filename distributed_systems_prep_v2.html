@@ -7021,7 +7021,7 @@ renderHome(true);
 <script>
 (function(){
   const AUTH_BASE='https://auth.sophiebi.com';
-  let signedIn=false, pushTimer=null;
+  let signedIn=false, pushTimer=null, _suppressPush=false;
 
   function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
 
@@ -7036,7 +7036,7 @@ renderHome(true);
     if(r.status===401){ setSignedOut(); return; }
     if(!r.ok) return; // DB hiccup → keep local
     const data = await r.json();
-    if(data.state){ S = Object.assign(S, data.state); save(); try{renderHome&&renderHome();}catch(e){} }
+    if(data.state){ S = Object.assign(S, data.state); _suppressPush=true; save(); _suppressPush=false; try{renderHome&&renderHome();}catch(e){} }
   }
 
   async function tryRefresh(){
@@ -7066,9 +7066,12 @@ renderHome(true);
   // Debounced push: called from the patched save().
   window.__pushScore = function(){
     if(!signedIn) return;
+    if(_suppressPush) return;
     clearTimeout(pushTimer);
     pushTimer=setTimeout(()=>{ api('/api/score',{method:'PUT',body:JSON.stringify({state:S})}).catch(()=>{}); }, 1500);
   };
+
+  let _lastLb = undefined; // undefined = never fetched; null/object = fetched payload
 
   function loadLeaderboard(){
     api('/api/leaderboard',{method:'GET'}).then(r=> r.ok? r.json(): null).then(renderLeaderboard).catch(()=>renderLeaderboardUnavailable());
@@ -7077,17 +7080,32 @@ renderHome(true);
   function renderLeaderboardSignedOut(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Sign in to see the leaderboard.</div>'; }
   function renderLeaderboardUnavailable(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Leaderboard unavailable.</div>'; }
   function renderLeaderboard(data){
+    _lastLb = data;
     const el=lbEl(); if(!el) return; if(!data){ renderLeaderboardUnavailable(); return; }
     const mine = data.currentUser;
     let h='<div class="lb-title">🏆 Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Player</th><th>XP</th><th>Done</th><th>🔥</th></tr></thead><tbody>';
     for(const row of data.top){
       const isMe = mine && row.username===mine.username && row.rank===mine.rank;
-      h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+row.rank+'</td><td>'+esc(row.username)+'</td><td>'+row.xp+'</td><td>'+row.items_done+'</td><td>'+row.streak+'</td></tr>';
+      h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+(Number(row.rank)||0)+'</td><td>'+esc(row.username)+'</td><td>'+(Number(row.xp)||0)+'</td><td>'+(Number(row.items_done)||0)+'</td><td>'+(Number(row.streak)||0)+'</td></tr>';
     }
     h+='</tbody></table>';
-    if(mine && !data.top.some(r=>r.rank===mine.rank)){ h+='<div class="lb-you">You — #'+mine.rank+' · '+mine.xp+' XP</div>'; }
+    if(mine && !data.top.some(r=>r.rank===mine.rank)){ h+='<div class="lb-you">You — #'+(Number(mine.rank)||0)+' · '+(Number(mine.xp)||0)+' XP</div>'; }
     else if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
     el.innerHTML=h;
+  }
+
+  const _origRenderHome = window.renderHome;
+  if(typeof _origRenderHome === 'function'){
+    window.renderHome = function(){
+      _origRenderHome.apply(this, arguments);
+      renderAuthSlot();                        // re-fill #authSlot every render
+      if(signedIn){
+        if(_lastLb !== undefined) renderLeaderboard(_lastLb); // instant from cache
+        else loadLeaderboard();
+      } else {
+        renderLeaderboardSignedOut();
+      }
+    };
   }
 
   window.addEventListener('DOMContentLoaded', ()=>{ renderAuthSlot(); checkAuth(); });
