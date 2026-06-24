@@ -52,7 +52,8 @@ One row per user in a `scores` table:
 
 Index: `(xp DESC, items_done DESC, streak DESC)` for the board query.
 The three rank columns are recomputed server-side from `state` on every write,
-so the board and saved progress never drift.
+so the board and saved progress never drift. `username` is refreshed from the
+JWT on every `PUT` so the board reflects display-name changes made in s0phi3.
 
 Leaderboard query:
 ```sql
@@ -71,8 +72,12 @@ handling — it does **not** import from the auth repo:
   `authToken` cookie (cookie arrives automatically because the app is on
   `*.sophiebi.com`).
 - `verifyToken(token)` — `jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'],
-  issuer: 'auth.sophiebi.com' })`. Returns the decoded user (`userId`/`sub`,
-  `username`) or throws.
+  issuer: 'auth.sophiebi.com' })`. Returns the decoded user or throws.
+
+**Canonical identity claim:** the `user_id` PK is taken from `decoded.userId`,
+falling back to `decoded.sub` only if `userId` is absent. Exactly one of these is
+chosen per request and used consistently, so the PK is stable across tokens. The
+display `username` comes from `decoded.username`.
 
 Sign-in, sign-up, email verification, and password reset all stay on
 `auth.sophiebi.com`. This app only *consumes* the token.
@@ -103,11 +108,21 @@ acceptable for a peer prep app and documented as such.
   - `done`, `badges`, `unlockAll` → union (logical OR per key)
   - `best`, `perfect`, `mistakes` → per-key `max`/merge
   - `lastDay` → latest
+  - **Any `S` key not explicitly listed above** → default rule: take the local
+    value if the server value is absent, else keep the server value (server
+    wins). The plan must first enumerate the complete `S` key set from
+    `distributed_systems_prep_v2.html` (around the `S = Object.assign({...})`
+    initializer) and classify each key; the list above is the current known set
+    (`xp, done, badges, streak, lastDay, recallNailed, unlockAll, mistakes,
+    perfect, best`) but the plan confirms it against the source.
 - After that, the existing `save()` also **debounce-pushes** (`PUT /api/score`)
   when signed in; localStorage stays as the offline cache and remains the source
   of truth when signed out.
 - **Leaderboard panel** (new UI section) lists the top 100 with the user's row
-  highlighted; fetched only when signed in.
+  highlighted; fetched only when signed in. **When signed out**, the panel is
+  still visible but shows a "Sign in to see the leaderboard" prompt (it is not
+  hidden entirely) — distinct from the DB-failure "leaderboard unavailable"
+  state below.
 - **Sign out** → call s0phi3 `/api/logout` (credentials include), revert to
   anonymous/local.
 
