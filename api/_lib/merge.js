@@ -4,7 +4,8 @@ const max = (a, b) => Math.max(a ?? 0, b ?? 0);
 const unionTrue = (a = {}, b = {}) => { const o = { ...a }; for (const k of Object.keys(b)) if (b[k]) o[k] = true; return o; };
 const perKeyMax = (a = {}, b = {}) => { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = Math.max(o[k] ?? 0, v ?? 0); return o; };
 const perKeyOr = (a = {}, b = {}) => { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = !!(o[k] || v); return o; };
-const unionKeep = (a = {}, b = {}) => ({ ...b, ...a }); // existing/stored (a) wins on clash
+// Stored (a) wins on key clash — incoming does not override history.
+const unionKeep = (a = {}, b = {}) => ({ ...b, ...a });
 
 // incoming = this write's validated state; stored = current row's state (or null)
 export function mergeState(incoming, stored) {
@@ -22,8 +23,13 @@ export function mergeState(incoming, stored) {
   out.best = perKeyMax(s.best, i.best);
   out.perfect = perKeyOr(s.perfect, i.perfect);
 
-  out.mistakes = ('mistakes' in i) ? (i.mistakes || {}) : (s.mistakes || {});
+  // mistakes: last-write-wins (replace, not union). Shallow-copy the container so
+  // the result never aliases the incoming/stored payload (step-object values are
+  // never mutated here, so a shallow copy is sufficient isolation).
+  out.mistakes = ('mistakes' in i) ? { ...(i.mistakes || {}) } : { ...(s.mistakes || {}) };
 
+  // All three are monotonic booleans (once true, never cleared). If any later
+  // needs a different rule, pull it out of this loop.
   for (const k of ['unlockAll', 'flawless', 'answeredSeeded']) {
     if (k in i || k in s) out[k] = !!(i[k] || s[k]);
   }
