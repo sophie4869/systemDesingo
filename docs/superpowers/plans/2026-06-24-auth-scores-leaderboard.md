@@ -69,10 +69,14 @@ env / default constant — **not** a secret.
 Run: `npm install`
 Expected: `node_modules/` created, lockfile written, no errors.
 
-- [ ] **Step 3: Confirm `.env` is ignored**
+- [ ] **Step 3: Ensure `.env` and `node_modules/` are git-ignored**
 
-Run: `grep -n '.env' .gitignore || echo 'MISSING'`
-Expected: a line matching `.env` (the existing `.gitignore` already excludes `.env`; if `MISSING`, add `.env` and `node_modules/` to `.gitignore`).
+The current `.gitignore` only has `.claude/`, `.codex/`, `.DS_Store` — it does
+**not** ignore `.env` or `node_modules/`. Add them:
+
+Run: `printf '.env\nnode_modules/\n' >> .gitignore`
+Then verify: `git check-ignore .env node_modules` → both paths echoed back.
+This must happen before any commit so secrets/`.env` are never staged.
 
 - [ ] **Step 4: Commit**
 
@@ -727,42 +731,9 @@ export async function upsertMerged(userId, username, mergedState, cols) {
   return rows[0];
 }
 
-// effective_streak: UTC-day based; lapsed (>1 day old) ranks as 0.
-const EFF = `(CASE WHEN last_day >= (now() AT TIME ZONE 'UTC')::date - 1 THEN streak ELSE 0 END)`;
-
-export async function leaderboard(limit = 100) {
-  return sql()`
-    WITH base AS (
-      SELECT username, xp, items_done, updated_at, user_id,
-             ${sql.unsafe ? sql.unsafe(EFF) : undefined} AS effective_streak
-      FROM scores
-    )` // see note below — neon http driver: inline EFF directly
-    ;
-}
-
-export async function rankOf(userId) {
-  // COUNT strictly ahead + 1, same ordering keys incl. effective_streak
-  const rows = await sql()`
-    WITH me AS (SELECT xp, items_done, ${effSql()} AS es, updated_at, user_id FROM scores WHERE user_id = ${userId})
-    SELECT (SELECT count(*) FROM scores s, me
-            WHERE (s.xp, s.items_done, ${effSqlAliased('s')}, s.updated_at, s.user_id)
-                  > (me.xp, me.items_done, me.es, me.updated_at, me.user_id)
-                  IS NOT TRUE) AS placeholder`;
-  return rows;
-}
-```
-
-> **Implementation note (resolve during coding):** the `@neondatabase/serverless`
-> HTTP tag does not support `sql.unsafe`. Write the `effective_streak` CASE
-> expression **inline** in each tagged-template query rather than interpolating a
-> string. Concretely, replace Task 5.1's `leaderboard`/`rankOf` bodies with the
-> two finalized queries below (Step 2). The skeleton above is intentionally
-> rewritten there; do not ship the `sql.unsafe` placeholder.
-
-- [ ] **Step 2: Replace leaderboard/rankOf with finalized queries**
-
-```js
-// Final leaderboard(): effective_streak inline, ROW_NUMBER for unique ranks.
+// leaderboard(): effective_streak computed INLINE (the @neondatabase/serverless
+// HTTP tag has no sql.unsafe — never interpolate a raw SQL string). Lapsed
+// streak (last active >1 UTC day ago) ranks as 0. ROW_NUMBER → unique ranks.
 export async function leaderboard(limit = 100) {
   return sql()`
     WITH base AS (
@@ -781,7 +752,8 @@ export async function leaderboard(limit = 100) {
     FROM ranked ORDER BY rank LIMIT ${limit}`;
 }
 
-// Final rankOf(): strictly-ahead count + 1, matching ordering keys.
+// rankOf(): strictly-ahead count + 1, matching the same ordering keys
+// (incl. inline effective_streak). Returns null if the user has no row.
 export async function rankOf(userId) {
   const rows = await sql()`
     WITH me AS (
@@ -809,9 +781,7 @@ export async function rankOf(userId) {
 }
 ```
 
-Then delete the broken skeleton `leaderboard`/`rankOf` from Step 1.
-
-- [ ] **Step 3: Gated integration test**
+- [ ] **Step 2: Gated integration test**
 
 ```js
 // test/db.test.mjs
@@ -836,12 +806,12 @@ maybe('upsert → leaderboard ordering', async () => {
 });
 ```
 
-- [ ] **Step 4: Run (skips without DB; runs once DATABASE_URL set)**
+- [ ] **Step 3: Run (skips without DB; runs once DATABASE_URL set)**
 
 Run: `npm test`
 Expected: db test SKIPPED locally (until Phase 8 provides `DATABASE_URL`), others PASS. After Phase 8, re-run with `.env` loaded: `node --env-file=.env --test test/` → db test PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add api/_lib/db.js test/db.test.mjs
@@ -878,6 +848,7 @@ export default async function handler(req, res) {
     }
     if (req.method === 'PUT') {
       const body = await readJson(req);
+      // Accept both {state:{…}} (what the client sends) and a bare state object.
       const clean = validateState(body && body.state ? body.state : body);
       const row = await getRow(user.userId);
       const merged = mergeState(clean, row ? row.state : null);
