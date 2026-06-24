@@ -12,5 +12,5 @@
     "@neondatabase/serverless": "^0.10.0",
     "jsonwebtoken": "^9.0.2"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": { "node": "22.x" }
 }

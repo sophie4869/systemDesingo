@@ -4,7 +4,12 @@ export class HttpError extends Error {
 }
 
 export async function readJson(req) {
-  if (req.body && typeof req.body === 'object') return req.body; // vercel pre-parsed
+  if (req.body && typeof req.body === 'object') {
+    // Vercel pre-parses the JSON body, so the raw-stream size check below is
+    // skipped — re-check the serialized size here so the 64 KB cap still applies.
+    if (Buffer.byteLength(JSON.stringify(req.body), 'utf8') > 64 * 1024) throw new HttpError(413, 'Payload too large');
+    return req.body;
+  }
   let raw = '';
   for await (const chunk of req) raw += chunk;
   if (raw.length === 0) return {};
