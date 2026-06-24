@@ -114,15 +114,18 @@ Sign-in, sign-up, email verification, and password reset all stay on
 
 ### Server-side merge-on-write (conflict model)
 
-Writes are **last-write-wins for preferences, monotonic-merge for progress** —
-the server applies the same per-key rules as the client merge (see Client
-integration) to `incoming` vs `stored`, so a stale tab/device that `PUT`s an
-older blob **cannot regress** monotonic progress (`xp`, `streak`, `done`,
-`answered`, etc. only ever grow/union). This removes the need for ETags or
-optimistic-concurrency preconditions. Device UI prefs (`speedN`, `speedUnits`,
-`speedPickerOpen`, `reviewSkipRecall`) are genuinely last-write-wins and not
-ranked, so a stale write to those is harmless. `updated_at` is set to the server
-clock on every write.
+Writes apply the **per-key rule table** (see Client integration) to `incoming`
+vs `stored` — there is no single global rule. **Most** progress fields are
+monotonic (`xp`, `done`, `answered`, `best`, `perfect`, `recallNailed`, and the
+badge/flag booleans only ever grow/union), so a stale tab/device that `PUT`s an
+older blob **cannot regress** them. This removes the need for ETags or
+optimistic-concurrency preconditions. The **non-monotonic** fields each have an
+explicit rule instead: `streak` is merged coupled with `lastDay` (later day wins
+— it legitimately decreases on a lapse, `distributed_systems_prep_v2.html:416`),
+`mistakes` is last-write-wins (entries are deleted on mastery), and device UI
+prefs (`speedN`, `speedUnits`, `speedPickerOpen`, `reviewSkipRecall`) are
+last-write-wins and not ranked, so a stale write to those is harmless.
+`updated_at` is set to the server clock on every write.
 
 ### Validation & anti-cheat
 
@@ -218,11 +221,14 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   Note: `username` is **not** in this table — it is a JWT-derived column set
   server-side on each write, never merged from the client payload.
 
-  - **`badges` is derived, not authoritative.** `checkBadges()` recomputes it
-    from `done`/`streak`/`xp`/`recallNailed`/`flawless` on every scoring event,
-    so syncing it (union) is harmless but redundant — the client rebuilds badges
-    locally regardless. We still store/merge it so the leaderboard/profile can
-    show badges without recomputation, but it is never a source of truth.
+  - **`badges` is additive/derivable.** `checkBadges()`
+    (`distributed_systems_prep_v2.html:5984`) only *adds* missing badges when it
+    runs at a scoring event (`if(!S.badges[b.id] && b.test(S)) S.badges[b.id]=true`)
+    — it never removes them and doesn't rebuild from scratch. So union is the
+    right merge, and the values are derivable from `done`/`streak`/`xp`/
+    `recallNailed`/`flawless`. We still store/merge `badges` so the
+    leaderboard/profile can show them directly, but treat them as derived state,
+    not a source of truth.
   - **`streak` is NOT monotonic** and must be merged *coupled with* `lastDay`.
     The app resets `streak` to `1` on open when `lastDay` is not yesterday
     (`distributed_systems_prep_v2.html:416`), so a broken streak *decreases*.
