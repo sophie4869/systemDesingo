@@ -44,6 +44,19 @@ test('speedUnits: null or known unit ids', () => {
   assert.deepEqual(validateState({ speedUnits: ['u1', 'bad'] }, { unitIds: new Set(['u1']) }).speedUnits, ['u1']);
   assert.equal('speedUnits' in validateState({ speedUnits: 'weird' }), false);
 });
+test('speedUnits: all-unknown ids drops field entirely', () => {
+  const out = validateState({ speedUnits: ['bad'] }, { unitIds: new Set(['u1']) });
+  assert.equal('speedUnits' in out, false);
+});
+test('speedUnits: explicit empty array is preserved', () => {
+  const out = validateState({ speedUnits: [] });
+  assert.deepEqual(out.speedUnits, []);
+});
+test('streak without lastDay: lastDay absent from output (merge keeps stored pair)', () => {
+  const out = validateState({ streak: 5 });
+  assert.equal('streak' in out, true);
+  assert.equal('lastDay' in out, false);
+});
 test('map keys absent from input are not emitted', () => {
   const out = validateState({ xp: 5 });
   assert.equal('done' in out, false);

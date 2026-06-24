@@ -8,7 +8,7 @@ export async function readJson(req) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   if (raw.length === 0) return {};
-  if (raw.length > 64 * 1024) throw new HttpError(413, 'Payload too large');
+  if (Buffer.byteLength(raw, 'utf8') > 64 * 1024) throw new HttpError(413, 'Payload too large');
   try { return JSON.parse(raw); } catch { throw new HttpError(400, 'Invalid JSON'); }
 }
 

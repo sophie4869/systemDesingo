@@ -88,7 +88,11 @@ export function validateState(raw, overrides = {}) {
   if ('speedN' in raw) { const n = intIn(raw.speedN, 1, 1000); if (n !== undefined) out.speedN = n; }
   if ('speedUnits' in raw) {
     if (raw.speedUnits === null) out.speedUnits = null;
-    else if (Array.isArray(raw.speedUnits)) out.speedUnits = raw.speedUnits.filter(u => unitIds.has(u));
+    else if (Array.isArray(raw.speedUnits)) {
+      const filtered = raw.speedUnits.filter(u => unitIds.has(u));
+      // Preserve explicit empty array; drop only when input was non-empty but all ids were unknown
+      if (raw.speedUnits.length === 0 || filtered.length > 0) out.speedUnits = filtered;
+    }
   }
   return out;
 }
