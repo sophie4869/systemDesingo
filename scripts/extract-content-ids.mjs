@@ -57,14 +57,15 @@ const unitsSrc = lines.slice(unitsBounds.startIdx, unitsBounds.endIdx + 1).join(
 // (indent 0 or 1 space) followed immediately by `id:'xxx',title:` on the next
 // line. The `^\{?\n? id:'` pattern captures them.
 // Confirmed: 24 units matching this pattern.
-const unitIds = [...unitsSrc.matchAll(/^\{[\s\n]*id:'([^']+)',title:/gm)]
+const unitIds = [...unitsSrc.matchAll(/^\{[\s\n]*id:["']([^"']+)["'],title:/gm)]
   .filter(m => m[1]) // top-level matches have empty indent prefix
   .map(m => m[1]);
 
-// Lesson IDs: `{id:'xxx',title:` at 2-space indent inside `lessons:[...]`
-// We distinguish lessons from units by indent: lessons are always at indent 2+.
+// Lesson IDs: `{id:'xxx',title:` indented inside `lessons:[...]`
+// We distinguish lessons from units by requiring at least one leading space/tab.
 // The outer `{id:'xxx',title:` with indent 0 are unit boundaries (already captured above).
-const lessonIds = [...unitsSrc.matchAll(/^  \{id:'([^']+)',title:/gm)].map(m => m[1]);
+// Tolerates any mix of spaces/tabs and both quote styles to be robust to formatting variance.
+const lessonIds = [...unitsSrc.matchAll(/^[ \t]+\{id:["']([^"']+)["'],title:/gm)].map(m => m[1]);
 
 if (unitIds.length === 0) throw new Error('No unit IDs found — check extraction regex');
 if (lessonIds.length === 0) throw new Error('No lesson IDs found — check extraction regex');
