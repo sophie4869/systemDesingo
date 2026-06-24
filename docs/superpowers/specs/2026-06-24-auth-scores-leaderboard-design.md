@@ -27,7 +27,8 @@ leaderboard. Anonymous use must keep working exactly as it does today.
 
 1. **Architecture A** — a new Neon Postgres backend lives in *this* repo;
    identity comes from the existing s0phi3 service. No changes to the auth repo.
-2. **Rank metric** — order by `xp DESC, items_done DESC, streak DESC`.
+2. **Rank metric** — order by `xp DESC, items_done DESC, effective_streak DESC`
+   (effective_streak decays a lapsed streak to 0 at query time; see Data model).
 3. Deploy at a `*.sophiebi.com` subdomain (`systemdesign.sophiebi.com`) so the
    browser sends the s0phi3 SSO cookie to this app's own `/api/*`.
 4. Share `JWT_SECRET` with s0phi3 for **local** token verification (no network
@@ -132,7 +133,8 @@ Sign-in, sign-up, email verification, and password reset all stay on
   using its local `S`.
 - `PUT /api/score` → **validate → merge-on-write → upsert**. Client sends its
   `S`. Server validates the payload (below), **merges it server-side with the
-  stored row** (below), recomputes the three rank columns from the merged state,
+  stored row** (below), recomputes the denormalized columns (`xp`, `items_done`,
+  `streak`, `last_day`) from the merged state,
   upserts, and returns the canonical merged state. `400` on invalid payload.
 - `GET /api/leaderboard` → `{ top: [...100], currentUser: {...}|null }`.
   **Signed-in only.** A caller with no row yet gets `currentUser: null`; the
