@@ -124,7 +124,8 @@ re-fire on replay — `distributed_systems_prep_v2.html` ~lines 6789, 6882), so
 there is **no meaningful "sum of all XP" ceiling**. We therefore validate
 *shape and bounds*, not a global XP cap:
 
-- **Payload size:** reject bodies over **64 KB** (`413`).
+- **Payload size:** reject bodies over **64 KB** with `413 Payload Too Large`
+  (this is the one exception to the `400` used for all other invalid payloads).
 - **Top-level keys:** only keys in the known `S` inventory (below) are accepted;
   unknown keys are **dropped** (not stored).
 - **Numeric fields** (`xp`, `streak`, `recallNailed`): non-negative integers; reject
@@ -139,7 +140,16 @@ there is **no meaningful "sum of all XP" ceiling**. We therefore validate
 - **Hash-keyed maps** (`answered`, `picks`): keys are question signatures, not
   enumerable — validate by **shape + size only** (each map ≤ a generous cap,
   e.g. 5000 entries; values are small ints/strings).
-- **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`): coerced to boolean.
+- **Booleans** (`unlockAll`, `flawless`, `answeredSeeded`, `speedPickerOpen`,
+  `reviewSkipRecall`): coerced to boolean.
+- **Date strings** (`lastDay`): must match `YYYY-MM-DD` or be `null`; else dropped.
+- **Array/enum-list fields** (`speedUnits`): must be `null` **or** an array of
+  known unit IDs (unknown IDs dropped); any other shape → dropped. `speedN` is a
+  small positive int within the app's allowed range.
+
+`username` is **never** taken from the request body — it is read from the
+verified JWT on every write (truncated to 32 chars). It is not part of the `S`
+merge table; merging it from the client blob would reopen a spoofing/XSS vector.
 
 Scores remain client-computed and thus inherently spoofable; the goal is to
 block accidental corruption and obvious tampering (XSS-via-state, giant
@@ -173,12 +183,18 @@ payloads, impossible ranks), not to make cheating impossible. Documented as such
   | `unlockAll` | bool | OR |
   | `flawless` | bool | OR |
   | `answeredSeeded` | bool | OR |
-  | `lastDay` | date str | latest (`max` lexicographically) |
+  | `lastDay` | date str (`YYYY-MM-DD`) | latest (`max` lexicographically) |
   | `speedN` | int pref | **last-write-wins** (device UI pref, not ranked) |
-  | `speedUnits` | pref | last-write-wins |
+  | `speedUnits` | array of unit IDs **or `null`** (null = all chapters) | last-write-wins |
   | `speedPickerOpen` | bool pref | last-write-wins |
   | `reviewSkipRecall` | bool pref | last-write-wins |
 
+  Note: `username` is **not** in this table — it is a JWT-derived column set
+  server-side on each write, never merged from the client payload.
+
+  - **`picks` clash rule** is shared by client and server: on a key collision
+    keep the existing/server value, so both sides converge to the identical
+    result regardless of write order.
   - **Any future `S` key not in this table** → conservative default: if it looks
     monotonic (number→`max`, bool→OR, map→union) apply that; otherwise
     last-write-wins. The plan re-confirms the inventory against the source before
