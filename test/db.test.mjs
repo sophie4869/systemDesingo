@@ -18,3 +18,15 @@ maybe('upsert → leaderboard ordering', async () => {
   assert.equal(await rankOf('test:b') < await rankOf('test:a'), true);
   await sql()`DELETE FROM scores WHERE user_id LIKE 'test:%'`;
 });
+
+maybe('rankOf returns null for missing user, positive integer for existing', async () => {
+  const { ensureSchema, upsertMerged, rankOf, sql } = await import('../api/_lib/db.js');
+  await ensureSchema();
+  await sql()`DELETE FROM scores WHERE user_id LIKE 'test:%'`;
+  const today = new Date().toISOString().slice(0, 10);
+  await upsertMerged('test:b', 'B', { xp: 200 }, { xp: 200, items_done: 0, streak: 0, last_day: null });
+  assert.equal(await rankOf('test:nonexistent-zzz'), null);
+  const rank = await rankOf('test:b');
+  assert.equal(typeof rank === 'number' && rank >= 1, true);
+  await sql()`DELETE FROM scores WHERE user_id LIKE 'test:%'`;
+});

@@ -74,19 +74,23 @@ export async function rankOf(userId) {
              updated_at, user_id
       FROM scores WHERE user_id = ${userId}
     )
-    SELECT 1 + count(*) AS rank
-    FROM scores s, me
-    WHERE (s.xp > me.xp)
-       OR (s.xp = me.xp AND s.items_done > me.items_done)
-       OR (s.xp = me.xp AND s.items_done = me.items_done
-           AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
-                     THEN s.streak ELSE 0 END) > me.es)
-       OR (s.xp = me.xp AND s.items_done = me.items_done
-           AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
-                     THEN s.streak ELSE 0 END) = me.es AND s.updated_at < me.updated_at)
-       OR (s.xp = me.xp AND s.items_done = me.items_done
-           AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
-                     THEN s.streak ELSE 0 END) = me.es AND s.updated_at = me.updated_at
-           AND s.user_id < me.user_id)`;
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM me) THEN NULL
+                ELSE (
+                  SELECT 1 + count(*)
+                  FROM scores s, me
+                  WHERE (s.xp > me.xp)
+                     OR (s.xp = me.xp AND s.items_done > me.items_done)
+                     OR (s.xp = me.xp AND s.items_done = me.items_done
+                         AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+                                   THEN s.streak ELSE 0 END) > me.es)
+                     OR (s.xp = me.xp AND s.items_done = me.items_done
+                         AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+                                   THEN s.streak ELSE 0 END) = me.es AND s.updated_at < me.updated_at)
+                     OR (s.xp = me.xp AND s.items_done = me.items_done
+                         AND (CASE WHEN s.last_day >= (now() AT TIME ZONE 'UTC')::date - 1
+                                   THEN s.streak ELSE 0 END) = me.es AND s.updated_at = me.updated_at
+                         AND s.user_id < me.user_id)
+                )
+           END AS rank`;
   return rows[0]?.rank ?? null;
 }
