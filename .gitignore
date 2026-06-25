@@ -2,3 +2,7 @@
 .codex/
 .DS_Store
 .worktrees/
+.vercel
+.env
+.env.*
+node_modules/
