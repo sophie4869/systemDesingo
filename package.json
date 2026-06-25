@@ -1,0 +1,16 @@
+{
+  "name": "systemdesign-prep",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "extract-ids": "node scripts/extract-content-ids.mjs",
+    "build": "echo \"No build step required\""
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": { "node": "22.x" }
+}

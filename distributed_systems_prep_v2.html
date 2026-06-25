@@ -401,7 +401,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 /* ---------------- persistence ---------------- */
 const SAVE_KEY='dsq_v2_save';
 function load(){try{return JSON.parse(localStorage.getItem(SAVE_KEY))||{};}catch(e){return{};}}
-function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){} try{window.__pushScore&&window.__pushScore();}catch(e){}}
 var S=Object.assign({xp:0,done:{},badges:{},streak:0,lastDay:null,recallNailed:0,unlockAll:false,mistakes:{},perfect:{},best:{}},load());
 if(!S.mistakes)S.mistakes={};
 if(!S.perfect)S.perfect={};
@@ -6035,6 +6035,7 @@ function renderHome(scrollToNext){
     +'<div class="stat xp"><span class="ic">⚡</span>'+S.xp+'</div>'
     +'<div class="spacer"></div>'
     +'<div class="stat gem"><span class="ic">🏅</span>'+Object.keys(S.badges).length+'</div>'
+    +'<span id="authSlot"></span>'
     +'</div>';
   const SHORT={cap:'CAP',repl:'Repl',raft:'Consensus',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
   // which unit holds the next playable stage → the jumpbar scrolls to it
@@ -6123,6 +6124,7 @@ function renderHome(scrollToNext){
   BADGES.forEach(b=>{const got=S.badges[b.id];h+='<div class="badge '+(got?'':'lock')+'"><div class="bi">'+b.icon+'</div><small>'+b.name+'</small></div>';});
   h+='</div></div>';
 
+  h+='<div id="lbPanel" class="lb-panel"></div>';
   h+='<div class="tip">Progress saves automatically on this device. &nbsp;⌨ Keys: <b>1–4</b> answer · <b>Enter</b> continue · <b>Esc</b> quit</div>';
 
   APP().innerHTML=h;
@@ -6999,5 +7001,115 @@ renderHome(true);
   btn.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
   onScroll();
 })();</script>
+<style>
+/* --- auth slot --- */
+#authSlot{margin-left:4px}
+#authSlot .btn{width:auto;padding:7px 14px;font-size:13px;letter-spacing:.2px;text-transform:none}
+
+/* --- leaderboard panel --- */
+.lb-panel{margin:14px 18px 4px;border-radius:var(--r);overflow:hidden}
+.lb-title{font-size:16px;font-weight:900;padding:12px 14px 8px;background:var(--panel);border:2px solid var(--line);border-bottom:none;border-radius:var(--r) var(--r) 0 0}
+.lb-panel .lb{width:100%;border-collapse:collapse;background:#fff;border:2px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);overflow:hidden;font-size:14px}
+.lb-panel .lb thead tr{background:var(--panel)}
+.lb-panel .lb th{padding:7px 10px;text-align:left;font-size:12px;font-weight:800;color:var(--muted);border-bottom:2px solid var(--line)}
+.lb-panel .lb td{padding:8px 10px;border-bottom:1px solid var(--line)}
+.lb-panel .lb tbody tr:last-child td{border-bottom:none}
+.lb-me td{background:var(--blue-bg);color:var(--blue-d);font-weight:800}
+.lb-msg{padding:14px 16px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);font-size:14px;color:var(--muted);text-align:center;font-weight:700}
+.lb-you{padding:9px 14px;background:var(--blue-bg);border:2px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);font-size:13px;font-weight:800;color:var(--blue-d)}
+</style>
+<script>
+(function(){
+  const AUTH_BASE='https://auth.sophiebi.com';
+  let signedIn=false, pushTimer=null, _suppressPush=false;
+
+  function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+
+  async function api(path, opts){
+    return fetch(path, Object.assign({credentials:'include',headers:{'content-type':'application/json'}}, opts));
+  }
+
+  // PUT local S, adopt canonical merged state (covers seed-up AND pull-down).
+  async function reconcile(){
+    let r = await api('/api/score', {method:'PUT', body: JSON.stringify({state:S})});
+    if(r.status===401){ if(await tryRefresh()){ r = await api('/api/score', {method:'PUT', body: JSON.stringify({state:S})}); } }
+    if(r.status===401){ setSignedOut(); return; }
+    if(!r.ok) return; // DB hiccup → keep local
+    const data = await r.json();
+    if(data.state){ S = Object.assign(S, data.state); _suppressPush=true; save(); _suppressPush=false; try{renderHome&&renderHome();}catch(e){} }
+  }
+
+  async function tryRefresh(){
+    try{ const r=await fetch(AUTH_BASE+'/api/refresh-token',{method:'POST',credentials:'include'}); return r.ok; }catch(e){ return false; }
+  }
+
+  async function checkAuth(){
+    const r = await api('/api/score', {method:'GET'});
+    if(r.status===401){ setSignedOut(); return false; }
+    signedIn=true; renderAuthSlot();
+    await reconcile();
+    loadLeaderboard();
+    return true;
+  }
+
+  function setSignedOut(){ signedIn=false; renderAuthSlot(); renderLeaderboardSignedOut(); }
+
+  function renderAuthSlot(){
+    const el=document.getElementById('authSlot'); if(!el) return;
+    if(signedIn){ el.innerHTML='<button id="signOutBtn" class="btn">Sign out</button>'; const b=document.getElementById('signOutBtn'); if(b) b.onclick=signOut; }
+    else{ el.innerHTML='<button id="signInBtn" class="btn blue">Sign in</button>'; const b=document.getElementById('signInBtn'); if(b) b.onclick=signIn; }
+  }
+
+  function signIn(){ location.href = AUTH_BASE+'/index.html?redirect='+encodeURIComponent(location.href); }
+  async function signOut(){ try{ await fetch(AUTH_BASE+'/api/logout',{method:'POST',credentials:'include'}); }catch(e){} setSignedOut(); }
+
+  // Debounced push: called from the patched save().
+  window.__pushScore = function(){
+    if(!signedIn) return;
+    if(_suppressPush) return;
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(()=>{ api('/api/score',{method:'PUT',body:JSON.stringify({state:S})}).catch(()=>{}); }, 1500);
+  };
+
+  let _lastLb = undefined; // undefined = never fetched; null/object = fetched payload
+
+  function loadLeaderboard(){
+    api('/api/leaderboard',{method:'GET'}).then(r=> r.ok? r.json(): null).then(renderLeaderboard).catch(()=>renderLeaderboardUnavailable());
+  }
+  function lbEl(){ return document.getElementById('lbPanel'); }
+  function renderLeaderboardSignedOut(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Sign in to see the leaderboard.</div>'; }
+  function renderLeaderboardUnavailable(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Leaderboard unavailable.</div>'; }
+  function renderLeaderboard(data){
+    _lastLb = data;
+    const el=lbEl(); if(!el) return; if(!data){ renderLeaderboardUnavailable(); return; }
+    const mine = data.currentUser;
+    let h='<div class="lb-title">🏆 Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Player</th><th>XP</th><th>Done</th><th>🔥</th></tr></thead><tbody>';
+    for(const row of data.top){
+      const isMe = mine && row.username===mine.username && row.rank===mine.rank;
+      h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+(Number(row.rank)||0)+'</td><td>'+esc(row.username)+'</td><td>'+(Number(row.xp)||0)+'</td><td>'+(Number(row.items_done)||0)+'</td><td>'+(Number(row.streak)||0)+'</td></tr>';
+    }
+    h+='</tbody></table>';
+    if(mine && !data.top.some(r=>r.rank===mine.rank)){ h+='<div class="lb-you">You — #'+(Number(mine.rank)||0)+' · '+(Number(mine.xp)||0)+' XP</div>'; }
+    else if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
+    el.innerHTML=h;
+  }
+
+  const _origRenderHome = window.renderHome;
+  if(typeof _origRenderHome === 'function'){
+    window.renderHome = function(){
+      _origRenderHome.apply(this, arguments);
+      renderAuthSlot();                        // re-fill #authSlot every render
+      if(signedIn){
+        if(_lastLb !== undefined) renderLeaderboard(_lastLb); // instant from cache
+        else loadLeaderboard();
+      } else {
+        renderLeaderboardSignedOut();
+      }
+    };
+  }
+
+  window.addEventListener('DOMContentLoaded', ()=>{ renderAuthSlot(); checkAuth(); });
+})();
+</script>
 </body>
 </html>
