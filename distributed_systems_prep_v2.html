@@ -2,12 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>systemDesingo — Distributed Systems</title>
+<meta name="description" content="Master distributed systems for your interview — one quick quest at a time.">
+<!-- PWA -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="systemDesingo">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 :root{
   --green:#58CC02;--green-d:#46a302;--green-bg:#D7FFB8;
   --blue:#1CB0F6;--blue-d:#1899D6;--blue-bg:#DDF4FF;
@@ -55,7 +66,7 @@
 .htmlviz .hv-dot.on{background:var(--blue);transform:scale(1.35)}
 .htmlviz .hv-lbl{font-size:13px;color:var(--muted);font-weight:800;flex:1}
 html,body{height:100%;font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:17px;font-weight:700;line-height:1.45;overscroll-behavior:none}
-#app{max-width:560px;margin:0 auto;min-height:100vh;padding-bottom:40px}
+#app{max-width:560px;margin:0 auto;min-height:100vh;min-height:100dvh;padding:0 env(safe-area-inset-right) calc(40px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
 .hidden{display:none!important}
 button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background:none;color:inherit}
 
@@ -71,7 +82,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .btn:disabled{opacity:.5;box-shadow:none;transform:none;cursor:default}
 
 /* Top bar */
-.stickyhead{position:sticky;top:0;z-index:20;background:var(--bg)}
+.stickyhead{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:env(safe-area-inset-top)}
 .topbar{display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--bg)}
 .jumpbar{display:flex;gap:8px;overflow-x:auto;padding:9px 14px;border-bottom:2px solid var(--line);scrollbar-width:none}
 .jumpbar::-webkit-scrollbar{display:none}
@@ -85,6 +96,11 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 .stat .ic{font-size:19px}
 .stat.fire{color:var(--orange)} .stat.xp{color:var(--yellow-d)} .stat.heart{color:var(--red)} .stat.gem{color:var(--blue)}
 .topbar .spacer{flex:1}
+@media(max-width:460px){
+  .topbar{gap:9px;padding:10px 12px}
+  .stat{font-size:14px;gap:3px} .stat .ic{font-size:17px}
+  textarea{font-size:16px!important} /* prevent iOS auto-zoom on focus */
+}
 
 /* Home */
 .hero{padding:22px 18px 6px}
@@ -6033,8 +6049,8 @@ function renderHome(scrollToNext){
   h+='<div class="topbar">'
     +'<div class="stat fire"><span class="ic">🔥</span>'+S.streak+'</div>'
     +'<div class="stat xp"><span class="ic">⚡</span>'+S.xp+'</div>'
-    +'<div class="spacer"></div>'
     +'<div class="stat gem"><span class="ic">🏅</span>'+Object.keys(S.badges).length+'</div>'
+    +'<div class="spacer"></div>'
     +'<span id="authSlot"></span>'
     +'</div>';
   const SHORT={cap:'CAP',repl:'Repl',raft:'Consensus',txn:'Txn',part:'Shard',cache:'Cache',time:'Time',msg:'Msg',lb:'LB',rl:'Rate',scale:'Scale',rel:'Reliab.',pat:'Patterns',fw:'Method',data:'Data/ML',conc:'Concur',model:'Models',batch:'Streams',trouble:'Trouble',decide:'Decide',mock:'Mocks'};
@@ -6150,7 +6166,10 @@ function renderHome(scrollToNext){
   APP().querySelectorAll('[data-unitrecall]').forEach(b=>b.onclick=()=>startUnitRecall(b.dataset.unitrecall));
   const sr=document.getElementById('skipRecall');if(sr)sr.onchange=()=>{S.reviewSkipRecall=sr.checked;save();renderHome();};
   document.getElementById('unlockBtn').onclick=()=>{S.unlockAll=!S.unlockAll;save();renderHome();};
-  if(scrollToNext){requestAnimationFrame(function(){
+  // Only auto-scroll to the frontier once the user has made progress; a brand-new
+  // user should land at the top and see the hero/intro instead of jumping to Unit 1.
+  const hasProgress=Object.keys(S.done).length>0;
+  if(scrollToNext&&hasProgress){requestAnimationFrame(function(){
     const ns=document.getElementById('next-stage');if(ns)ns.scrollIntoView({behavior:'smooth',block:'center'});
     const jb=APP().querySelector('.jumpbar'),jc=document.getElementById('jump-current');
     if(jb&&jc){const jbr=jb.getBoundingClientRect(),jcr=jc.getBoundingClientRect();jb.scrollTo({left:jb.scrollLeft+(jcr.left-jbr.left)-jb.clientWidth*0.25,behavior:'smooth'});}
@@ -7002,8 +7021,14 @@ renderHome(true);
 })();</script>
 <style>
 /* --- auth slot --- */
-#authSlot{margin-left:4px}
-#authSlot .btn{width:auto;padding:7px 14px;font-size:13px;letter-spacing:.2px;text-transform:none}
+#authSlot{margin-left:4px;display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+#authSlot .btn{width:auto;padding:7px 14px;font-size:13px;letter-spacing:.2px;text-transform:none;flex:0 0 auto}
+#authSlot .who{display:inline-block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:460px){
+  #authSlot{margin-left:0;gap:5px}
+  #authSlot .btn{padding:6px 10px;font-size:12px}
+  #authSlot .who{max-width:64px;margin-right:2px!important;font-size:13px}
+}
 
 /* --- leaderboard panel --- */
 .lb-panel{margin:14px 18px 4px;border-radius:var(--r);overflow:hidden}
@@ -7196,6 +7221,14 @@ renderHome(true);
 
   window.addEventListener('DOMContentLoaded', ()=>{ ensureModal(); renderAuthSlot(); if(IS_DEPLOYED) checkAuth(); });
 })();
+</script>
+<script>
+// PWA: register service worker (best-effort; no-op on file:// or unsupported browsers)
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  });
+}
 </script>
 </body>
 </html>

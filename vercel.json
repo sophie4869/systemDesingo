@@ -2,6 +2,9 @@
   "version": 2,
   "builds": [
     { "src": "*.html", "use": "@vercel/static" },
+    { "src": "icon.png", "use": "@vercel/static" },
+    { "src": "manifest.webmanifest", "use": "@vercel/static" },
+    { "src": "sw.js", "use": "@vercel/static" },
     { "src": "api/*.js", "use": "@vercel/node" }
   ],
   "routes": [
