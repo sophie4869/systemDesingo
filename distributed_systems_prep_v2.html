@@ -7122,7 +7122,9 @@ renderHome(true);
     }
   }
 
-  function signIn(){ location.href = AUTH_BASE+'/index.html?redirect='+encodeURIComponent(location.href); }
+  // Login page lives at sophiebi.com/login (auth API stays on auth.sophiebi.com).
+  const LOGIN_URL = 'https://sophiebi.com/login/';
+  function signIn(){ location.href = LOGIN_URL+'?redirect='+encodeURIComponent(location.href); }
   async function signOut(){ try{ await fetch(AUTH_BASE+'/api/logout',{method:'POST',credentials:'include'}); }catch(e){} clearTokens(); setSignedOut(); }
 
   function exportProgress(){
