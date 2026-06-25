@@ -9,8 +9,14 @@ test('readJson: returns Vercel pre-parsed object under the cap', async () => {
   assert.deepEqual(out, body);
 });
 
-test('readJson: rejects Vercel pre-parsed object over 64KB with 413', async () => {
-  const body = { blob: 'x'.repeat(70 * 1024) };
+test('readJson: accepts a large (sub-cap) power-user state ~500KB', async () => {
+  const body = { state: { blob: 'x'.repeat(500 * 1024) } };
+  const out = await readJson({ body });
+  assert.equal(out.state.blob.length, 500 * 1024);
+});
+
+test('readJson: rejects pre-parsed body over the 2MB cap with 413', async () => {
+  const body = { blob: 'x'.repeat(2 * 1024 * 1024 + 1024) };
   await assert.rejects(
     () => readJson({ body }),
     (e) => e instanceof HttpError && e.status === 413
