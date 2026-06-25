@@ -7040,27 +7040,62 @@ renderHome(true);
 
   function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
 
+  // --- Token storage ---
+  const AT_KEY='sd_accessToken', RT_KEY='sd_refreshToken';
+  const getAT=()=>{try{return localStorage.getItem(AT_KEY)||null}catch(e){return null}};
+  const getRT=()=>{try{return localStorage.getItem(RT_KEY)||null}catch(e){return null}};
+  function setTokens(at,rt){ try{ if(at) localStorage.setItem(AT_KEY,at); if(rt) localStorage.setItem(RT_KEY,rt); }catch(e){} }
+  function clearTokens(){ try{ localStorage.removeItem(AT_KEY); localStorage.removeItem(RT_KEY); }catch(e){} }
+
+  // --- Bearer headers for our own API calls ---
+  function authHeaders(extra){ const h=Object.assign({'content-type':'application/json'}, extra||{}); const at=getAT(); if(at) h['Authorization']='Bearer '+at; return h; }
+
+  // Low-level single request to our API
+  function apiRaw(path, opts){ return fetch(path, Object.assign({credentials:'include'}, opts, {headers: authHeaders((opts||{}).headers)})); }
+
+  // Our API call with one refresh+retry on 401
   async function api(path, opts){
-    return fetch(path, Object.assign({credentials:'include',headers:{'content-type':'application/json'}}, opts));
+    let r = await apiRaw(path, opts);
+    if(r.status===401){ if(await refreshTokens()){ r = await apiRaw(path, opts); } }
+    return r;
+  }
+
+  // --- Single-flight token refresh ---
+  let _refreshing=null;
+  function refreshTokens(){
+    if(_refreshing) return _refreshing;
+    _refreshing=(async()=>{
+      const rt=getRT();
+      try{
+        const r=await fetch(AUTH_BASE+'/api/refresh-token',{method:'POST',credentials:'include',headers: rt?{'x-refresh-token':rt}:{}});
+        if(!r.ok){ if(r.status>=400&&r.status<500){ clearTokens(); } return false; }
+        const d=await r.json().catch(()=>null);
+        if(d&&d.accessToken){ setTokens(d.accessToken, d.refreshToken); return true; }
+        return false;
+      }catch(e){ return false; }
+      finally{ _refreshing=null; }
+    })();
+    return _refreshing;
   }
 
   // PUT local S, adopt canonical merged state (covers seed-up AND pull-down).
   async function reconcile(){
     let r = await api('/api/score', {method:'PUT', body: JSON.stringify({state:S})});
-    if(r.status===401){ if(await tryRefresh()){ r = await api('/api/score', {method:'PUT', body: JSON.stringify({state:S})}); } }
     if(r.status===401){ setSignedOut(); return; }
     if(!r.ok) return; // DB hiccup → keep local
     const data = await r.json();
     if(data.state){ S = Object.assign(S, data.state); _suppressPush=true; save(); _suppressPush=false; try{renderHome&&renderHome();}catch(e){} }
   }
 
-  async function tryRefresh(){
-    try{ const r=await fetch(AUTH_BASE+'/api/refresh-token',{method:'POST',credentials:'include'}); return r.ok; }catch(e){ return false; }
-  }
-
+  // --- SSO pickup via check-auth ---
   async function checkAuth(){
-    const r = await api('/api/score', {method:'GET'});
-    if(r.status===401){ setSignedOut(); return false; }
+    let data=null;
+    try{
+      const r=await fetch(AUTH_BASE+'/api/check-auth',{credentials:'include',headers: authHeaders()});
+      data=await r.json().catch(()=>null);
+    }catch(e){ data=null; }
+    if(!data || !data.authenticated){ setSignedOut(); return false; }
+    if(data.accessToken) setTokens(data.accessToken, data.refreshToken);
     signedIn=true; renderAuthSlot();
     await reconcile();
     // leaderboard is now lazy — fetched when the modal opens, not on load
@@ -7082,7 +7117,7 @@ renderHome(true);
   }
 
   function signIn(){ location.href = AUTH_BASE+'/index.html?redirect='+encodeURIComponent(location.href); }
-  async function signOut(){ try{ await fetch(AUTH_BASE+'/api/logout',{method:'POST',credentials:'include'}); }catch(e){} setSignedOut(); }
+  async function signOut(){ try{ await fetch(AUTH_BASE+'/api/logout',{method:'POST',credentials:'include'}); }catch(e){} clearTokens(); setSignedOut(); }
 
   // Debounced push: called from the patched save().
   window.__pushScore = function(){
