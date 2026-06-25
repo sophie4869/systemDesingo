@@ -6124,7 +6124,6 @@ function renderHome(scrollToNext){
   BADGES.forEach(b=>{const got=S.badges[b.id];h+='<div class="badge '+(got?'':'lock')+'"><div class="bi">'+b.icon+'</div><small>'+b.name+'</small></div>';});
   h+='</div></div>';
 
-  h+='<div id="lbPanel" class="lb-panel"></div>';
   h+='<div class="tip">Progress saves automatically on this device. &nbsp;⌨ Keys: <b>1–4</b> answer · <b>Enter</b> continue · <b>Esc</b> quit</div>';
 
   APP().innerHTML=h;
@@ -7017,6 +7016,22 @@ renderHome(true);
 .lb-me td{background:var(--blue-bg);color:var(--blue-d);font-weight:800}
 .lb-msg{padding:14px 16px;background:var(--panel);border:2px solid var(--line);border-radius:var(--r);font-size:14px;color:var(--muted);text-align:center;font-weight:700}
 .lb-you{padding:9px 14px;background:var(--blue-bg);border:2px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);font-size:13px;font-weight:800;color:var(--blue-d)}
+
+/* --- leaderboard modal --- */
+#lbModal{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.5);z-index:9999;padding:8vh 16px}
+#lbModal.open{display:flex}
+.lb-card{background:var(--panel);border:2px solid var(--line);border-radius:var(--r);max-width:560px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.lb-card-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:2px solid var(--line)}
+.lb-card-header h2{margin:0;font-size:17px;font-weight:900}
+#lbClose{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;padding:2px 6px}
+#lbClose:hover{color:var(--fg)}
+#lbContent{padding:14px 16px}
+.lb-card .lb{width:100%;border-collapse:collapse;background:#fff;border:2px solid var(--line);border-radius:var(--r);overflow:hidden;font-size:14px}
+.lb-card .lb thead tr{background:var(--panel)}
+.lb-card .lb th{padding:7px 10px;text-align:left;font-size:12px;font-weight:800;color:var(--muted);border-bottom:2px solid var(--line)}
+.lb-card .lb td{padding:8px 10px;border-bottom:1px solid var(--line)}
+.lb-card .lb tbody tr:last-child td{border-bottom:none}
+.lb-card .lb-title{display:none}
 </style>
 <script>
 (function(){
@@ -7048,16 +7063,22 @@ renderHome(true);
     if(r.status===401){ setSignedOut(); return false; }
     signedIn=true; renderAuthSlot();
     await reconcile();
-    loadLeaderboard();
+    // leaderboard is now lazy — fetched when the modal opens, not on load
     return true;
   }
 
-  function setSignedOut(){ signedIn=false; renderAuthSlot(); renderLeaderboardSignedOut(); }
+  function setSignedOut(){ signedIn=false; renderAuthSlot(); }
 
   function renderAuthSlot(){
     const el=document.getElementById('authSlot'); if(!el) return;
-    if(signedIn){ el.innerHTML='<button id="signOutBtn" class="btn">Sign out</button>'; const b=document.getElementById('signOutBtn'); if(b) b.onclick=signOut; }
-    else{ el.innerHTML='<button id="signInBtn" class="btn blue">Sign in</button>'; const b=document.getElementById('signInBtn'); if(b) b.onclick=signIn; }
+    if(signedIn){
+      el.innerHTML='<button id="lbBtn" class="btn" title="Leaderboard">🏆</button> <button id="signOutBtn" class="btn">Sign out</button>';
+      const lb=document.getElementById('lbBtn'); if(lb) lb.onclick=openLeaderboard;
+      const so=document.getElementById('signOutBtn'); if(so) so.onclick=signOut;
+    } else {
+      el.innerHTML='<button id="signInBtn" class="btn blue">Sign in</button>';
+      const b=document.getElementById('signInBtn'); if(b) b.onclick=signIn;
+    }
   }
 
   function signIn(){ location.href = AUTH_BASE+'/index.html?redirect='+encodeURIComponent(location.href); }
@@ -7073,17 +7094,45 @@ renderHome(true);
 
   let _lastLb = undefined; // undefined = never fetched; null/object = fetched payload
 
+  // --- Modal (mounted once, outside renderHome) ---
+  function ensureModal(){
+    if(document.getElementById('lbModal')) return;
+    const m=document.createElement('div');
+    m.id='lbModal';
+    m.innerHTML=
+      '<div class="lb-card">'
+      +'<div class="lb-card-header"><h2>🏆 Leaderboard</h2><button id="lbClose" title="Close">×</button></div>'
+      +'<div id="lbContent"></div>'
+      +'</div>';
+    document.body.appendChild(m);
+    document.getElementById('lbClose').onclick=closeLeaderboard;
+    m.addEventListener('click',function(e){ if(e.target===m) closeLeaderboard(); });
+  }
+
+  function openLeaderboard(){
+    ensureModal();
+    const m=document.getElementById('lbModal'); if(!m) return;
+    m.classList.add('open');
+    if(_lastLb !== undefined) renderLeaderboard(_lastLb); // instant from cache
+    loadLeaderboard(); // always refresh
+  }
+
+  function closeLeaderboard(){
+    const m=document.getElementById('lbModal'); if(m) m.classList.remove('open');
+  }
+
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeLeaderboard(); });
+
   function loadLeaderboard(){
     api('/api/leaderboard',{method:'GET'}).then(r=> r.ok? r.json(): null).then(renderLeaderboard).catch(()=>renderLeaderboardUnavailable());
   }
-  function lbEl(){ return document.getElementById('lbPanel'); }
-  function renderLeaderboardSignedOut(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Sign in to see the leaderboard.</div>'; }
+  function lbEl(){ return document.getElementById('lbContent'); }
   function renderLeaderboardUnavailable(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Leaderboard unavailable.</div>'; }
   function renderLeaderboard(data){
     _lastLb = data;
     const el=lbEl(); if(!el) return; if(!data){ renderLeaderboardUnavailable(); return; }
     const mine = data.currentUser;
-    let h='<div class="lb-title">🏆 Leaderboard</div><table class="lb"><thead><tr><th>#</th><th>Player</th><th>XP</th><th>Done</th><th>🔥</th></tr></thead><tbody>';
+    let h='<table class="lb"><thead><tr><th>#</th><th>Player</th><th>XP</th><th>Done</th><th>🔥</th></tr></thead><tbody>';
     for(const row of data.top){
       const isMe = mine && row.username===mine.username && row.rank===mine.rank;
       h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+(Number(row.rank)||0)+'</td><td>'+esc(row.username)+'</td><td>'+(Number(row.xp)||0)+'</td><td>'+(Number(row.items_done)||0)+'</td><td>'+(Number(row.streak)||0)+'</td></tr>';
@@ -7098,17 +7147,11 @@ renderHome(true);
   if(typeof _origRenderHome === 'function'){
     window.renderHome = function(){
       _origRenderHome.apply(this, arguments);
-      renderAuthSlot();                        // re-fill #authSlot every render
-      if(signedIn){
-        if(_lastLb !== undefined) renderLeaderboard(_lastLb); // instant from cache
-        else loadLeaderboard();
-      } else {
-        renderLeaderboardSignedOut();
-      }
+      renderAuthSlot(); // re-stamp #authSlot (incl. 🏆 button) after each render
     };
   }
 
-  window.addEventListener('DOMContentLoaded', ()=>{ renderAuthSlot(); checkAuth(); });
+  window.addEventListener('DOMContentLoaded', ()=>{ ensureModal(); renderAuthSlot(); checkAuth(); });
 })();
 </script>
 </body>
