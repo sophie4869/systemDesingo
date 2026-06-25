@@ -7172,16 +7172,17 @@ renderHome(true);
   function renderLeaderboardUnavailable(){ const el=lbEl(); if(el) el.innerHTML='<div class="lb-msg">Leaderboard unavailable.</div>'; }
   function renderLeaderboard(data){
     _lastLb = data;
-    const el=lbEl(); if(!el) return; if(!data){ renderLeaderboardUnavailable(); return; }
-    const mine = data.currentUser;
+    const el=lbEl(); if(!el) return; if(!data || !data.top){ renderLeaderboardUnavailable(); return; }
+    const top = data.top;
+    // Per-user standing is derived from the (cached) top list — no per-user query.
+    const mine = top.find(r=>r.username===currentUsername) || null;
     let h='<table class="lb"><thead><tr><th>#</th><th>Player</th><th>XP</th><th>Done</th><th>🔥</th></tr></thead><tbody>';
-    for(const row of data.top){
-      const isMe = mine && row.username===mine.username && row.rank===mine.rank;
+    for(const row of top){
+      const isMe = !!currentUsername && row.username===currentUsername;
       h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+(Number(row.rank)||0)+'</td><td>'+esc(row.username)+'</td><td>'+(Number(row.xp)||0)+'</td><td>'+(Number(row.items_done)||0)+'</td><td>'+(Number(row.streak)||0)+'</td></tr>';
     }
     h+='</tbody></table>';
-    if(mine && !data.top.some(r=>r.rank===mine.rank)){ h+='<div class="lb-you">You — #'+(Number(mine.rank)||0)+' · '+(Number(mine.xp)||0)+' XP</div>'; }
-    else if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
+    if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
     el.innerHTML=h;
   }
 
