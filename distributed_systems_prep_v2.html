@@ -7253,8 +7253,11 @@ if(location.protocol==='https:' && /(^|\.)sophiebi\.com$/.test(location.hostname
   bmc.setAttribute('data-y_margin','18');
   // The BMC widget initialises on DOMContentLoaded, which has already fired by
   // the time this async script loads — so re-dispatch it once ready, else the
-  // button never renders.
-  bmc.onload=function(){ var evt=document.createEvent('Event'); evt.initEvent('DOMContentLoaded',false,false); window.dispatchEvent(evt); };
+  // button never renders. Dispatch on `document` WITHOUT bubbling so only
+  // document-level listeners (the widget) fire — NOT the app's own
+  // window-level DOMContentLoaded handler, which would re-run init and jump
+  // the scroll to top.
+  bmc.onload=function(){ document.dispatchEvent(new Event('DOMContentLoaded')); };
   document.body.appendChild(bmc);
 }
 </script>
