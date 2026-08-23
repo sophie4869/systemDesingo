@@ -6197,7 +6197,7 @@ function startLesson(id){
   const {u,l}=lessonById(id);
   const isMock=(u.id==='mock');
   const stageTime=300; // mock designs: a generous ~5 min budget per "explain it" stage, reset at each stage
-  const t=isMock?stageTime:Math.max(60,l.steps.reduce((a,s)=>a+stepBudget(s,25),0)); // non-mock: ~25s/question, but multi-item sort/match/order steps get time per item
+  const t=isMock?stageTime:Math.max(90,l.steps.reduce((a,s)=>a+stepBudget(s,40),0)); // non-mock: ~40s/question, but multi-item sort/match/order steps get time per item
   R={mode:'lesson',unit:u,lesson:l,steps:l.steps,idx:0,frontier:0,hearts:HEARTS,combo:0,maxCombo:0,xp:0,correct:0,graded:0,mistakes:0,time:t,timeLeft:t,isMock:isMock,stageTime:stageTime,_stageIdx:-1};
   renderStep(); // renderStep starts/pauses the timer per step
 }
@@ -7117,7 +7117,12 @@ renderHome(true);
   async function checkAuth(){
     let data=null;
     try{
-      const r=await fetch(AUTH_BASE+'/api/check-auth',{credentials:'include',headers: authHeaders()});
+      let r=await fetch(AUTH_BASE+'/api/check-auth',{credentials:'include',headers: authHeaders()});
+      // A stale/invalid local access token (e.g. left over after a JWT-secret
+      // rotation) poisons the Bearer path — the server rejects it as 'invalid'
+      // and never falls back to the still-valid cookie session. On 401, drop the
+      // local token and retry cookie-only so the cookie session is picked up.
+      if(r.status===401 && getAT()){ clearTokens(); r=await fetch(AUTH_BASE+'/api/check-auth',{credentials:'include',headers:{'content-type':'application/json'}}); }
       data=await r.json().catch(()=>null);
     }catch(e){ data=null; }
     if(!data || !data.authenticated){ setSignedOut(); return false; }
@@ -7140,7 +7145,8 @@ renderHome(true);
       const lb=document.getElementById('lbBtn'); if(lb) lb.onclick=openLeaderboard;
       const so=document.getElementById('signOutBtn'); if(so) so.onclick=signOut;
     } else {
-      el.innerHTML='<button id="signInBtn" class="btn blue">Sign in</button>';
+      el.innerHTML='<button id="lbBtn" class="btn" title="Leaderboard">🏆</button> <button id="signInBtn" class="btn blue">Sign in</button>';
+      const lb=document.getElementById('lbBtn'); if(lb) lb.onclick=openLeaderboard;
       const b=document.getElementById('signInBtn'); if(b) b.onclick=signIn;
     }
   }
@@ -7207,7 +7213,8 @@ renderHome(true);
       h+='<tr class="'+(isMe?'lb-me':'')+'"><td>'+(Number(row.rank)||0)+'</td><td>'+esc(row.username)+'</td><td>'+(Number(row.xp)||0)+'</td><td>'+(Number(row.items_done)||0)+'</td><td>'+(Number(row.streak)||0)+'</td></tr>';
     }
     h+='</tbody></table>';
-    if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
+    if(!signedIn){ h+='<div class="lb-msg">Sign in to appear on the board.</div>'; }
+    else if(!mine){ h+='<div class="lb-msg">Complete a quiz to join the board.</div>'; }
     el.innerHTML=h;
   }
 

@@ -16,11 +16,13 @@ function makeMockRes() {
   };
 }
 
-test('GET /api/leaderboard unauthenticated → 401 with sign-in message', async () => {
+test('GET /api/leaderboard unauthenticated is public (no 401 auth gate)', async () => {
   const res = makeMockRes();
   await leaderboardHandler({ method: 'GET', headers: {} }, res);
-  assert.equal(res.status, 401);
-  assert.match(res.payload, /sign in/i);
+  // The top-100 board is public — an unauthenticated GET must NOT be rejected
+  // as unauthorized. (Without a DB in unit tests the query path yields 503; the
+  // point of this guard is only that the request is no longer auth-gated.)
+  assert.notEqual(res.status, 401);
 });
 
 test('POST /api/leaderboard unauthenticated → 405 (method check before auth)', async () => {
