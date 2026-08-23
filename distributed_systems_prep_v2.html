@@ -7008,12 +7008,11 @@ renderHome(true);
 </script>
 <button id="toTop" aria-label="Scroll to top" title="Back to top">↑</button>
 <style>
-/* BMC floating button hidden — we trigger its popup from the nav ☕ instead.
-   Keep its real size/position (BMC anchors the popup to it and its own click
-   handler depends on it); just make it invisible and non-interactive to real
-   pointers. Our nav button fires .click() on it programmatically, which still
-   works through pointer-events:none. */
-#bmc-wbtn{opacity:0!important;pointer-events:none!important}
+/* Custom coffee popover, anchored under the nav ☕ button. */
+#coffeePop{position:fixed;z-index:9998;width:220px;background:var(--bg);border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;padding:12px 13px;box-shadow:0 10px 28px rgba(0,0,0,.20)}
+#coffeePop .cpop-msg{font-size:13px;font-weight:700;color:var(--ink);line-height:1.4;margin-bottom:10px}
+#coffeePop .cpop-btn{display:block;text-align:center;background:var(--purple);color:#fff;font-weight:800;font-size:13px;padding:8px 10px;border-radius:10px;text-decoration:none;border-bottom:3px solid var(--purple-d)}
+#coffeePop .cpop-btn:active{border-bottom-width:1px;transform:translateY(2px)}
 #toTop{position:fixed;bottom:80px;right:18px;z-index:40;width:46px;height:46px;border-radius:50%;border:2px solid var(--blue-d);border-bottom-width:4px;background:var(--blue);color:#fff;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s}
 #toTop.show{opacity:1;visibility:visible;transform:translateY(0)}
 #toTop:active{border-bottom-width:2px;transform:translateY(2px)}
@@ -7147,10 +7146,22 @@ renderHome(true);
   function setSignedOut(){ signedIn=false; currentUsername=''; renderAuthSlot(); }
 
   const COFFEE_BTN='<button id="coffeeBtn" class="btn" title="Buy me a coffee ☕">☕</button>';
-  // Trigger BMC's own popup from our nav button by clicking its (hidden)
-  // floating button — keeps the official show/hide popup without the crowded
-  // bottom-right FAB.
-  function openCoffee(){ var b=document.getElementById('bmc-wbtn'); if(b) b.click(); }
+  // Small custom popover anchored to the nav ☕ button (BMC's hosted widget
+  // can't be repositioned/resized reliably — it anchors unnamed fixed nodes to
+  // the bottom-right). Donation opens buymeacoffee.com/sophiebi in a new tab.
+  function closeCoffeeOutside(e){ const p=document.getElementById('coffeePop'), b=document.getElementById('coffeeBtn'); if(p && e.target!==b && !p.contains(e.target)){ p.remove(); document.removeEventListener('click',closeCoffeeOutside); document.removeEventListener('keydown',closeCoffeeEsc); } }
+  function closeCoffeeEsc(e){ if(e.key==='Escape'){ const p=document.getElementById('coffeePop'); if(p) p.remove(); document.removeEventListener('click',closeCoffeeOutside); document.removeEventListener('keydown',closeCoffeeEsc); } }
+  function openCoffee(){
+    const existing=document.getElementById('coffeePop'); if(existing){ existing.remove(); document.removeEventListener('click',closeCoffeeOutside); document.removeEventListener('keydown',closeCoffeeEsc); return; }
+    const btn=document.getElementById('coffeeBtn'); if(!btn) return;
+    const p=document.createElement('div'); p.id='coffeePop';
+    p.innerHTML='<div class="cpop-msg">Enjoying the drills? A coffee keeps them coming ☕</div><a class="cpop-btn" href="https://buymeacoffee.com/sophiebi" target="_blank" rel="noopener">Buy me a coffee</a>';
+    document.body.appendChild(p);
+    const r=btn.getBoundingClientRect();
+    p.style.top=(r.bottom+8)+'px';
+    p.style.right=Math.max(8,(window.innerWidth-r.right))+'px';
+    setTimeout(()=>{ document.addEventListener('click',closeCoffeeOutside); document.addEventListener('keydown',closeCoffeeEsc); },0);
+  }
   function renderAuthSlot(){
     const el=document.getElementById('authSlot'); if(!el) return;
     if(!IS_DEPLOYED){
@@ -7253,10 +7264,5 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
-<!-- Buy Me a Coffee — official floating widget + popup. Static (parser-inserted)
-     tag so it registers its own DOMContentLoaded listener BEFORE the event
-     fires — no dynamic-injection re-dispatch (which re-ran the app's init and
-     jumped the scroll to top). -->
-<script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="sophiebi" data-description="Support systemDesingo — buy me a coffee ☕" data-message="Enjoying the drills? A coffee keeps them coming ☕" data-color="#7c5cff" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
 </body>
 </html>
