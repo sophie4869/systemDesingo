@@ -7251,6 +7251,10 @@ if(location.protocol==='https:' && /(^|\.)sophiebi\.com$/.test(location.hostname
   bmc.setAttribute('data-position','Right');
   bmc.setAttribute('data-x_margin','18');
   bmc.setAttribute('data-y_margin','18');
+  // The BMC widget initialises on DOMContentLoaded, which has already fired by
+  // the time this async script loads — so re-dispatch it once ready, else the
+  // button never renders.
+  bmc.onload=function(){ var evt=document.createEvent('Event'); evt.initEvent('DOMContentLoaded',false,false); window.dispatchEvent(evt); };
   document.body.appendChild(bmc);
 }
 </script>
