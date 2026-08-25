@@ -7013,6 +7013,8 @@ renderHome(true);
 #coffeePop .cpop-msg{font-size:13px;font-weight:700;color:var(--ink);line-height:1.4;margin-bottom:10px}
 #coffeePop .cpop-btn{display:block;text-align:center;background:var(--purple);color:#fff;font-weight:800;font-size:13px;padding:8px 10px;border-radius:10px;text-decoration:none;border-bottom:3px solid var(--purple-d)}
 #coffeePop .cpop-btn:active{border-bottom-width:1px;transform:translateY(2px)}
+#coffeePop .cpop-btn+.cpop-btn{margin-top:8px}
+#coffeePop .cpop-btn-pp{background:#0070ba;border-bottom-color:#005a94}
 #toTop{position:fixed;bottom:80px;right:18px;z-index:40;width:46px;height:46px;border-radius:50%;border:2px solid var(--blue-d);border-bottom-width:4px;background:var(--blue);color:#fff;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s}
 #toTop.show{opacity:1;visibility:visible;transform:translateY(0)}
 #toTop:active{border-bottom-width:2px;transform:translateY(2px)}
@@ -7155,7 +7157,9 @@ renderHome(true);
     const existing=document.getElementById('coffeePop'); if(existing){ existing.remove(); document.removeEventListener('click',closeCoffeeOutside); document.removeEventListener('keydown',closeCoffeeEsc); return; }
     const btn=document.getElementById('coffeeBtn'); if(!btn) return;
     const p=document.createElement('div'); p.id='coffeePop';
-    p.innerHTML='<div class="cpop-msg">Enjoying the drills? A coffee keeps them coming ☕</div><a class="cpop-btn" href="https://buymeacoffee.com/sophiebi" target="_blank" rel="noopener">Buy me a coffee</a>';
+    p.innerHTML='<div class="cpop-msg">Enjoying the drills? A coffee keeps them coming ☕</div>'
+      +'<a class="cpop-btn" href="https://buymeacoffee.com/sophiebi" target="_blank" rel="noopener">☕ Buy me a coffee</a>'
+      +'<a class="cpop-btn cpop-btn-pp" href="https://paypal.me/sophi3bi" target="_blank" rel="noopener">Pay with PayPal</a>';
     document.body.appendChild(p);
     const r=btn.getBoundingClientRect();
     p.style.top=(r.bottom+8)+'px';
