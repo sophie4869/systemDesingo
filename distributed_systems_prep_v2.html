@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>systemDesingo — Distributed Systems</title>
-<meta name="description" content="Master distributed systems for your interview — one quick quest at a time.">
+<meta name="description" content="Master system design for your interview — one quick quest at a time.">
 <!-- PWA -->
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#FFFFFF">
@@ -411,7 +411,7 @@ button{font-family:inherit;font-weight:800;cursor:pointer;border:none;background
 
 <script>
 /* =========================================================================
-   SysQuest — gamified distributed-systems interview prep
+   SysQuest — gamified system design interview prep
    ========================================================================= */
 
 /* ---------------- persistence ---------------- */
@@ -6064,7 +6064,7 @@ function renderHome(scrollToNext){
   UNITS.forEach((u,ui)=>{const bd=S.done['boss-'+u.id];const open=unitUnlocked(ui);
     h+='<button class="jchip'+(bd?' done':'')+(open?'':' lk')+'"'+(u.id===curUnit?' id="jump-current"':'')+' data-jump="unit-'+u.id+'" style="--c:'+u.color+'" title="'+u.title+'"><span class="ji">'+u.icon+'</span>'+(SHORT[u.id]||u.title)+'</button>';});
   h+='</div></div>';
-  h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master distributed systems for your interview — one quick quest at a time.</p></div>';
+  h+='<div class="hero"><h1>systemDesingo 🦉</h1><p>Master system design for your interview — one quick quest at a time.</p></div>';
   h+='<div class="actions toolrow">'
     +'<button class="act toolbtn" id="toolJudge">🎤 LLM mock judge</button>'
     +'<button class="act toolbtn" id="toolSchema">🧱 LLM schema/API drills</button>'

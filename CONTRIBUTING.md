@@ -1,6 +1,6 @@
 # Contributing to systemDesingo
 
-Thanks for wanting to help make this a better way to prep for distributed-systems
+Thanks for wanting to help make this a better way to prep for system design
 interviews! Contributions are welcome — with a light review so the bar stays high.
 
 ## The easiest way to help: open an Issue
