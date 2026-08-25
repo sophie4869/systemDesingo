@@ -7259,7 +7259,18 @@ renderHome(true);
     };
   }
 
-  window.addEventListener('DOMContentLoaded', ()=>{ ensureModal(); renderAuthSlot(); if(IS_DEPLOYED) checkAuth(); });
+  // Gently auto-open the coffee popover: on the very first visit, then only
+  // again after a long quiet gap — never every load.
+  const COFFEE_NAG_MS = 14*24*60*60*1000; // 14 days
+  function maybeAutoShowCoffee(){
+    if(!IS_DEPLOYED) return;
+    let last=0; try{ last=parseInt(localStorage.getItem('sd_coffeePromoAt')||'0',10)||0; }catch(e){}
+    if(last && (Date.now()-last) < COFFEE_NAG_MS) return; // shown recently → skip
+    if(!document.getElementById('coffeeBtn') || document.getElementById('coffeePop')) return;
+    openCoffee();
+    try{ localStorage.setItem('sd_coffeePromoAt', String(Date.now())); }catch(e){}
+  }
+  window.addEventListener('DOMContentLoaded', ()=>{ ensureModal(); renderAuthSlot(); if(IS_DEPLOYED) checkAuth(); setTimeout(maybeAutoShowCoffee, 1400); });
 })();
 </script>
 <script>
