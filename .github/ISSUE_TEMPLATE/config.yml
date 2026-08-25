@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🚀 Try the app
+    url: https://systemdesign.sophiebi.com
+    about: Practice distributed-systems interview drills live.
+  - name: ☕ Support the project
+    url: https://buymeacoffee.com/sophiebi
+    about: Curating this material takes time — a coffee keeps it going.

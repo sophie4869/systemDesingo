@@ -1,0 +1,33 @@
+name: "🐛 Report a wrong answer"
+description: Flag an incorrect answer or a misleading explanation
+title: "[Fix] "
+labels: ["content", "correctness"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: The exact question
+      description: Copy the question text exactly so it can be located in the app.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong
+      description: What is incorrect or misleading — the marked answer, an option, or the explanation?
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction
+      description: What should it say instead? Include a rationale if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source (optional)
+      description: A reference supporting the correction, if you have one.
+    validations:
+      required: false

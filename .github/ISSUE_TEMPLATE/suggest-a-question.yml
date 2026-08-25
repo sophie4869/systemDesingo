@@ -1,0 +1,42 @@
+name: "✍️ Suggest a question or drill"
+description: Propose a new question, drill, or concept to add
+title: "[Question] "
+labels: ["content", "suggestion"]
+body:
+  - type: input
+    id: topic
+    attributes:
+      label: Topic / chapter
+      description: Which area does this belong to? (e.g. Consensus, Partitioning, Caching)
+      placeholder: e.g. Replication & Quorums
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: The question or drill prompt.
+      placeholder: e.g. "Why does a read quorum + write quorum overlap guarantee..."
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: Answer
+      description: The correct answer (and options, if it's multiple-choice).
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (rationale)
+      description: A one- or two-line explanation of why the answer is correct — this is what makes a drill teach.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source (optional)
+      description: A link or reference backing this up, if you have one.
+    validations:
+      required: false

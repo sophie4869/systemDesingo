@@ -7017,6 +7017,8 @@ renderHome(true);
 #coffeePop .cpop-btn:active{border-bottom-width:1px;transform:translateY(2px)}
 #coffeePop .cpop-btn+.cpop-btn{margin-top:8px}
 #coffeePop .cpop-btn-pp{background:#0070ba;border-bottom-color:#005a94}
+#coffeePop .cpop-gh{display:block;text-align:center;margin-top:10px;font-size:11px;font-weight:700;color:var(--faint);text-decoration:none}
+#coffeePop .cpop-gh:hover{text-decoration:underline}
 #toTop{position:fixed;bottom:80px;right:18px;z-index:40;width:46px;height:46px;border-radius:50%;border:2px solid var(--blue-d);border-bottom-width:4px;background:var(--blue);color:#fff;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s}
 #toTop.show{opacity:1;visibility:visible;transform:translateY(0)}
 #toTop:active{border-bottom-width:2px;transform:translateY(2px)}
@@ -7161,7 +7163,8 @@ renderHome(true);
     const p=document.createElement('div'); p.id='coffeePop';
     p.innerHTML='<div class="cpop-msg">Enjoying the drills? A coffee keeps them coming ☕</div>'
       +'<a class="cpop-btn" href="https://buymeacoffee.com/sophiebi" target="_blank" rel="noopener">☕ Buy me a coffee</a>'
-      +'<a class="cpop-btn cpop-btn-pp" href="https://paypal.me/sophi3bi" target="_blank" rel="noopener">Support with PayPal</a>';
+      +'<a class="cpop-btn cpop-btn-pp" href="https://paypal.me/sophi3bi" target="_blank" rel="noopener">Support with PayPal</a>'
+      +'<a class="cpop-gh" href="https://github.com/sophie4869/systemDesingo" target="_blank" rel="noopener">⭐ Star or suggest a question on GitHub</a>';
     document.body.appendChild(p);
     const r=btn.getBoundingClientRect();
     p.style.top=(r.bottom+8)+'px';
